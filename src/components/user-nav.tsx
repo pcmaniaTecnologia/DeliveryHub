@@ -43,10 +43,10 @@ export function UserNav() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuItem>
-            Perfil
+          <DropdownMenuItem asChild>
+            <Link href="/dashboard/settings">Perfil</Link>
           </DropdownMenuItem>
-          <DropdownMenuItem>
+          <DropdownMenuItem disabled>
             Faturamento
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
