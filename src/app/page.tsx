@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Package2 } from 'lucide-react';
-import { useUser } from '@/firebase';
+import { useUser, useAuth, initiateEmailSignIn } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -15,16 +15,47 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useToast } from '@/hooks/use-toast';
 
 export default function LoginPage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
+  const auth = useAuth();
+  const { toast } = useToast();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     if (!isUserLoading && user) {
       router.push('/dashboard');
     }
   }, [user, isUserLoading, router]);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro de login',
+        description: 'Por favor, preencha o e-mail e a senha.',
+      });
+      return;
+    }
+    setIsLoading(true);
+    try {
+      initiateEmailSignIn(auth, email, password);
+    } catch (error: any) {
+      console.error('Falha no login:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro de login',
+        description: error.message || 'Ocorreu um erro ao tentar fazer login.',
+      });
+      setIsLoading(false);
+    }
+    // O estado de loading será controlado pelo `onAuthStateChanged` e `isUserLoading`
+  };
 
   if (isUserLoading || user) {
     return (
@@ -45,35 +76,47 @@ export default function LoginPage() {
           <CardDescription>Digite seu e-mail abaixo para fazer login em sua conta</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="m@exemplo.com"
-                required
-              />
-            </div>
-            <div className="grid gap-2">
-              <div className="flex items-center">
-                <Label htmlFor="password">Senha</Label>
-                <Link
-                  href="#"
-                  className="ml-auto inline-block text-sm underline"
-                >
-                  Esqueceu sua senha?
-                </Link>
+          <form onSubmit={handleLogin}>
+            <div className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="m@exemplo.com"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={isLoading}
+                />
               </div>
-              <Input id="password" type="password" required />
+              <div className="grid gap-2">
+                <div className="flex items-center">
+                  <Label htmlFor="password">Senha</Label>
+                  <Link
+                    href="#"
+                    className="ml-auto inline-block text-sm underline"
+                  >
+                    Esqueceu sua senha?
+                  </Link>
+                </div>
+                <Input 
+                  id="password" 
+                  type="password" 
+                  required 
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={isLoading}
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? 'Entrando...' : 'Entrar'}
+              </Button>
             </div>
-            <Button type="submit" className="w-full">
-              Entrar
-            </Button>
-          </div>
+          </form>
           <div className="mt-4 text-center text-sm">
             Não tem uma conta?{' '}
-            <Link href="#" className="underline">
+            <Link href="/signup" className="underline">
               Inscreva-se
             </Link>
           </div>
