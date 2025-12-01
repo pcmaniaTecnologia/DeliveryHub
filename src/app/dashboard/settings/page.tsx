@@ -44,6 +44,22 @@ type PaymentMethods = {
   cashAskForChange: boolean;
 };
 
+type DayHours = {
+  isOpen: boolean;
+  openTime: string;
+  closeTime: string;
+};
+
+type BusinessHours = {
+  monday: DayHours;
+  tuesday: DayHours;
+  wednesday: DayHours;
+  thursday: DayHours;
+  friday: DayHours;
+  saturday: DayHours;
+  sunday: DayHours;
+};
+
 
 export default function SettingsPage() {
   const firestore = useFirestore();
@@ -68,6 +84,15 @@ export default function SettingsPage() {
     debit: false,
     cashAskForChange: false,
   });
+  const [businessHours, setBusinessHours] = useState<BusinessHours>({
+    monday: { isOpen: true, openTime: '09:00', closeTime: '18:00' },
+    tuesday: { isOpen: true, openTime: '09:00', closeTime: '18:00' },
+    wednesday: { isOpen: true, openTime: '09:00', closeTime: '18:00' },
+    thursday: { isOpen: true, openTime: '09:00', closeTime: '18:00' },
+    friday: { isOpen: true, openTime: '09:00', closeTime: '18:00' },
+    saturday: { isOpen: false, openTime: '', closeTime: '' },
+    sunday: { isOpen: false, openTime: '', closeTime: '' },
+  });
 
   useEffect(() => {
     if (companyData) {
@@ -84,6 +109,14 @@ export default function SettingsPage() {
       }
       if (companyData.paymentMethods) {
         setPaymentMethods(companyData.paymentMethods);
+      }
+       if (companyData.businessHours) {
+        try {
+          const hours = JSON.parse(companyData.businessHours);
+          setBusinessHours(hours);
+        } catch (e) {
+          console.error("Error parsing business hours", e);
+        }
       }
     }
   }, [companyData]);
@@ -127,8 +160,39 @@ export default function SettingsPage() {
       description: 'Métodos de pagamento salvos.',
     });
   };
+  
+    const handleHoursChange = (day: keyof BusinessHours, field: keyof DayHours, value: string | boolean) => {
+    setBusinessHours(prev => ({
+      ...prev,
+      [day]: {
+        ...prev[day],
+        [field]: value,
+      }
+    }));
+  };
+
+  const handleSaveHours = () => {
+    if (!companyRef) return;
+    const businessHoursString = JSON.stringify(businessHours);
+    setDocumentNonBlocking(companyRef, { businessHours: businessHoursString }, { merge: true });
+    toast({
+      title: 'Sucesso!',
+      description: 'Horários de funcionamento salvos.',
+    });
+  };
+
 
   const isLoading = isUserLoadingAuth || isLoadingCompany;
+
+  const weekDays: { key: keyof BusinessHours; label: string }[] = [
+    { key: 'sunday', label: 'Domingo' },
+    { key: 'monday', label: 'Segunda-feira' },
+    { key: 'tuesday', label: 'Terça-feira' },
+    { key: 'wednesday', label: 'Quarta-feira' },
+    { key: 'thursday', label: 'Quinta-feira' },
+    { key: 'friday', label: 'Sexta-feira' },
+    { key: 'saturday', label: 'Sábado' },
+  ];
 
   return (
     <div className="space-y-6">
@@ -190,6 +254,54 @@ export default function SettingsPage() {
             </CardFooter>
           </Card>
         </TabsContent>
+
+        <TabsContent value="hours">
+          <Card>
+            <CardHeader>
+              <CardTitle>Horário de Funcionamento</CardTitle>
+              <CardDescription>
+                Defina os dias e horários que sua loja estará aberta.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {weekDays.map(({ key, label }) => (
+                <div key={key} className="flex items-center justify-between rounded-lg border p-4">
+                  <div className="flex items-center gap-4">
+                    <Switch
+                      checked={businessHours[key].isOpen}
+                      onCheckedChange={(checked) => handleHoursChange(key, 'isOpen', checked)}
+                      id={`switch-${key}`}
+                    />
+                    <Label htmlFor={`switch-${key}`} className="w-24">{label}</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="time"
+                      value={businessHours[key].openTime}
+                      onChange={(e) => handleHoursChange(key, 'openTime', e.target.value)}
+                      disabled={!businessHours[key].isOpen || isLoading}
+                      className="w-32"
+                    />
+                    <span>às</span>
+                    <Input
+                      type="time"
+                      value={businessHours[key].closeTime}
+                      onChange={(e) => handleHoursChange(key, 'closeTime', e.target.value)}
+                      disabled={!businessHours[key].isOpen || isLoading}
+                      className="w-32"
+                    />
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+            <CardFooter>
+              <Button onClick={handleSaveHours} disabled={isLoading}>
+                {isLoading ? 'Carregando...' : 'Salvar Horários'}
+              </Button>
+            </CardFooter>
+          </Card>
+        </TabsContent>
+
 
         <TabsContent value="delivery">
           <Card>
