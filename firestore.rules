@@ -139,8 +139,7 @@ service cloud.firestore {
       // Also allow existing company admins or super admins to create users.
       allow create: if (
         (isOwner(userId) && companyId == userId && request.resource.data.role == 'admin') || 
-        isCompanyAdmin(companyId) || 
-        isSuperAdmin()
+        (isCompanyAdmin(companyId) || isSuperAdmin())
       ) && request.resource.data.companyId == companyId && request.resource.data.id == userId;
       allow update: if resource != null && (isCompanyAdmin(companyId) || isSuperAdmin() || (isOwner(userId) && request.resource.data.role == resource.data.role));
       allow delete: if (isCompanyAdmin(companyId) || isSuperAdmin()) && resource != null;
