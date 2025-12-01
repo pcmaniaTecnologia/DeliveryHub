@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { MoreHorizontal, PlusCircle } from 'lucide-react';
 import { useForm } from 'react-hook-form';
@@ -52,11 +52,10 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { PlaceHolderImages, type ImagePlaceholder } from '@/lib/placeholder-images';
-import { useUser, useFirestore, useCollection, useMemoFirebase, addDocument, deleteDocument } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase, addDocument, deleteDocument, setDocument, updateDocument } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -81,6 +80,7 @@ type Product = {
     stock: number;
     imageUrls: string[];
     companyId: string;
+    imageUrl?: string;
 }
 
 const productFormSchema = z.object({
@@ -97,6 +97,7 @@ export default function ProductsPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   
   const form = useForm<z.infer<typeof productFormSchema>>({
     resolver: zodResolver(productFormSchema),
@@ -109,6 +110,28 @@ export default function ProductsPage() {
       isActive: true,
     },
   });
+
+  useEffect(() => {
+    if (editingProduct) {
+      form.reset({
+        name: editingProduct.name,
+        description: editingProduct.description,
+        price: editingProduct.price,
+        category: editingProduct.category,
+        isActive: editingProduct.isActive,
+        imageUrl: editingProduct.imageUrl || editingProduct.imageUrls?.[0] || '',
+      });
+    } else {
+      form.reset({
+        name: '',
+        description: '',
+        price: 0,
+        category: '',
+        imageUrl: '',
+        isActive: true,
+      });
+    }
+  }, [editingProduct, form, isDialogOpen]);
   
   const productsRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -118,34 +141,54 @@ export default function ProductsPage() {
   const { data: products, isLoading: isLoadingProducts } = useCollection<Product>(productsRef);
 
   const onSubmit = async (values: z.infer<typeof productFormSchema>) => {
-    if (!productsRef || !user) return;
+    if (!user) return;
 
-    const newProduct = {
+    const productData = {
       name: values.name,
-      description: values.description,
+      description: values.description || '',
       price: values.price,
       category: values.category,
       isActive: values.isActive,
-      stock: 0, // Default stock
       imageUrls: values.imageUrl ? [values.imageUrl] : [],
+      imageUrl: values.imageUrl || '',
       companyId: user.uid,
     };
     
     try {
-      await addDocument(productsRef, newProduct);
-      
-      toast({
-        title: 'Produto Adicionado!',
-        description: `${values.name} foi adicionado ao seu catálogo.`,
-      });
+      if (editingProduct) {
+        // Update existing product
+        const productDocRef = doc(firestore, `companies/${user.uid}/products/${editingProduct.id}`);
+        await updateDocument(productDocRef, productData);
+        toast({
+          title: 'Produto Atualizado!',
+          description: `${values.name} foi atualizado com sucesso.`,
+        });
+      } else {
+        // Add new product
+         if (!productsRef) return;
+        await addDocument(productsRef, { ...productData, stock: 0 }); // Add stock for new products
+        toast({
+          title: 'Produto Adicionado!',
+          description: `${values.name} foi adicionado ao seu catálogo.`,
+        });
+      }
       
       form.reset();
       setIsDialogOpen(false);
+      setEditingProduct(null);
     } catch (error) {
-       console.error("Failed to add product:", error);
-       // The permission error will be thrown by the global listener,
-       // but you could add a specific toast here if needed.
+       console.error("Failed to save product:", error);
+       toast({
+          variant: 'destructive',
+          title: 'Erro ao salvar',
+          description: 'Não foi possível salvar o produto. Verifique suas permissões.',
+       });
     }
+  };
+
+  const handleOpenDialog = (product: Product | null = null) => {
+    setEditingProduct(product);
+    setIsDialogOpen(true);
   };
   
   const handleDeleteProduct = async (productId: string) => {
@@ -160,17 +203,22 @@ export default function ProductsPage() {
       });
     } catch (error) {
        console.error("Failed to delete product:", error);
+       toast({
+          variant: 'destructive',
+          title: 'Erro ao excluir',
+          description: 'Não foi possível remover o produto.',
+       });
     }
   }
 
   const isLoading = isUserLoading || isLoadingProducts;
 
-  // Function to find a placeholder image for a product
   const getProductImage = (product: Product, index: number): ImagePlaceholder => {
-    if (product.imageUrls && product.imageUrls.length > 0 && product.imageUrls[0]) {
+    const imageUrl = product.imageUrl || (product.imageUrls && product.imageUrls.length > 0 ? product.imageUrls[0] : '');
+    if (imageUrl) {
       return {
         id: product.id,
-        imageUrl: product.imageUrls[0],
+        imageUrl: imageUrl,
         imageHint: 'product image',
         description: product.name,
       };
@@ -181,12 +229,10 @@ export default function ProductsPage() {
       imageHint: 'food placeholder',
       description: 'Default product image',
     };
-    // Simple logic to cycle through placeholders
     const placeholders = PlaceHolderImages.filter(p => p.id.startsWith('product-'));
     if (placeholders.length === 0) return defaultPlaceholder;
     return placeholders[index % placeholders.length] ?? defaultPlaceholder;
   };
-
 
   return (
     <Card>
@@ -196,114 +242,117 @@ export default function ProductsPage() {
             <CardTitle>Produtos</CardTitle>
             <CardDescription>Gerencie seus produtos, variantes e categorias.</CardDescription>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm" className="gap-1">
-                <PlusCircle className="h-4 w-4" />
-                Adicionar Produto
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-xl">
-              <DialogHeader>
-                <DialogTitle>Adicionar Novo Produto</DialogTitle>
-                <DialogDescription>Preencha os detalhes do seu novo produto.</DialogDescription>
-              </DialogHeader>
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
-                  <FormField
-                    control={form.control}
-                    name="name"
-                    render={({ field }) => (
-                      <FormItem className="grid grid-cols-4 items-center gap-4">
-                        <FormLabel className="text-right">Nome</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Ex: Cheeseburger Duplo" className="col-span-3" {...field} />
-                        </FormControl>
-                        <FormMessage className="col-span-4 pl-[calc(25%+1rem)]" />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="description"
-                    render={({ field }) => (
-                      <FormItem className="grid grid-cols-4 items-center gap-4">
-                        <FormLabel className="text-right">Descrição</FormLabel>
-                        <FormControl>
-                          <Textarea placeholder="Pão, duas carnes, queijo, salada..." className="col-span-3" {...field} />
-                        </FormControl>
-                         <FormMessage className="col-span-4 pl-[calc(25%+1rem)]" />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="price"
-                    render={({ field }) => (
-                      <FormItem className="grid grid-cols-4 items-center gap-4">
-                        <FormLabel className="text-right">Preço (R$)</FormLabel>
-                        <FormControl>
-                           <Input type="number" step="0.01" placeholder="29.90" className="col-span-3" {...field} />
-                        </FormControl>
-                         <FormMessage className="col-span-4 pl-[calc(25%+1rem)]" />
-                      </FormItem>
-                    )}
-                  />
-                   <FormField
-                    control={form.control}
-                    name="category"
-                    render={({ field }) => (
-                      <FormItem className="grid grid-cols-4 items-center gap-4">
-                        <FormLabel className="text-right">Categoria</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Ex: Hambúrgueres" className="col-span-3" {...field} />
-                        </FormControl>
-                         <FormMessage className="col-span-4 pl-[calc(25%+1rem)]" />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="imageUrl"
-                    render={({ field }) => (
-                      <FormItem className="grid grid-cols-4 items-center gap-4">
-                        <FormLabel className="text-right">URL da Imagem</FormLabel>
-                        <FormControl>
-                          <Input placeholder="https://exemplo.com/imagem.png" className="col-span-3" {...field} />
-                        </FormControl>
-                        <FormMessage className="col-span-4 pl-[calc(25%+1rem)]" />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="isActive"
-                    render={({ field }) => (
-                      <FormItem className="grid grid-cols-4 items-center gap-4">
-                        <FormLabel className="text-right">Produto Ativo</FormLabel>
-                         <FormControl>
-                            <Switch
-                                checked={field.value}
-                                onCheckedChange={field.onChange}
-                                className="col-span-3"
-                            />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                  <DialogFooter>
-                    <DialogClose asChild>
-                      <Button type="button" variant="outline">Cancelar</Button>
-                    </DialogClose>
-                    <Button type="submit">Salvar Produto</Button>
-                  </DialogFooter>
-                </form>
-              </Form>
-            </DialogContent>
-          </Dialog>
+           <Button size="sm" className="gap-1" onClick={() => handleOpenDialog()}>
+              <PlusCircle className="h-4 w-4" />
+              Adicionar Produto
+           </Button>
         </div>
       </CardHeader>
       <CardContent>
+        <Dialog open={isDialogOpen} onOpenChange={(isOpen) => {
+          setIsDialogOpen(isOpen);
+          if (!isOpen) setEditingProduct(null);
+        }}>
+          <DialogContent className="sm:max-w-xl">
+            <DialogHeader>
+              <DialogTitle>{editingProduct ? 'Editar Produto' : 'Adicionar Novo Produto'}</DialogTitle>
+              <DialogDescription>
+                {editingProduct ? 'Atualize os detalhes do produto.' : 'Preencha os detalhes do seu novo produto.'}
+              </DialogDescription>
+            </DialogHeader>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem className="grid grid-cols-4 items-center gap-4">
+                      <FormLabel className="text-right">Nome</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Ex: Cheeseburger Duplo" className="col-span-3" {...field} />
+                      </FormControl>
+                      <FormMessage className="col-span-4 pl-[calc(25%+1rem)]" />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem className="grid grid-cols-4 items-center gap-4">
+                      <FormLabel className="text-right">Descrição</FormLabel>
+                      <FormControl>
+                        <Textarea placeholder="Pão, duas carnes, queijo, salada..." className="col-span-3" {...field} />
+                      </FormControl>
+                        <FormMessage className="col-span-4 pl-[calc(25%+1rem)]" />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="price"
+                  render={({ field }) => (
+                    <FormItem className="grid grid-cols-4 items-center gap-4">
+                      <FormLabel className="text-right">Preço (R$)</FormLabel>
+                      <FormControl>
+                          <Input type="number" step="0.01" placeholder="29.90" className="col-span-3" {...field} />
+                      </FormControl>
+                        <FormMessage className="col-span-4 pl-[calc(25%+1rem)]" />
+                    </FormItem>
+                  )}
+                />
+                  <FormField
+                  control={form.control}
+                  name="category"
+                  render={({ field }) => (
+                    <FormItem className="grid grid-cols-4 items-center gap-4">
+                      <FormLabel className="text-right">Categoria</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Ex: Hambúrgueres" className="col-span-3" {...field} />
+                      </FormControl>
+                        <FormMessage className="col-span-4 pl-[calc(25%+1rem)]" />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="imageUrl"
+                  render={({ field }) => (
+                    <FormItem className="grid grid-cols-4 items-center gap-4">
+                      <FormLabel className="text-right">URL da Imagem</FormLabel>
+                      <FormControl>
+                        <Input placeholder="https://exemplo.com/imagem.png" className="col-span-3" {...field} />
+                      </FormControl>
+                      <FormMessage className="col-span-4 pl-[calc(25%+1rem)]" />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="isActive"
+                  render={({ field }) => (
+                    <FormItem className="grid grid-cols-4 items-center gap-4">
+                      <FormLabel className="text-right">Produto Ativo</FormLabel>
+                        <FormControl>
+                          <Switch
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                              className="col-span-3"
+                          />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <DialogFooter>
+                  <DialogClose asChild>
+                    <Button type="button" variant="outline">Cancelar</Button>
+                  </DialogClose>
+                  <Button type="submit">Salvar Produto</Button>
+                </DialogFooter>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
         <Table>
           <TableHeader>
             <TableRow>
@@ -360,14 +409,14 @@ export default function ProductsPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Ações</DropdownMenuLabel>
-                        <DropdownMenuItem>Editar</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleOpenDialog(product)}>Editar</DropdownMenuItem>
                         <DropdownMenuItem>Duplicar</DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                             <Button variant="ghost" className="w-full justify-start text-sm text-destructive font-normal px-2 relative items-center rounded-sm focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 hover:bg-destructive/10">
+                            <div className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 text-destructive hover:bg-destructive/10 w-full">
                                 Excluir
-                             </Button>
+                            </div>
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
@@ -391,6 +440,11 @@ export default function ProductsPage() {
                 </TableRow>
               )
             })}
+             {!isLoading && products?.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center">Nenhum produto encontrado.</TableCell>
+                </TableRow>
+              )}
           </TableBody>
         </Table>
       </CardContent>
@@ -402,3 +456,5 @@ export default function ProductsPage() {
     </Card>
   );
 }
+
+    

@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { MoreHorizontal, PlusCircle } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -52,7 +52,7 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useUser, useFirestore, useCollection, useMemoFirebase, addDocument, deleteDocument } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase, addDocument, deleteDocument, updateDocument } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -76,7 +76,7 @@ type Coupon = {
   value: number;
   validUntilDate?: string;
   usageLimit?: number;
-  usageCount?: number; // To track usage
+  usageCount?: number;
   isActive: boolean;
 };
 
@@ -93,6 +93,7 @@ export default function CouponsPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingCoupon, setEditingCoupon] = useState<Coupon | null>(null);
 
   const form = useForm<z.infer<typeof couponFormSchema>>({
     resolver: zodResolver(couponFormSchema),
@@ -103,6 +104,26 @@ export default function CouponsPage() {
       validUntilDate: '',
     },
   });
+  
+  useEffect(() => {
+    if (editingCoupon) {
+      form.reset({
+        name: editingCoupon.name,
+        type: editingCoupon.type,
+        value: editingCoupon.value,
+        usageLimit: editingCoupon.usageLimit,
+        validUntilDate: editingCoupon.validUntilDate ? format(new Date(editingCoupon.validUntilDate), 'yyyy-MM-dd') : '',
+      });
+    } else {
+      form.reset({
+        name: '',
+        type: 'percentage',
+        value: 0,
+        validUntilDate: '',
+        usageLimit: undefined,
+      });
+    }
+  }, [editingCoupon, form, isDialogOpen]);
 
   const couponsRef = useMemoFirebase(() => {
     if (!firestore || !user?.uid) return null;
@@ -112,26 +133,47 @@ export default function CouponsPage() {
   const { data: coupons, isLoading: isLoadingCoupons } = useCollection<Coupon>(couponsRef);
 
   const onSubmit = async (values: z.infer<typeof couponFormSchema>) => {
-    if (!user || !couponsRef) return;
+    if (!user) return;
 
-    const newCoupon = {
+    const couponData = {
       ...values,
       companyId: user.uid,
-      isActive: true,
-      usageCount: 0,
     };
 
     try {
-      await addDocument(couponsRef, newCoupon);
-      toast({
-        title: 'Cupom Adicionado!',
-        description: `O cupom ${values.name} foi criado com sucesso.`,
-      });
+      if (editingCoupon) {
+        const couponDocRef = doc(firestore, `companies/${user.uid}/coupons/${editingCoupon.id}`);
+        await updateDocument(couponDocRef, {
+            ...couponData,
+            isActive: editingCoupon.isActive,
+            usageCount: editingCoupon.usageCount ?? 0,
+        });
+        toast({
+            title: 'Cupom Atualizado!',
+            description: `O cupom ${values.name} foi atualizado com sucesso.`,
+        });
+      } else {
+        if (!couponsRef) return;
+        await addDocument(couponsRef, {
+            ...couponData,
+            isActive: true,
+            usageCount: 0,
+        });
+        toast({
+            title: 'Cupom Adicionado!',
+            description: `O cupom ${values.name} foi criado com sucesso.`,
+        });
+      }
       form.reset();
       setIsDialogOpen(false);
+      setEditingCoupon(null);
     } catch (error) {
-      console.error("Failed to add coupon:", error);
-      // Firebase permission errors are handled globally
+      console.error("Failed to save coupon:", error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao salvar',
+        description: 'Não foi possível salvar o cupom.',
+      });
     }
   };
 
@@ -153,6 +195,11 @@ export default function CouponsPage() {
         description: 'Não foi possível remover o cupom.',
       });
     }
+  };
+  
+  const handleOpenDialog = (coupon: Coupon | null = null) => {
+    setEditingCoupon(coupon);
+    setIsDialogOpen(true);
   };
 
   const getCouponStatus = (coupon: Coupon): { text: string; variant: 'default' | 'destructive' | 'secondary' } => {
@@ -178,17 +225,23 @@ export default function CouponsPage() {
             <CardTitle>Cupons de Desconto</CardTitle>
             <CardDescription>Crie e gerencie seus cupons promocionais.</CardDescription>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm" className="gap-1">
-                <PlusCircle className="h-4 w-4" />
-                Adicionar Cupom
-              </Button>
-            </DialogTrigger>
+          <Button size="sm" className="gap-1" onClick={() => handleOpenDialog()}>
+            <PlusCircle className="h-4 w-4" />
+            Adicionar Cupom
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+         <Dialog open={isDialogOpen} onOpenChange={(isOpen) => {
+            setIsDialogOpen(isOpen);
+            if (!isOpen) setEditingCoupon(null);
+         }}>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
-                <DialogTitle>Adicionar Novo Cupom</DialogTitle>
-                <DialogDescription>Preencha os detalhes do seu novo cupom.</DialogDescription>
+                <DialogTitle>{editingCoupon ? 'Editar Cupom' : 'Adicionar Novo Cupom'}</DialogTitle>
+                <DialogDescription>
+                  {editingCoupon ? 'Atualize os detalhes do cupom.' : 'Preencha os detalhes do seu novo cupom.'}
+                </DialogDescription>
               </DialogHeader>
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
@@ -275,9 +328,6 @@ export default function CouponsPage() {
               </Form>
             </DialogContent>
           </Dialog>
-        </div>
-      </CardHeader>
-      <CardContent>
         <Table>
           <TableHeader>
             <TableRow>
@@ -318,12 +368,12 @@ export default function CouponsPage() {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuLabel>Ações</DropdownMenuLabel>
-                      <DropdownMenuItem disabled>Editar</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleOpenDialog(coupon)}>Editar</DropdownMenuItem>
                       <DropdownMenuItem disabled>Desativar</DropdownMenuItem>
                        <DropdownMenuSeparator />
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                             <div className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 text-destructive hover:bg-destructive/10">
+                            <div className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 text-destructive hover:bg-destructive/10 w-full">
                                 Excluir
                              </div>
                           </AlertDialogTrigger>
