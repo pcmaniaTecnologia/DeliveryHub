@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -87,6 +88,7 @@ const productFormSchema = z.object({
   description: z.string().optional(),
   price: z.coerce.number().positive({ message: 'O preço deve ser um número positivo.' }),
   category: z.string().min(2, { message: 'A categoria é obrigatória.' }),
+  imageUrl: z.string().url({ message: 'Por favor, insira uma URL válida.' }).optional().or(z.literal('')),
   isActive: z.boolean().default(true),
 });
 
@@ -103,6 +105,7 @@ export default function ProductsPage() {
       description: '',
       price: 0,
       category: '',
+      imageUrl: '',
       isActive: true,
     },
   });
@@ -118,9 +121,13 @@ export default function ProductsPage() {
     if (!productsRef || !user) return;
 
     const newProduct = {
-      ...values,
+      name: values.name,
+      description: values.description,
+      price: values.price,
+      category: values.category,
+      isActive: values.isActive,
       stock: 0, // Default stock
-      imageUrls: [], // Default empty image array
+      imageUrls: values.imageUrl ? [values.imageUrl] : [],
       companyId: user.uid,
     };
     
@@ -159,10 +166,18 @@ export default function ProductsPage() {
   const isLoading = isUserLoading || isLoadingProducts;
 
   // Function to find a placeholder image for a product
-  const getProductImage = (productId: string, index: number): ImagePlaceholder => {
+  const getProductImage = (product: Product, index: number): ImagePlaceholder => {
+    if (product.imageUrls && product.imageUrls.length > 0 && product.imageUrls[0]) {
+      return {
+        id: product.id,
+        imageUrl: product.imageUrls[0],
+        imageHint: 'product image',
+        description: product.name,
+      };
+    }
     const defaultPlaceholder = {
       id: 'default',
-      imageUrl: `https://picsum.photos/seed/${productId}/64/64`,
+      imageUrl: `https://picsum.photos/seed/${product.id}/64/64`,
       imageHint: 'food placeholder',
       description: 'Default product image',
     };
@@ -247,10 +262,19 @@ export default function ProductsPage() {
                       </FormItem>
                     )}
                   />
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="picture" className="text-right">Imagens</Label>
-                    <Input id="picture" type="file" className="col-span-3" disabled/>
-                  </div>
+                  <FormField
+                    control={form.control}
+                    name="imageUrl"
+                    render={({ field }) => (
+                      <FormItem className="grid grid-cols-4 items-center gap-4">
+                        <FormLabel className="text-right">URL da Imagem</FormLabel>
+                        <FormControl>
+                          <Input placeholder="https://exemplo.com/imagem.png" className="col-span-3" {...field} />
+                        </FormControl>
+                        <FormMessage className="col-span-4 pl-[calc(25%+1rem)]" />
+                      </FormItem>
+                    )}
+                  />
                   <FormField
                     control={form.control}
                     name="isActive"
@@ -303,7 +327,7 @@ export default function ProductsPage() {
               </TableRow>
             )}
             {!isLoading && products?.map((product, index) => {
-              const imagePlaceholder = getProductImage(product.id, index);
+              const imagePlaceholder = getProductImage(product, index);
               return (
                 <TableRow key={product.id}>
                   <TableCell className="hidden sm:table-cell">
@@ -314,6 +338,7 @@ export default function ProductsPage() {
                       src={imagePlaceholder.imageUrl}
                       width="64"
                       data-ai-hint={imagePlaceholder.imageHint}
+                      unoptimized // Use unoptimized for external URLs
                     />}
                   </TableCell>
                   <TableCell className="font-medium">{product.name}</TableCell>
@@ -371,7 +396,7 @@ export default function ProductsPage() {
       </CardContent>
       <CardFooter>
         <div className="text-xs text-muted-foreground">
-          Mostrando <strong>1-{products?.length ?? 0}</strong> de <strong>{products?.length ?? 0}</strong> produtos
+          Mostrando <strong>{products?.length ?? 0}</strong> de <strong>{products?.length ?? 0}</strong> produtos
         </div>
       </CardFooter>
     </Card>
