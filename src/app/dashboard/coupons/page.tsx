@@ -39,6 +39,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogClose,
+  DialogFooter,
 } from '@/components/ui/dialog';
 import {
   Form,
@@ -413,5 +414,7 @@ export default function CouponsPage() {
     </Card>
   );
 }
+
+    
 
     
