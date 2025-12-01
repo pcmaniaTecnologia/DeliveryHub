@@ -1,0 +1,777 @@
+{
+  "entities": {
+    "Company": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Company",
+      "type": "object",
+      "description": "Represents a company registered in the DeliveryHub system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the company."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the company."
+        },
+        "logoUrl": {
+          "type": "string",
+          "description": "URL of the company's logo.",
+          "format": "uri"
+        },
+        "phone": {
+          "type": "string",
+          "description": "Phone number of the company."
+        },
+        "socialMediaLinks": {
+          "type": "array",
+          "description": "Array of social media links associated with the company.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "address": {
+          "type": "string",
+          "description": "Full address of the company."
+        },
+        "businessHours": {
+          "type": "string",
+          "description": "Stringfified json object to represent the business hours for each day of the week. Example: {\"monday\": \"9:00-17:00\", \"tuesday\": \"9:00-17:00\", ...}"
+        },
+        "closedMessage": {
+          "type": "string",
+          "description": "Personalized message to display when the store is closed."
+        },
+        "averagePrepTime": {
+          "type": "number",
+          "description": "Average preparation time for orders (in minutes)."
+        },
+        "themeColors": {
+          "type": "string",
+          "description": "Stringified json object to represent the theme colors of the system. Example: {\"primary\": \"#29ABE2\", \"background\": \"#E0F7FA\"}"
+        },
+        "printerConfig": {
+          "type": "string",
+          "description": "Stringified json object representing printer configurations (port, model, etc.)."
+        },
+        "whatsappMessageTemplates": {
+          "type": "string",
+          "description": "Stringified json object of WhatsApp message templates for order status updates."
+        },
+        "paymentMethods": {
+          "type": "array",
+          "description": "Array of accepted payment methods (e.g., 'cash', 'PIX', 'credit', 'debit').",
+          "items": {
+            "type": "string"
+          }
+        },
+        "planId": {
+          "type": "string",
+          "description": "Reference to the Plan entity. (Relationship: Plan 1:N Company)"
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Whether or not the company is active."
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "Product": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Product",
+      "type": "object",
+      "description": "Represents a product offered by a company.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the product."
+        },
+        "companyId": {
+          "type": "string",
+          "description": "Reference to the Company entity. (Relationship: Company 1:N Product)"
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the product."
+        },
+        "categoryId": {
+          "type": "string",
+          "description": "Reference to the Category entity. (Relationship: Category 1:N Product)"
+        },
+        "subcategoryId": {
+          "type": "string",
+          "description": "Reference to the Subcategory entity. (Relationship: Subcategory 1:N Product). Optional."
+        },
+        "price": {
+          "type": "number",
+          "description": "Price of the product."
+        },
+        "imageUrls": {
+          "type": "array",
+          "description": "Array of URLs for product images.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the product."
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Indicates whether the product is active and available for sale."
+        },
+        "variants": {
+          "type": "array",
+          "description": "Array of product variants (e.g., sizes, additions, combos).",
+          "items": {
+            "type": "string"
+          }
+        },
+        "additionalNotes": {
+          "type": "string",
+          "description": "Additional notes or instructions for the product."
+        },
+        "stock": {
+          "type": "number",
+          "description": "Stock quantity of the product. Optional."
+        }
+      },
+      "required": [
+        "id",
+        "companyId",
+        "name",
+        "categoryId",
+        "price",
+        "description"
+      ]
+    },
+    "Category": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Category",
+      "type": "object",
+      "description": "Represents a category of products.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the category."
+        },
+        "companyId": {
+          "type": "string",
+          "description": "Reference to the Company entity. (Relationship: Company 1:N Category)"
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the category."
+        }
+      },
+      "required": [
+        "id",
+        "companyId",
+        "name"
+      ]
+    },
+    "Subcategory": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Subcategory",
+      "type": "object",
+      "description": "Represents a subcategory of products within a category.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the subcategory."
+        },
+        "categoryId": {
+          "type": "string",
+          "description": "Reference to the Category entity. (Relationship: Category 1:N Subcategory)"
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the subcategory."
+        }
+      },
+      "required": [
+        "id",
+        "categoryId",
+        "name"
+      ]
+    },
+    "Coupon": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Coupon",
+      "type": "object",
+      "description": "Represents a discount coupon that can be applied to orders.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the coupon."
+        },
+        "companyId": {
+          "type": "string",
+          "description": "Reference to the Company entity. (Relationship: Company 1:N Coupon)"
+        },
+        "name": {
+          "type": "string",
+          "description": "Name or code of the coupon."
+        },
+        "type": {
+          "type": "string",
+          "description": "Type of coupon: 'percentage' or 'fixed'.",
+          "format": "enum",
+          "items": {
+            "type": "string"
+          }
+        },
+        "value": {
+          "type": "number",
+          "description": "Value of the coupon (percentage or fixed amount)."
+        },
+        "minOrderValue": {
+          "type": "number",
+          "description": "Minimum order value required for the coupon to be valid."
+        },
+        "usageLimitPerUser": {
+          "type": "number",
+          "description": "Maximum number of times a user can use the coupon."
+        },
+        "usageLimit": {
+          "type": "number",
+          "description": "Overall usage limit for the coupon."
+        },
+        "validUntilDate": {
+          "type": "string",
+          "description": "Date until which the coupon is valid.",
+          "format": "date-time"
+        },
+        "validUntilTime": {
+          "type": "string",
+          "description": "Time until which the coupon is valid.",
+          "format": "date-time"
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Indicates whether the coupon is active and can be used."
+        }
+      },
+      "required": [
+        "id",
+        "companyId",
+        "name",
+        "type",
+        "value"
+      ]
+    },
+    "Order": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Order",
+      "type": "object",
+      "description": "Represents a customer order placed with a company.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the order."
+        },
+        "companyId": {
+          "type": "string",
+          "description": "Reference to the Company entity. (Relationship: Company 1:N Order)"
+        },
+        "customerId": {
+          "type": "string",
+          "description": "Reference to the Customer entity. (Relationship: Customer 1:N Order)"
+        },
+        "orderDate": {
+          "type": "string",
+          "description": "Date and time when the order was placed.",
+          "format": "date-time"
+        },
+        "status": {
+          "type": "string",
+          "description": "Status of the order (e.g., 'new', 'pending', 'preparing', 'out_for_delivery', 'delivered', 'cancelled')."
+        },
+        "deliveryAddress": {
+          "type": "string",
+          "description": "Delivery address for the order."
+        },
+        "deliveryType": {
+          "type": "string",
+          "description": "Type of delivery ('delivery' or 'pickup')."
+        },
+        "deliveryFee": {
+          "type": "number",
+          "description": "Delivery fee for the order."
+        },
+        "paymentMethod": {
+          "type": "string",
+          "description": "Payment method used for the order."
+        },
+        "estimatedTime": {
+          "type": "number",
+          "description": "Estimated delivery time (in minutes)."
+        },
+        "orderItems": {
+          "type": "array",
+          "description": "Array of order items.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "totalAmount": {
+          "type": "number",
+          "description": "Total amount of the order."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Notes for the order."
+        }
+      },
+      "required": [
+        "id",
+        "companyId",
+        "customerId",
+        "orderDate",
+        "status",
+        "deliveryAddress",
+        "deliveryType",
+        "paymentMethod"
+      ]
+    },
+    "OrderItem": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "OrderItem",
+      "type": "object",
+      "description": "Represents an item included in an order.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the order item."
+        },
+        "orderId": {
+          "type": "string",
+          "description": "Reference to the Order entity. (Relationship: Order 1:N OrderItem)"
+        },
+        "productId": {
+          "type": "string",
+          "description": "Reference to the Product entity. (Relationship: Product 1:N OrderItem)"
+        },
+        "quantity": {
+          "type": "number",
+          "description": "Quantity of the product in the order item."
+        },
+        "unitPrice": {
+          "type": "number",
+          "description": "Unit price of the product in the order item."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Notes for the item."
+        }
+      },
+      "required": [
+        "id",
+        "orderId",
+        "productId",
+        "quantity",
+        "unitPrice"
+      ]
+    },
+    "DeliveryZone": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "DeliveryZone",
+      "type": "object",
+      "description": "Represents a delivery zone or neighborhood with associated delivery fees and times.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the delivery zone."
+        },
+        "companyId": {
+          "type": "string",
+          "description": "Reference to the Company entity. (Relationship: Company 1:N DeliveryZone)"
+        },
+        "neighborhood": {
+          "type": "string",
+          "description": "Name of the neighborhood or delivery zone."
+        },
+        "deliveryFee": {
+          "type": "number",
+          "description": "Delivery fee for the zone."
+        },
+        "deliveryTime": {
+          "type": "number",
+          "description": "Estimated delivery time for the zone (in minutes)."
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Indicates whether the delivery zone is active."
+        }
+      },
+      "required": [
+        "id",
+        "companyId",
+        "neighborhood",
+        "deliveryFee",
+        "deliveryTime"
+      ]
+    },
+    "Customer": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Customer",
+      "type": "object",
+      "description": "Represents a customer registered with the DeliveryHub system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the customer."
+        },
+        "firstName": {
+          "type": "string",
+          "description": "First name of the customer."
+        },
+        "lastName": {
+          "type": "string",
+          "description": "Last name of the customer."
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address of the customer.",
+          "format": "email"
+        },
+        "phone": {
+          "type": "string",
+          "description": "Phone number of the customer."
+        },
+        "address": {
+          "type": "string",
+          "description": "Full address of the customer."
+        }
+      },
+      "required": [
+        "id",
+        "firstName",
+        "lastName",
+        "email",
+        "phone"
+      ]
+    },
+    "Plan": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Plan",
+      "type": "object",
+      "description": "Represents a subscription plan for companies using the DeliveryHub system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the plan."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the plan (e.g., 'Free', 'Monthly', 'Annual')."
+        },
+        "price": {
+          "type": "number",
+          "description": "Price of the plan."
+        },
+        "productLimit": {
+          "type": "number",
+          "description": "Maximum number of products allowed for this plan."
+        },
+        "orderLimit": {
+          "type": "number",
+          "description": "Maximum number of orders allowed per month for this plan."
+        },
+        "duration": {
+          "type": "string",
+          "description": "Plan duration (e.g., 'monthly', 'annual')."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "price"
+      ]
+    },
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user account within the DeliveryHub system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user."
+        },
+        "companyId": {
+          "type": "string",
+          "description": "Reference to the Company entity. (Relationship: Company 1:N User)"
+        },
+        "firstName": {
+          "type": "string",
+          "description": "First name of the user."
+        },
+        "lastName": {
+          "type": "string",
+          "description": "Last name of the user."
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address of the user.",
+          "format": "email"
+        },
+        "role": {
+          "type": "string",
+          "description": "Role of the user (e.g., 'admin', 'attendant', 'deliverer')."
+        }
+      },
+      "required": [
+        "id",
+        "companyId",
+        "firstName",
+        "lastName",
+        "email",
+        "role"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/companies/{companyId}",
+        "definition": {
+          "entityName": "Company",
+          "schema": {
+            "$ref": "#/backend/entities/Company"
+          },
+          "description": "Stores company profile information. Includes 'id' as 'companyId' for authorization independence.",
+          "params": [
+            {
+              "name": "companyId",
+              "description": "The unique identifier of the company."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/companies/{companyId}/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user accounts associated with a company. Includes 'companyId' for authorization independence. User role is stored directly in the document (DBAC).",
+          "params": [
+            {
+              "name": "companyId",
+              "description": "The unique identifier of the company."
+            },
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/companies/{companyId}/products/{productId}",
+        "definition": {
+          "entityName": "Product",
+          "schema": {
+            "$ref": "#/backend/entities/Product"
+          },
+          "description": "Contains the product catalog for each company. Includes 'companyId' for authorization independence.",
+          "params": [
+            {
+              "name": "companyId",
+              "description": "The unique identifier of the company."
+            },
+            {
+              "name": "productId",
+              "description": "The unique identifier of the product."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/companies/{companyId}/categories/{categoryId}",
+        "definition": {
+          "entityName": "Category",
+          "schema": {
+            "$ref": "#/backend/entities/Category"
+          },
+          "description": "Stores product categories for each company. Includes 'companyId' for authorization independence.",
+          "params": [
+            {
+              "name": "companyId",
+              "description": "The unique identifier of the company."
+            },
+            {
+              "name": "categoryId",
+              "description": "The unique identifier of the category."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/companies/{companyId}/subcategories/{subcategoryId}",
+        "definition": {
+          "entityName": "Subcategory",
+          "schema": {
+            "$ref": "#/backend/entities/Subcategory"
+          },
+          "description": "Stores product subcategories for each company. Includes 'companyId' for authorization independence.",
+          "params": [
+            {
+              "name": "companyId",
+              "description": "The unique identifier of the company."
+            },
+            {
+              "name": "subcategoryId",
+              "description": "The unique identifier of the subcategory."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/companies/{companyId}/coupons/{couponId}",
+        "definition": {
+          "entityName": "Coupon",
+          "schema": {
+            "$ref": "#/backend/entities/Coupon"
+          },
+          "description": "Contains coupons specific to each company. Includes 'companyId' for authorization independence.",
+          "params": [
+            {
+              "name": "companyId",
+              "description": "The unique identifier of the company."
+            },
+            {
+              "name": "couponId",
+              "description": "The unique identifier of the coupon."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/companies/{companyId}/orders/{orderId}",
+        "definition": {
+          "entityName": "Order",
+          "schema": {
+            "$ref": "#/backend/entities/Order"
+          },
+          "description": "Stores orders placed with each company. Includes 'companyId' and 'customerId'.",
+          "params": [
+            {
+              "name": "companyId",
+              "description": "The unique identifier of the company."
+            },
+            {
+              "name": "orderId",
+              "description": "The unique identifier of the order."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/companies/{companyId}/orders/{orderId}/orderItems/{orderItemId}",
+        "definition": {
+          "entityName": "OrderItem",
+          "schema": {
+            "$ref": "#/backend/entities/OrderItem"
+          },
+          "description": "Subcollection containing the items included in each order. Includes 'companyId' (denormalized from parent 'order') for authorization independence.",
+          "params": [
+            {
+              "name": "companyId",
+              "description": "The unique identifier of the company."
+            },
+            {
+              "name": "orderId",
+              "description": "The unique identifier of the order."
+            },
+            {
+              "name": "orderItemId",
+              "description": "The unique identifier of the order item."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/companies/{companyId}/deliveryZones/{deliveryZoneId}",
+        "definition": {
+          "entityName": "DeliveryZone",
+          "schema": {
+            "$ref": "#/backend/entities/DeliveryZone"
+          },
+          "description": "Defines the delivery zones for each company, including fees and estimated delivery times. Includes 'companyId' for authorization independence.",
+          "params": [
+            {
+              "name": "companyId",
+              "description": "The unique identifier of the company."
+            },
+            {
+              "name": "deliveryZoneId",
+              "description": "The unique identifier of the delivery zone."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/customers/{customerId}",
+        "definition": {
+          "entityName": "Customer",
+          "schema": {
+            "$ref": "#/backend/entities/Customer"
+          },
+          "description": "Stores customer profiles.  Orders are linked to customers via customerId stored in /companies/{companyId}/orders/{orderId}. Public read, authenticated write.",
+          "params": [
+            {
+              "name": "customerId",
+              "description": "The unique identifier of the customer."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/plans/{planId}",
+        "definition": {
+          "entityName": "Plan",
+          "schema": {
+            "$ref": "#/backend/entities/Plan"
+          },
+          "description": "Defines the subscription plans available. Accessible to super admins.",
+          "params": [
+            {
+              "name": "planId",
+              "description": "The unique identifier of the plan."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/roles_admin/{userId}",
+        "definition": {
+          "entityName": "roles_admin",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Used for global admin role management. Existence of a document grants admin privileges (DBAC).",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "This Firestore structure is designed for a multi-tenant SaaS delivery platform (DeliveryHub), prioritizing security, scalability, and ease of debugging, adhering to the CORE DESIGN PRINCIPLES and DESIGN STRATEGY MANDATES. It uses a single database with a `companyId` field on most collections to support the multi-tenant architecture. Authorization Independence is achieved through denormalization. All data related to a company is stored under collections that include the `companyId`, ensuring that security rules can be applied based on this ID without needing to perform `get()` operations to verify ownership. The structure facilitates secure list operations (QAPs) by segregating data based on companyId and using path-based ownership for user-related data within a company.\n\n*   `/companies`: Contains company profile information. Accessible to super admins for management and to the company itself for updates.\n*   `/companies/{companyId}/users`: Stores user accounts associated with a company. User roles are stored directly within the user document (DBAC), which are crucial for authorization rules.\n*   `/companies/{companyId}/products`: Contains the product catalog for each company.\n*   `/companies/{companyId}/categories`: Stores product categories for each company.\n*   `/companies/{companyId}/subcategories`: Stores product subcategories for each company.\n*   `/companies/{companyId}/coupons`: Contains coupons specific to each company.\n*   `/companies/{companyId}/orders`: Stores orders placed with each company. Includes the `customerId` for identifying the customer who placed the order.\n*   `/companies/{companyId}/orders/{orderId}/orderItems`: Subcollection containing the items included in each order.\n*   `/companies/{companyId}/deliveryZones`: Defines the delivery zones for each company, including fees and estimated delivery times.\n*   `/customers`: Stores customer profiles. This collection is global but orders are linked to customers via the `customerId` within each company's `/companies/{companyId}/orders` collection.\n*   `/plans`: Defines the subscription plans available. Accessible to super admins.\n*   `/roles_admin/{uid}`: Used for global admin role management. Existence of a document grants admin privileges (DBAC).\n\n**Authorization Independence Explanation:**\n\n*   For collections nested under `/companies/{companyId}`, all documents contain the `companyId`. This allows security rules to validate that the user accessing the data has the correct `companyId` without needing to perform additional reads (no `get()` calls).\n*   User roles are stored directly in the `/companies/{companyId}/users/{userId}` document. Security rules can directly check the `role` field to determine authorization without needing to read other documents or rely on custom claims.\n\n**QAPs (Rules are not Filters) Explanation:**\n\n*   The segregation of data by `companyId` ensures that listing operations can be securely performed within a specific company's collections without exposing data from other companies. Security rules can easily filter based on the `companyId`.\n*   For the `/customers` collection, read access would typically be public (or restricted based on authentication), while write access would be limited to the user creating their profile. Orders are linked to customers via `customerId` stored within the company's order collection, so listing orders would be secured by the `companyId` and further secured by checking the `customerId` against the authenticated user's ID.\n\nThis structure allows for granular security rules that are easy to understand and maintain, promoting a secure and scalable SaaS delivery platform."
+  }
+}
