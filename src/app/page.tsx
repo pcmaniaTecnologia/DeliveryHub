@@ -36,11 +36,10 @@ export default function LoginPage() {
       await signInWithGoogle(auth);
       // O useEffect irá lidar com o redirecionamento
     } catch (error) {
-      console.error('Google Sign-In Error:', error);
       toast({
         variant: 'destructive',
         title: 'Erro de Login',
-        description: 'Não foi possível fazer login com o Google. Tente novamente.',
+        description: 'Não foi possível fazer login com o Google. Verifique se o método de login com Google está ativo no console do Firebase.',
       });
     }
   };
