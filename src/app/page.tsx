@@ -62,7 +62,7 @@ export default function LoginPage() {
         </CardContent>
       </Card>
       <div className="mt-4 text-center text-sm text-muted-foreground">
-        criado por PC MANIA
+        Criado por PC MANIA
       </div>
     </div>
   )
