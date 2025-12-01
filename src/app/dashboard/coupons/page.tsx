@@ -38,8 +38,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
-  DialogFooter,
   DialogClose,
 } from '@/components/ui/dialog';
 import {
@@ -102,6 +100,7 @@ export default function CouponsPage() {
       type: 'percentage',
       value: 0,
       validUntilDate: '',
+      usageLimit: undefined,
     },
   });
   
@@ -111,7 +110,7 @@ export default function CouponsPage() {
         name: editingCoupon.name,
         type: editingCoupon.type,
         value: editingCoupon.value,
-        usageLimit: editingCoupon.usageLimit,
+        usageLimit: editingCoupon.usageLimit || undefined,
         validUntilDate: editingCoupon.validUntilDate ? format(new Date(editingCoupon.validUntilDate), 'yyyy-MM-dd') : '',
       });
     } else {
@@ -123,7 +122,7 @@ export default function CouponsPage() {
         usageLimit: undefined,
       });
     }
-  }, [editingCoupon, form, isDialogOpen]);
+  }, [editingCoupon, form]);
 
   const couponsRef = useMemoFirebase(() => {
     if (!firestore || !user?.uid) return null;
@@ -142,6 +141,7 @@ export default function CouponsPage() {
 
     try {
       if (editingCoupon) {
+        if (!firestore) return;
         const couponDocRef = doc(firestore, `companies/${user.uid}/coupons/${editingCoupon.id}`);
         await updateDocument(couponDocRef, {
             ...couponData,
@@ -299,7 +299,7 @@ export default function CouponsPage() {
                       <FormItem className="grid grid-cols-4 items-center gap-4">
                         <FormLabel className="text-right">Validade</FormLabel>
                         <FormControl>
-                          <Input type="date" className="col-span-3" {...field} />
+                          <Input type="date" className="col-span-3" {...field} value={field.value || ''} />
                         </FormControl>
                         <FormMessage className="col-span-4 pl-[calc(25%+1rem)]" />
                       </FormItem>
@@ -312,7 +312,7 @@ export default function CouponsPage() {
                       <FormItem className="grid grid-cols-4 items-center gap-4">
                         <FormLabel className="text-right">Limite de uso</FormLabel>
                         <FormControl>
-                          <Input type="number" placeholder="100" className="col-span-3" {...field} />
+                          <Input type="number" placeholder="100" className="col-span-3" {...field} value={field.value || ''} />
                         </FormControl>
                         <FormMessage className="col-span-4 pl-[calc(25%+1rem)]" />
                       </FormItem>
@@ -372,7 +372,7 @@ export default function CouponsPage() {
                       <DropdownMenuItem disabled>Desativar</DropdownMenuItem>
                        <DropdownMenuSeparator />
                         <AlertDialog>
-                          <AlertDialogTrigger asChild>
+                           <AlertDialogTrigger asChild>
                             <div className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 text-destructive hover:bg-destructive/10 w-full">
                                 Excluir
                              </div>

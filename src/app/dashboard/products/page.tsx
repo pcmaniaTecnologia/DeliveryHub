@@ -39,8 +39,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
-  DialogFooter,
   DialogClose,
 } from '@/components/ui/dialog';
 import {
@@ -115,11 +113,11 @@ export default function ProductsPage() {
     if (editingProduct) {
       form.reset({
         name: editingProduct.name,
-        description: editingProduct.description,
+        description: editingProduct.description || '',
         price: editingProduct.price,
         category: editingProduct.category,
         isActive: editingProduct.isActive,
-        imageUrl: editingProduct.imageUrl || editingProduct.imageUrls?.[0] || '',
+        imageUrl: editingProduct.imageUrl || '',
       });
     } else {
       form.reset({
@@ -131,7 +129,7 @@ export default function ProductsPage() {
         isActive: true,
       });
     }
-  }, [editingProduct, form, isDialogOpen]);
+  }, [editingProduct, form]);
   
   const productsRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -141,7 +139,7 @@ export default function ProductsPage() {
   const { data: products, isLoading: isLoadingProducts } = useCollection<Product>(productsRef);
 
   const onSubmit = async (values: z.infer<typeof productFormSchema>) => {
-    if (!user) return;
+    if (!user || !firestore) return;
 
     const productData = {
       name: values.name,
@@ -149,24 +147,28 @@ export default function ProductsPage() {
       price: values.price,
       category: values.category,
       isActive: values.isActive,
-      imageUrls: values.imageUrl ? [values.imageUrl] : [],
       imageUrl: values.imageUrl || '',
       companyId: user.uid,
     };
     
     try {
       if (editingProduct) {
-        // Update existing product
         const productDocRef = doc(firestore, `companies/${user.uid}/products/${editingProduct.id}`);
-        await updateDocument(productDocRef, productData);
+        await updateDocument(productDocRef, {
+            ...productData,
+            imageUrls: values.imageUrl ? [values.imageUrl] : [],
+        });
         toast({
           title: 'Produto Atualizado!',
           description: `${values.name} foi atualizado com sucesso.`,
         });
       } else {
-        // Add new product
          if (!productsRef) return;
-        await addDocument(productsRef, { ...productData, stock: 0 }); // Add stock for new products
+        await addDocument(productsRef, { 
+            ...productData, 
+            stock: 0,
+            imageUrls: values.imageUrl ? [values.imageUrl] : [],
+        });
         toast({
           title: 'Produto Adicionado!',
           description: `${values.name} foi adicionado ao seu catálogo.`,
