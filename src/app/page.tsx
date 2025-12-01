@@ -31,9 +31,10 @@ export default function LoginPage() {
   }, [user, isUserLoading, router]);
 
   const handleGoogleSignIn = async () => {
+    if (!auth) return;
     try {
       await signInWithGoogle(auth);
-      // The useEffect will handle the redirection
+      // O useEffect irá lidar com o redirecionamento
     } catch (error) {
       console.error('Google Sign-In Error:', error);
       toast({
@@ -85,8 +86,8 @@ export default function LoginPage() {
               </div>
               <Input id="password" type="password" required />
             </div>
-            <Button type="submit" className="w-full" asChild>
-              <Link href="/dashboard">Entrar</Link>
+            <Button type="submit" className="w-full">
+              Entrar
             </Button>
             <Button variant="outline" className="w-full" onClick={handleGoogleSignIn}>
               Entrar com Google
