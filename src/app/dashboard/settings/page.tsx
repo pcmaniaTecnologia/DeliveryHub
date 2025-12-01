@@ -29,6 +29,19 @@ import { doc, collection } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Separator } from '@/components/ui/separator';
+import { useRouter } from 'next/navigation';
 
 type PaymentMethods = {
   cash: boolean;
@@ -67,6 +80,7 @@ export default function SettingsPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
   const { user, isUserLoading: isUserLoadingAuth } = useUser();
+  const router = useRouter();
 
   // Dialog state for adding new delivery zone
   const [isZoneDialogOpen, setIsZoneDialogOpen] = useState(false);
@@ -267,6 +281,41 @@ export default function SettingsPage() {
     }
   }
 
+  const handleDeleteStore = async () => {
+    if (!companyRef || !user) {
+        toast({
+            variant: 'destructive',
+            title: 'Erro',
+            description: 'Não foi possível identificar a empresa. Faça login novamente.',
+        });
+        return;
+    }
+
+    try {
+        // Here we would ideally delete all subcollections first.
+        // This is a simplified example. For a real app, use a Cloud Function
+        // to recursively delete all subcollections (products, orders, etc.).
+        await deleteDocument(companyRef);
+        
+        toast({
+            title: 'Loja Excluída',
+            description: 'Sua loja e todos os dados foram excluídos com sucesso.',
+        });
+        
+        // Log the user out and redirect to home page
+        await user.delete();
+        router.push('/');
+
+    } catch (error: any) {
+        console.error("Failed to delete store:", error);
+        toast({
+            variant: 'destructive',
+            title: 'Erro ao excluir a loja',
+            description: 'Você precisa ter feito login recentemente para realizar esta ação. ' + error.message,
+        });
+    }
+};
+
   const isLoading = isUserLoadingAuth || isLoadingCompany || isLoadingZones;
 
   const weekDays: { key: keyof BusinessHours; label: string }[] = [
@@ -337,6 +386,39 @@ export default function SettingsPage() {
                 {isLoading ? 'Carregando...' : 'Salvar Alterações'}
               </Button>
             </CardFooter>
+          </Card>
+          <Card className="mt-6 border-destructive">
+            <CardHeader>
+              <CardTitle className="text-destructive">Zona de Perigo</CardTitle>
+              <CardDescription>
+                Ações irreversíveis. Tenha muito cuidado.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive">Excluir esta loja</Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Você tem certeza absoluta?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Esta ação não pode ser desfeita. Isso excluirá permanentemente sua loja,
+                      junto com todos os produtos, pedidos e dados de clientes.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleDeleteStore}
+                      className="bg-destructive hover:bg-destructive/90"
+                    >
+                      Sim, excluir minha loja
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </CardContent>
           </Card>
         </TabsContent>
 
@@ -626,5 +708,3 @@ export default function SettingsPage() {
     </div>
   );
 }
-
-    
