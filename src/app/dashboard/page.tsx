@@ -26,23 +26,27 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart';
+import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
+import { collection, doc, type Timestamp } from 'firebase/firestore';
+import { useState, useMemo } from 'react';
+import { subDays, format, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
-const salesData = [
-  { date: 'Jan', sales: Math.floor(Math.random() * 2000) + 1000 },
-  { date: 'Fev', sales: Math.floor(Math.random() * 2000) + 1000 },
-  { date: 'Mar', sales: Math.floor(Math.random() * 2000) + 1000 },
-  { date: 'Abr', sales: Math.floor(Math.random() * 2000) + 1000 },
-  { date: 'Mai', sales: Math.floor(Math.random() * 2000) + 1000 },
-  { date: 'Jun', sales: Math.floor(Math.random() * 2000) + 1000 },
-];
+type Order = {
+  id: string;
+  customerId: string;
+  orderDate: Timestamp;
+  status: 'Novo' | 'Aguardando pagamento' | 'Em preparo' | 'Pronto para retirada' | 'Saiu para entrega' | 'Entregue' | 'Cancelado';
+  totalAmount: number;
+  customerName?: string; // Will be added dynamically
+};
 
-const recentOrders = [
-    { name: 'Olivia Martin', email: 'olivia.martin@email.com', amount: 'R$42,25', status: 'Entregue' },
-    { name: 'Jackson Lee', email: 'jackson.lee@email.com', amount: 'R$99,00', status: 'Entregue' },
-    { name: 'Isabella Nguyen', email: 'isabella.nguyen@email.com', amount: 'R$65,75', status: 'Em preparo' },
-    { name: 'William Kim', email: 'will@email.com', amount: 'R$150,50', status: 'Saiu para entrega' },
-    { name: 'Sofia Davis', email: 'sofia.davis@email.com', amount: 'R$33,90', status: 'Cancelado' },
-];
+type Customer = {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+}
 
 const chartConfig = {
   sales: {
@@ -51,15 +55,134 @@ const chartConfig = {
   },
 };
 
+function RecentOrdersTable({ orders }: { orders: Order[] }) {
+    return (
+        <Table>
+            <TableHeader>
+                <TableRow>
+                <TableHead>Cliente</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Total</TableHead>
+                </TableRow>
+            </TableHeader>
+            <TableBody>
+                {orders.map(order => (
+                    <TableRow key={order.id}>
+                        <TableCell>
+                            <div className="font-medium">{order.customerName || 'Cliente Anônimo'}</div>
+                            <div className="hidden text-sm text-muted-foreground md:inline">{order.customerId.substring(0, 10)}...</div>
+                        </TableCell>
+                        <TableCell>
+                             <Badge variant={order.status === 'Cancelado' ? 'destructive' : 'default'} className="whitespace-nowrap">{order.status}</Badge>
+                        </TableCell>
+                        <TableCell className="text-right">R${order.totalAmount.toFixed(2)}</TableCell>
+                    </TableRow>
+                ))}
+            </TableBody>
+        </Table>
+    );
+}
+
 export default function DashboardPage() {
+    const { user, isUserLoading } = useUser();
+    const firestore = useFirestore();
+
+    const ordersRef = useMemoFirebase(() => {
+        if (!firestore || !user?.uid) return null;
+        return collection(firestore, `companies/${user.uid}/orders`);
+    }, [firestore, user?.uid]);
+    
+    const { data: orders, isLoading: isLoadingOrders } = useCollection<Order>(ordersRef);
+
+    const [dateRange, setDateRange] = useState<'today' | 'week' | 'month'>('today');
+
+    const { 
+        totalSales, 
+        totalOrders, 
+        avgTicket, 
+        pendingOrders,
+        salesChartData,
+        recentOrdersWithDetails
+    } = useMemo(() => {
+        if (!orders) {
+            return { 
+                totalSales: 0, 
+                totalOrders: 0, 
+                avgTicket: 0, 
+                pendingOrders: 0,
+                salesChartData: [],
+                recentOrders: [],
+                recentOrdersWithDetails: []
+            };
+        }
+
+        const now = new Date();
+        const startOfToday = startOfDay(now);
+        const endOfToday = endOfDay(now);
+
+        const ordersToday = orders.filter(order => {
+            const orderDate = order.orderDate.toDate();
+            return isWithinInterval(orderDate, { start: startOfToday, end: endOfToday });
+        });
+
+        const totalSales = ordersToday.reduce((sum, order) => order.status !== 'Cancelado' ? sum + order.totalAmount : sum, 0);
+        const successfulOrdersToday = ordersToday.filter(order => order.status !== 'Cancelado');
+        const totalOrders = successfulOrdersToday.length;
+        const avgTicket = totalOrders > 0 ? totalSales / totalOrders : 0;
+        
+        const pendingOrders = orders.filter(order => ['Novo', 'Aguardando pagamento', 'Em preparo'].includes(order.status)).length;
+        
+        // Sales chart data for the last 7 days
+        const salesChartData = Array.from({ length: 7 }).map((_, i) => {
+            const date = subDays(now, i);
+            const dayStart = startOfDay(date);
+            const dayEnd = endOfDay(date);
+            
+            const daySales = orders
+                .filter(order => {
+                    const orderDate = order.orderDate.toDate();
+                    return isWithinInterval(orderDate, { start: dayStart, end: dayEnd }) && order.status !== 'Cancelado';
+                })
+                .reduce((sum, order) => sum + order.totalAmount, 0);
+
+            return {
+                date: format(date, 'dd/MM', { locale: ptBR }),
+                sales: daySales
+            };
+        }).reverse();
+        
+        const recentOrders = [...orders]
+            .sort((a, b) => b.orderDate.toDate().getTime() - a.orderDate.toDate().getTime())
+            .slice(0, 5);
+        
+        const recentOrdersWithDetails = recentOrders;
+
+        return { totalSales, totalOrders, avgTicket, pendingOrders, salesChartData, recentOrdersWithDetails };
+
+    }, [orders]);
+    
+    // This is a placeholder for fetching customer details.
+    // In a real app, you might fetch customer names based on recentOrdersWithDetails customerIds.
+    // For simplicity, we'll just display ID for now if name is not on order.
+    
+    const isLoading = isUserLoading || isLoadingOrders;
+
+    if (isLoading) {
+        return (
+            <div className="flex min-h-screen items-center justify-center">
+                <p>Carregando painel...</p>
+            </div>
+        );
+    }
+  
   return (
     <>
       <div className="flex items-center justify-between space-y-2">
         <h2 className="text-3xl font-bold tracking-tight">Painel</h2>
         <div className="flex items-center space-x-2">
-            <Button>Hoje</Button>
-            <Button variant="outline">Semana</Button>
-            <Button variant="outline">Mês</Button>
+            <Button onClick={() => setDateRange('today')} variant={dateRange === 'today' ? 'default' : 'outline'}>Hoje</Button>
+            <Button onClick={() => setDateRange('week')} variant={dateRange === 'week' ? 'default' : 'outline'}>Semana</Button>
+            <Button onClick={() => setDateRange('month')} variant={dateRange === 'month' ? 'default' : 'outline'}>Mês</Button>
         </div>
       </div>
 
@@ -70,8 +193,8 @@ export default function DashboardPage() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">R$4,231.89</div>
-            <p className="text-xs text-muted-foreground">+20.1% do mês passado</p>
+            <div className="text-2xl font-bold">R${totalSales.toFixed(2)}</div>
+            {/* <p className="text-xs text-muted-foreground">+20.1% do mês passado</p> */}
           </CardContent>
         </Card>
         <Card>
@@ -80,8 +203,8 @@ export default function DashboardPage() {
             <ShoppingCart className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">+450</div>
-            <p className="text-xs text-muted-foreground">+180.1% do mês passado</p>
+            <div className="text-2xl font-bold">+{totalOrders}</div>
+            {/* <p className="text-xs text-muted-foreground">+180.1% do mês passado</p> */}
           </CardContent>
         </Card>
         <Card>
@@ -90,8 +213,8 @@ export default function DashboardPage() {
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">R$23.50</div>
-            <p className="text-xs text-muted-foreground">+19% do mês passado</p>
+            <div className="text-2xl font-bold">R${avgTicket.toFixed(2)}</div>
+            {/* <p className="text-xs text-muted-foreground">+19% do mês passado</p> */}
           </CardContent>
         </Card>
         <Card>
@@ -100,8 +223,8 @@ export default function DashboardPage() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">3</div>
-            <p className="text-xs text-muted-foreground">+2 desde a última hora</p>
+            <div className="text-2xl font-bold">{pendingOrders}</div>
+            {/* <p className="text-xs text-muted-foreground">+2 desde a última hora</p> */}
           </CardContent>
         </Card>
       </div>
@@ -109,12 +232,12 @@ export default function DashboardPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
         <Card className="col-span-4">
           <CardHeader>
-            <CardTitle>Visão Geral de Vendas</CardTitle>
+            <CardTitle>Visão Geral de Vendas (Últimos 7 dias)</CardTitle>
           </CardHeader>
           <CardContent className="pl-2">
             <ChartContainer config={chartConfig} className="h-[350px] w-full">
               <ResponsiveContainer>
-                <BarChart data={salesData}>
+                <BarChart data={salesChartData}>
                   <XAxis dataKey="date" stroke="#888888" fontSize={12} tickLine={false} axisLine={false}/>
                   <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `R$${value}`}/>
                   <Tooltip content={<ChartTooltipContent />} />
@@ -131,33 +254,7 @@ export default function DashboardPage() {
             <CardTitle>Pedidos Recentes</CardTitle>
           </CardHeader>
           <CardContent>
-             <Table>
-                <TableHeader>
-                    <TableRow>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {recentOrders.map(order => (
-                        <TableRow key={order.email}>
-                            <TableCell>
-                                <div className="font-medium">{order.name}</div>
-                                <div className="hidden text-sm text-muted-foreground md:inline">{order.email}</div>
-                            </TableCell>
-                            <TableCell>
-                                <Badge variant={order.status === 'Cancelado' ? 'destructive' : 'default'} className={
-                                    order.status === 'Entregue' ? 'bg-green-500/20 text-green-700' :
-                                    order.status === 'Em preparo' ? 'bg-yellow-500/20 text-yellow-700' :
-                                    order.status === 'Saiu para entrega' ? 'bg-blue-500/20 text-blue-700' : ''
-                                }>{order.status}</Badge>
-                            </TableCell>
-                            <TableCell className="text-right">{order.amount}</TableCell>
-                        </TableRow>
-                    ))}
-                </TableBody>
-            </Table>
+             <RecentOrdersTable orders={recentOrdersWithDetails} />
           </CardContent>
         </Card>
       </div>
