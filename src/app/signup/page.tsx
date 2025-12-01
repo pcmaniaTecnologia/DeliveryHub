@@ -31,12 +31,14 @@ export default function SignupPage() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isCreatingDocs, setIsCreatingDocs] = useState(false);
+
 
   useEffect(() => {
-    if (!isUserLoading && user) {
+    if (!isUserLoading && user && !isCreatingDocs) {
       router.push('/dashboard');
     }
-  }, [user, isUserLoading, router]);
+  }, [user, isUserLoading, router, isCreatingDocs]);
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,25 +76,52 @@ export default function SignupPage() {
   };
 
   useEffect(() => {
-    // When the user is created and authenticated, create their customer document
-    if (user && !isUserLoading) {
-      const customerRef = doc(firestore, 'customers', user.uid);
-      const customerData = {
-        id: user.uid,
-        firstName,
-        lastName,
-        email: user.email,
-        phone: user.phoneNumber || '',
-        address: ''
-      };
-      // Use non-blocking write
-      setDocumentNonBlocking(customerRef, customerData, { merge: true });
-      router.push('/dashboard');
+    // When the user is created and authenticated by onAuthStateChanged
+    if (user && !isUserLoading && firstName && lastName) {
+        setIsCreatingDocs(true);
+
+        const customerRef = doc(firestore, 'customers', user.uid);
+        const customerData = {
+            id: user.uid,
+            firstName,
+            lastName,
+            email: user.email,
+            phone: user.phoneNumber || '',
+            address: ''
+        };
+
+        // Create the company/owner document. The ownerId is the user's UID.
+        const companyRef = doc(firestore, 'companies', user.uid);
+        const companyData = {
+            id: user.uid,
+            ownerId: user.uid,
+            name: `${firstName}'s Store`, // Default company name
+        };
+
+        // Create the user document within the company's users subcollection
+        // This user is the company owner, so they get the 'admin' role.
+        const companyUserRef = doc(firestore, 'companies', user.uid, 'users', user.uid);
+        const companyUserData = {
+            id: user.uid,
+            companyId: user.uid,
+            firstName,
+            lastName,
+            email: user.email,
+            role: 'admin', // Assign admin role to the creator
+        };
+
+        // Use non-blocking writes for all three documents
+        setDocumentNonBlocking(customerRef, customerData, { merge: true });
+        setDocumentNonBlocking(companyRef, companyData, { merge: true });
+        setDocumentNonBlocking(companyUserRef, companyUserData, { merge: true });
+        
+        // After initiating writes, we can redirect.
+        router.push('/dashboard');
     }
   }, [user, isUserLoading, router, firestore, firstName, lastName]);
 
 
-  if (isUserLoading || user) {
+  if (isUserLoading || (user && !isCreatingDocs)) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center">
         <p>Carregando...</p>
