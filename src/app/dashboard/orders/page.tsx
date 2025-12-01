@@ -1,6 +1,9 @@
+
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, doc, updateDoc, type Timestamp } from 'firebase/firestore';
 import {
   Card,
   CardContent,
@@ -30,40 +33,44 @@ import { Button } from '@/components/ui/button';
 import { MoreHorizontal, Package, Printer, Truck } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
+import { useToast } from '@/hooks/use-toast';
+
+// Base64 encoded notification sound (simple beep)
+const notificationSound = "data:audio/mpeg;base64,SUQzBAAAAAAAI1RTSEUAAAAMAEdASAAABAAEAgAXTEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVTEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUD/9Qp4wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//sQxAAD/wAR/9QB//pQwJIAGAGgANAGgANAGgANAGgANAGgANAGgANAGgANAGgANAGgANAGgANAGgANAGgANAGgANAGgANAGgANAGgANAGgANAGgANAGgANAGgANAGgANAGgANAGgANAGgANAGgANAGgANAGgANAGgANAGgANAGgANAGgANAGgANAGgANAGgANAGgANAGgANAGgANAGgANAGgANAGgAABgBgADQBoADQBoADQBoADQBoADQBoADQBoADQBoADQBoADQBoADQBoADQBoADQBoADQBoADQBoADQBoADQBoADQBoADQBoADQBoADQBoADQBoADQBoADQBoADQBoADQBoADQBoADQBoADQBoADQBoADQBoADQBoADQBoADQBoADQBoADQBoADQBoADQBoADQBoADQBoAAD//xDEIAEAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAEAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJA4AAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAwAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAUAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJA0AAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAIAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAYAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJARAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAUAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAgAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAcAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJA0AAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAEAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAIgAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4ADAAADSAAAANQCAA1AAABpA//+xDEJAQAAANIAAD//yM4-";
 
 type OrderItem = {
-  name: string;
+  id: string;
+  orderId: string;
+  productId: string;
   quantity: number;
-  price: number;
+  unitPrice: number;
+  notes?: string;
 };
 
 type Order = {
   id: string;
-  customer: string;
-  phone: string;
-  date: string;
-  status: 'Entregue' | 'Saiu para entrega' | 'Em preparo' | 'Aguardando pagamento' | 'Novo' | 'Cancelado' | 'Pronto para retirada';
-  total: string;
+  companyId: string;
+  customerId: string;
+  orderDate: Timestamp;
+  status: 'Novo' | 'Aguardando pagamento' | 'Em preparo' | 'Pronto para retirada' | 'Saiu para entrega' | 'Entregue' | 'Cancelado';
+  deliveryAddress: string;
   deliveryType: 'Delivery' | 'Retirada';
-  address: string;
+  deliveryFee?: number;
   paymentMethod: string;
-  items: OrderItem[];
+  estimatedTime?: number;
+  orderItems: OrderItem[];
+  totalAmount: number;
+  notes?: string;
+  // For local state, not from Firestore
+  customerName?: string; 
 };
 
-const orders: Order[] = [
-  { id: 'ORD001', customer: 'Liam Johnson', phone: '(11) 98765-4321', date: '2023-11-23', status: 'Entregue', total: 'R$35.50', deliveryType: 'Delivery', address: 'Rua das Flores, 123, Apto 4B, São Paulo, SP', paymentMethod: 'Cartão de Crédito', items: [{ name: 'Cheeseburger Clássico', quantity: 1, price: 25.50 }, { name: 'Refrigerante', quantity: 1, price: 5.00 }, { name: 'Batata Frita', quantity: 1, price: 5.00 }] },
-  { id: 'ORD002', customer: 'Olivia Smith', phone: '(21) 91234-5678', date: '2023-11-23', status: 'Saiu para entrega', total: 'R$150.00', deliveryType: 'Delivery', address: 'Av. Principal, 456, Centro, Rio de Janeiro, RJ', paymentMethod: 'PIX', items: [{ name: 'Pizza Margherita', quantity: 2, price: 45.00 }, { name: 'Refrigerante 2L', quantity: 1, price: 10.00 }] },
-  { id: 'ORD003', customer: 'Noah Williams', phone: '(31) 95555-4444', date: '2023-11-24', status: 'Em preparo', total: 'R$350.00', deliveryType: 'Retirada', address: 'N/A', paymentMethod: 'Dinheiro', items: [{ name: 'Spaghetti Carbonara', quantity: 4, price: 55.90 }] },
-  { id: 'ORD004', customer: 'Emma Brown', phone: '(71) 93333-2222', date: '2023-11-24', status: 'Aguardando pagamento', total: 'R$450.00', deliveryType: 'Delivery', address: 'Rua da Praia, 789, Litoral, Salvador, BA', paymentMethod: 'Aguardando', items: [{ name: 'Sushi de Salmão (8pçs)', quantity: 10, price: 28.00 }] },
-  { id: 'ORD005', customer: 'Liam Johnson', phone: '(11) 98765-4321', date: '2023-11-25', status: 'Novo', total: 'R$550.00', deliveryType: 'Retirada', address: 'N/A', paymentMethod: 'Cartão de Débito', items: [{ name: 'Salada Caesar', quantity: 5, price: 35.75 }] },
-  { id: 'ORD006', customer: 'Ava Jones', phone: '(48) 92222-1111', date: '2023-11-25', status: 'Cancelado', total: 'R$200.00', deliveryType: 'Delivery', address: 'Alameda dos Anjos, 101, Paraíso, Belo Horizonte, MG', paymentMethod: 'PIX', items: [{ name: 'Pizza Margherita', quantity: 4, price: 45.00 }] },
-];
 
 const statusMap: { [key: string]: Order['status'][] } = {
-  "Todos": ["Novo", "Aguardando pagamento", "Em preparo", "Saiu para entrega", "Pronto para retirada", "Entregue", "Cancelado"],
+  "Todos": ["Novo", "Aguardando pagamento", "Em preparo", "Pronto para retirada", "Saiu para entrega", "Entregue", "Cancelado"],
   "Novo": ["Novo", "Aguardando pagamento"],
   "Em preparo": ["Em preparo"],
-  "Pronto": ["Saiu para entrega", "Pronto para retirada"],
+  "Pronto": ["Pronto para retirada", "Saiu para entrega"],
   "Finalizados": ["Entregue", "Cancelado"],
 }
 
@@ -79,15 +86,14 @@ function OrderPrintPreview({ order, onClose }: { order: Order; onClose: () => vo
                     <DialogHeader className="text-center">
                         <DialogTitle className="text-2xl">The Burger Shop</DialogTitle>
                         <p className="text-sm text-muted-foreground">Pedido: {order.id}</p>
-                        <p className="text-sm text-muted-foreground">{new Date(order.date).toLocaleString('pt-BR')}</p>
+                        <p className="text-sm text-muted-foreground">{order.orderDate.toDate().toLocaleString('pt-BR')}</p>
                     </DialogHeader>
                     <Separator className="my-4" />
                     <div className="space-y-4">
                         <div className="space-y-1">
                             <h3 className="font-semibold">Cliente</h3>
-                            <p>{order.customer}</p>
-                            <p className="text-muted-foreground">{order.phone}</p>
-                            {order.deliveryType === 'Delivery' && <p className="text-muted-foreground">{order.address}</p>}
+                            <p>{order.customerName || 'Cliente anônimo'}</p>
+                            {order.deliveryType === 'Delivery' && <p className="text-muted-foreground">{order.deliveryAddress}</p>}
                         </div>
                         <Separator />
                         <div>
@@ -101,11 +107,11 @@ function OrderPrintPreview({ order, onClose }: { order: Order; onClose: () => vo
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {order.items.map((item, index) => (
+                                    {order.orderItems.map((item, index) => (
                                         <TableRow key={index}>
-                                            <TableCell>{item.name}</TableCell>
+                                            <TableCell>{item.productId}</TableCell>
                                             <TableCell className="text-center">{item.quantity}</TableCell>
-                                            <TableCell className="text-right">R${(item.price * item.quantity).toFixed(2)}</TableCell>
+                                            <TableCell className="text-right">R${(item.unitPrice * item.quantity).toFixed(2)}</TableCell>
                                         </TableRow>
                                     ))}
                                 </TableBody>
@@ -115,11 +121,11 @@ function OrderPrintPreview({ order, onClose }: { order: Order; onClose: () => vo
                          <div className="space-y-2">
                              <div className="flex justify-between">
                                 <span>Subtotal</span>
-                                <span>{order.total}</span>
+                                <span>R${order.totalAmount.toFixed(2)}</span>
                              </div>
                              <div className="flex justify-between font-bold text-lg">
                                 <span>Total</span>
-                                <span>{order.total}</span>
+                                <span>R${order.totalAmount.toFixed(2)}</span>
                              </div>
                         </div>
                         <Separator />
@@ -139,9 +145,84 @@ function OrderPrintPreview({ order, onClose }: { order: Order; onClose: () => vo
     );
 }
 
-
 export default function OrdersPage() {
+    const { user, isUserLoading } = useUser();
+    const firestore = useFirestore();
+    const { toast } = useToast();
+    const audioRef = useRef<HTMLAudioElement | null>(null);
+    
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+
+    const ordersRef = useMemoFirebase(() => {
+        if (!firestore || !user?.uid) return null;
+        return collection(firestore, `companies/${user.uid}/orders`);
+    }, [firestore, user?.uid]);
+
+    const { data: orders, isLoading: isLoadingOrders } = useCollection<Order>(ordersRef);
+
+    // This effect handles the audio initialization
+    useEffect(() => {
+        audioRef.current = new Audio(notificationSound);
+    }, []);
+
+    // This effect detects new orders and plays the sound
+    useEffect(() => {
+        if (!orders || orders.length === 0 || isLoadingOrders) return;
+
+        const hasNewOrder = orders.some(order => order.status === 'Novo');
+        
+        const playSound = async () => {
+            if (audioRef.current && hasNewOrder) {
+                try {
+                    // Check if a user interaction has occurred.
+                    // Most modern browsers block autoplay until a user interacts with the page.
+                    if (document.visibilityState === 'visible') {
+                        await audioRef.current.play();
+                    }
+                } catch (error) {
+                    console.error("Audio playback failed:", error);
+                    toast({
+                      variant: 'destructive',
+                      title: 'Não foi possível tocar a notificação',
+                      description: 'Interaja com a página para habilitar o som.',
+                    });
+                }
+            }
+        };
+
+        // We use a state to track seen new orders to avoid playing the sound on every render
+        const newOrderIds = orders.filter(o => o.status === 'Novo').map(o => o.id).join(',');
+        const previousNewOrderIds = sessionStorage.getItem('newOrderIds');
+
+        if (newOrderIds && newOrderIds !== previousNewOrderIds) {
+            playSound();
+            sessionStorage.setItem('newOrderIds', newOrderIds);
+        } else if (!newOrderIds) {
+            sessionStorage.removeItem('newOrderIds');
+        }
+
+    }, [orders, isLoadingOrders, toast]);
+
+    const handleUpdateStatus = async (orderId: string, status: Order['status']) => {
+        if (!firestore || !user) return;
+        const orderDocRef = doc(firestore, `companies/${user.uid}/orders`, orderId);
+        try {
+            await updateDoc(orderDocRef, { status });
+            toast({
+                title: 'Status do Pedido Atualizado!',
+                description: `O pedido foi marcado como "${status}".`,
+            });
+        } catch (error) {
+            console.error("Failed to update order status:", error);
+            toast({
+                variant: 'destructive',
+                title: 'Erro ao atualizar',
+                description: 'Não foi possível atualizar o status do pedido.',
+            });
+        }
+    };
+    
+    const isLoading = isUserLoading || isLoadingOrders;
 
   return (
     <>
@@ -173,13 +254,18 @@ export default function OrdersPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {orders.filter(order => statuses.includes(order.status)).map(order => (
+                     {isLoading ? (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center">Carregando pedidos...</TableCell>
+                        </TableRow>
+                      ) : (
+                      orders?.filter(order => statuses.includes(order.status)).map(order => (
                         <TableRow key={order.id}>
                           <TableCell className="hidden sm:table-cell">
-                            <div className="font-medium">{order.id}</div>
-                            <div className="text-xs text-muted-foreground">{order.date}</div>
+                            <div className="font-medium">{order.id.substring(0, 6).toUpperCase()}</div>
+                            <div className="text-xs text-muted-foreground">{order.orderDate.toDate().toLocaleDateString('pt-BR')}</div>
                           </TableCell>
-                          <TableCell>{order.customer}</TableCell>
+                          <TableCell>{order.customerName || order.customerId.substring(0,10)}</TableCell>
                           <TableCell className="hidden sm:table-cell">
                             <Badge variant="outline" className="flex items-center gap-1 w-fit">
                               {order.deliveryType === 'Delivery' ? <Truck className="h-3 w-3" /> : <Package className="h-3 w-3" />}
@@ -189,7 +275,7 @@ export default function OrdersPage() {
                           <TableCell>
                             <Badge variant={order.status === 'Cancelado' ? 'destructive' : 'default'} className="whitespace-nowrap">{order.status}</Badge>
                           </TableCell>
-                          <TableCell className="text-right">{order.total}</TableCell>
+                          <TableCell className="text-right">R${order.totalAmount.toFixed(2)}</TableCell>
                           <TableCell className="text-right print:hidden">
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
@@ -206,16 +292,26 @@ export default function OrdersPage() {
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuLabel>Alterar Status</DropdownMenuLabel>
-                                <DropdownMenuItem>Em preparo</DropdownMenuItem>
-                                <DropdownMenuItem>Saiu para entrega</DropdownMenuItem>
-                                <DropdownMenuItem>Entregue</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleUpdateStatus(order.id, 'Em preparo')}>Em preparo</DropdownMenuItem>
+                                {order.deliveryType === 'Delivery' ?
+                                    <DropdownMenuItem onClick={() => handleUpdateStatus(order.id, 'Saiu para entrega')}>Saiu para entrega</DropdownMenuItem>
+                                    :
+                                    <DropdownMenuItem onClick={() => handleUpdateStatus(order.id, 'Pronto para retirada')}>Pronto para retirada</DropdownMenuItem>
+                                }
+                                <DropdownMenuItem onClick={() => handleUpdateStatus(order.id, 'Entregue')}>Entregue</DropdownMenuItem>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem className="text-destructive">Cancelar</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleUpdateStatus(order.id, 'Cancelado')} className="text-destructive">Cancelar</DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </TableCell>
                         </TableRow>
-                      ))}
+                      ))
+                      )}
+                      {!isLoading && orders?.length === 0 && (
+                        <TableRow>
+                            <TableCell colSpan={6} className="text-center">Nenhum pedido encontrado.</TableCell>
+                        </TableRow>
+                      )}
                     </TableBody>
                   </Table>
                 </CardContent>
@@ -231,3 +327,4 @@ export default function OrdersPage() {
     </>
   );
 }
+
