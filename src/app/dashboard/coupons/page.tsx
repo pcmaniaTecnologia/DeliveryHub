@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import { MoreHorizontal, PlusCircle } from 'lucide-react';
-import { useForm } from 'react';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Badge } from '@/components/ui/badge';
