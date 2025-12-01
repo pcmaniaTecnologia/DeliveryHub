@@ -147,7 +147,7 @@ export default function DashboardPage() {
 
             return {
                 date: format(date, 'dd/MM', { locale: ptBR }),
-                sales: daySales
+                Vendas: daySales
             };
         }).reverse();
         
@@ -242,7 +242,7 @@ export default function DashboardPage() {
                   <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `R$${value}`}/>
                   <Tooltip content={<ChartTooltipContent />} />
                   <Legend />
-                  <Bar dataKey="sales" fill="var(--color-sales)" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Vendas" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="Vendas" />
                 </BarChart>
               </ResponsiveContainer>
             </ChartContainer>
