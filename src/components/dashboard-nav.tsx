@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, ShoppingCart, Package, Ticket, Settings as SettingsIcon } from 'lucide-react';
+import { Home, ShoppingCart, Package, Ticket, Settings as SettingsIcon, ClipboardList } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { useUser, useCollection, useFirestore, useMemoFirebase } from '@/firebase';
@@ -24,6 +24,7 @@ export function DashboardNav() {
   const navItems = [
     { href: '/dashboard', label: 'Painel', icon: Home },
     { href: '/dashboard/orders', label: 'Pedidos', icon: ShoppingCart, badge: newOrdersCount > 0 ? newOrdersCount.toString() : undefined },
+    { href: '/dashboard/tables', label: 'Comandas', icon: ClipboardList },
     { href: '/dashboard/products', label: 'Produtos', icon: Package },
     { href: '/dashboard/coupons', label: 'Cupons', icon: Ticket },
     { href: '/dashboard/settings', label: 'Configurações', icon: SettingsIcon },
