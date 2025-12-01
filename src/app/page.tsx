@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { signInWithGoogle } from '@/firebase/auth'; // Corrected import path
+import { signInWithGoogle } from '@/firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 
 export default function LoginPage() {
@@ -45,7 +45,6 @@ export default function LoginPage() {
   };
 
   if (isUserLoading || user) {
-    // You can show a loading spinner here
     return (
         <div className="flex min-h-screen flex-col items-center justify-center">
             <p>Carregando...</p>
