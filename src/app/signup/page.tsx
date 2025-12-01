@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Package2 } from 'lucide-react';
-import { useUser, useAuth, initiateEmailSignUp, setDocumentNonBlocking } from '@/firebase';
+import { useUser, useAuth, initiateEmailSignUp, setDocument } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -31,10 +31,12 @@ export default function SignupPage() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  
+  // This state tracks if we are in the process of creating user docs after auth.
   const [isCreatingDocs, setIsCreatingDocs] = useState(false);
 
-
   useEffect(() => {
+    // Redirect if user is logged in and not in the middle of doc creation.
     if (!isUserLoading && user && !isCreatingDocs) {
       router.push('/dashboard');
     }
@@ -61,9 +63,8 @@ export default function SignupPage() {
 
     setIsLoading(true);
     try {
-      // This will create the user in Firebase Auth and automatically sign them in
+      // initiateEmailSignUp is non-blocking. It triggers onAuthStateChanged.
       initiateEmailSignUp(auth, email, password);
-      // We don't await because the onAuthStateChanged listener will handle redirection
     } catch (error: any) {
       console.error('Falha no cadastro:', error);
       toast({
@@ -75,50 +76,73 @@ export default function SignupPage() {
     }
   };
 
+  // This effect runs when onAuthStateChanged detects a new user.
+  // It's responsible for creating the necessary Firestore documents.
   useEffect(() => {
-    // When the user is created and authenticated by onAuthStateChanged
-    if (user && !isUserLoading && firstName && lastName) {
+    const createInitialDocuments = async () => {
+      if (user && !isUserLoading && firstName && lastName && !isCreatingDocs) {
         setIsCreatingDocs(true);
+        setIsLoading(true); // Keep loading UI active
 
-        const customerRef = doc(firestore, 'customers', user.uid);
-        const customerData = {
-            id: user.uid,
-            firstName,
-            lastName,
-            email: user.email,
-            phone: user.phoneNumber || '',
-            address: ''
-        };
+        try {
+          const customerRef = doc(firestore, 'customers', user.uid);
+          const customerData = {
+              id: user.uid,
+              firstName,
+              lastName,
+              email: user.email,
+              phone: user.phoneNumber || '',
+              address: ''
+          };
 
-        // Create the company/owner document. The ownerId is the user's UID.
-        const companyRef = doc(firestore, 'companies', user.uid);
-        const companyData = {
-            id: user.uid,
-            ownerId: user.uid,
-            name: `${firstName}'s Store`, // Default company name
-        };
+          const companyRef = doc(firestore, 'companies', user.uid);
+          const companyData = {
+              id: user.uid,
+              ownerId: user.uid,
+              name: `${firstName}'s Store`,
+          };
 
-        // Create the user document within the company's users subcollection
-        // This user is the company owner, so they get the 'admin' role.
-        const companyUserRef = doc(firestore, 'companies', user.uid, 'users', user.uid);
-        const companyUserData = {
-            id: user.uid,
-            companyId: user.uid,
-            firstName,
-            lastName,
-            email: user.email,
-            role: 'admin', // Assign admin role to the creator
-        };
+          const companyUserRef = doc(firestore, 'companies', user.uid, 'users', user.uid);
+          const companyUserData = {
+              id: user.uid,
+              companyId: user.uid,
+              firstName,
+              lastName,
+              email: user.email,
+              role: 'admin',
+          };
 
-        // Use non-blocking writes for all three documents
-        setDocumentNonBlocking(customerRef, customerData, { merge: true });
-        setDocumentNonBlocking(companyRef, companyData, { merge: true });
-        setDocumentNonBlocking(companyUserRef, companyUserData, { merge: true });
-        
-        // After initiating writes, we can redirect.
-        router.push('/dashboard');
-    }
-  }, [user, isUserLoading, router, firestore, firstName, lastName]);
+          // Wait for all documents to be created before proceeding.
+          await Promise.all([
+            setDocument(customerRef, customerData, { merge: true }),
+            setDocument(companyRef, companyData, { merge: true }),
+            setDocument(companyUserRef, companyUserData, { merge: true }),
+          ]);
+          
+          toast({
+            title: 'Conta criada com sucesso!',
+            description: 'Bem-vindo ao DeliveryHub!',
+          });
+
+          // All documents are created, now we can safely redirect.
+          router.push('/dashboard');
+
+        } catch (error: any) {
+            console.error("Error creating initial user documents:", error);
+            toast({
+                variant: "destructive",
+                title: "Erro ao configurar a conta",
+                description: "Não foi possível salvar os dados iniciais. Por favor, tente novamente."
+            });
+            // Optionally sign the user out if setup fails
+            auth.signOut();
+            setIsLoading(false);
+            setIsCreatingDocs(false);
+        }
+      }
+    };
+    createInitialDocuments();
+  }, [user, isUserLoading, router, firestore, firstName, lastName, auth, toast, isCreatingDocs]);
 
 
   if (isUserLoading || (user && !isCreatingDocs)) {
@@ -128,6 +152,15 @@ export default function SignupPage() {
       </div>
     );
   }
+  
+    if (isLoading || isCreatingDocs) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center">
+        <p>Configurando sua conta...</p>
+      </div>
+    );
+  }
+
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-muted/40 p-4">

@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Image from 'next/image';
-import { MoreHorizontal, PlusCircle, Trash2 } from 'lucide-react';
+import { MoreHorizontal, PlusCircle } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -55,7 +55,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { PlaceHolderImages, type ImagePlaceholder } from '@/lib/placeholder-images';
-import { useUser, useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase, addDocument, deleteDocument } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -124,26 +124,36 @@ export default function ProductsPage() {
       companyId: user.uid,
     };
     
-    addDocumentNonBlocking(productsRef, newProduct);
-    
-    toast({
-      title: 'Produto Adicionado!',
-      description: `${values.name} foi adicionado ao seu catálogo.`,
-    });
-    
-    form.reset();
-    setIsDialogOpen(false);
+    try {
+      await addDocument(productsRef, newProduct);
+      
+      toast({
+        title: 'Produto Adicionado!',
+        description: `${values.name} foi adicionado ao seu catálogo.`,
+      });
+      
+      form.reset();
+      setIsDialogOpen(false);
+    } catch (error) {
+       console.error("Failed to add product:", error);
+       // The permission error will be thrown by the global listener,
+       // but you could add a specific toast here if needed.
+    }
   };
   
-  const handleDeleteProduct = (productId: string) => {
+  const handleDeleteProduct = async (productId: string) => {
     if (!firestore || !user) return;
     const productDocRef = doc(firestore, `companies/${user.uid}/products/${productId}`);
-    deleteDocumentNonBlocking(productDocRef);
-    toast({
-      title: 'Produto Excluído',
-      description: 'O produto foi removido do seu catálogo.',
-      variant: 'destructive'
-    });
+    try {
+      await deleteDocument(productDocRef);
+      toast({
+        title: 'Produto Excluído',
+        description: 'O produto foi removido do seu catálogo.',
+        variant: 'destructive'
+      });
+    } catch (error) {
+       console.error("Failed to delete product:", error);
+    }
   }
 
   const isLoading = isUserLoading || isLoadingProducts;
@@ -157,7 +167,9 @@ export default function ProductsPage() {
       description: 'Default product image',
     };
     // Simple logic to cycle through placeholders
-    return PlaceHolderImages.find(p => p.id.startsWith('product-'))?.[index % 5 + 1] ?? defaultPlaceholder;
+    const placeholders = PlaceHolderImages.filter(p => p.id.startsWith('product-'));
+    if (placeholders.length === 0) return defaultPlaceholder;
+    return placeholders[index % placeholders.length] ?? defaultPlaceholder;
   };
 
 

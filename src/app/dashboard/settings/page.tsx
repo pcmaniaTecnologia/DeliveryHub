@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -24,8 +24,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Clock, DollarSign, PlusCircle, Trash2 } from 'lucide-react';
-import { useFirestore, useDoc, setDocumentNonBlocking, useMemoFirebase, useUser, useCollection, addDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
-import { doc, collection, deleteDoc } from 'firebase/firestore';
+import { useFirestore, useDoc, setDocument, useMemoFirebase, useUser, useCollection, addDocument, deleteDocument } from '@/firebase';
+import { doc, collection } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -125,11 +125,7 @@ export default function SettingsPage() {
         }
       }
        if (companyData.paymentMethods) {
-        // This check is important to handle the format difference
-        const methods = typeof companyData.paymentMethods === 'string'
-          ? JSON.parse(companyData.paymentMethods)
-          : companyData.paymentMethods;
-        setPaymentMethods(methods);
+        setPaymentMethods(companyData.paymentMethods);
       }
        if (companyData.businessHours) {
         try {
@@ -142,7 +138,7 @@ export default function SettingsPage() {
     }
   }, [companyData]);
 
-  const handleSaveChanges = () => {
+  const handleSaveChanges = async () => {
     if (!companyRef || !user) return;
 
     const themeColors = JSON.stringify({
@@ -157,12 +153,15 @@ export default function SettingsPage() {
         ownerId: user.uid,
     };
 
-    setDocumentNonBlocking(companyRef, updatedData, { merge: true });
-    
-    toast({
-        title: 'Sucesso!',
-        description: 'As configurações da sua empresa foram salvas.',
-    });
+    try {
+        await setDocument(companyRef, updatedData, { merge: true });
+        toast({
+            title: 'Sucesso!',
+            description: 'As configurações da sua empresa foram salvas.',
+        });
+    } catch (error) {
+        console.error("Failed to save company settings:", error);
+    }
   };
 
   const handlePaymentMethodChange = (method: keyof Omit<PaymentMethods, 'cashAskForChange'>, checked: boolean) => {
@@ -173,13 +172,17 @@ export default function SettingsPage() {
     setPaymentMethods(prev => ({ ...prev, cashAskForChange: checked }));
   };
 
-  const handleSavePayments = () => {
+  const handleSavePayments = async () => {
     if (!companyRef) return;
-    setDocumentNonBlocking(companyRef, { paymentMethods }, { merge: true });
-    toast({
-      title: 'Sucesso!',
-      description: 'Métodos de pagamento salvos.',
-    });
+     try {
+        await setDocument(companyRef, { paymentMethods }, { merge: true });
+        toast({
+          title: 'Sucesso!',
+          description: 'Métodos de pagamento salvos.',
+        });
+    } catch(error) {
+        console.error("Failed to save payment methods:", error);
+    }
   };
   
     const handleHoursChange = (day: keyof BusinessHours, field: keyof DayHours, value: string | boolean) => {
@@ -192,17 +195,21 @@ export default function SettingsPage() {
     }));
   };
 
-  const handleSaveHours = () => {
+  const handleSaveHours = async () => {
     if (!companyRef) return;
     const businessHoursString = JSON.stringify(businessHours);
-    setDocumentNonBlocking(companyRef, { businessHours: businessHoursString }, { merge: true });
-    toast({
-      title: 'Sucesso!',
-      description: 'Horários de funcionamento salvos.',
-    });
+    try {
+        await setDocument(companyRef, { businessHours: businessHoursString }, { merge: true });
+        toast({
+          title: 'Sucesso!',
+          description: 'Horários de funcionamento salvos.',
+        });
+    } catch (error) {
+        console.error("Failed to save business hours:", error);
+    }
   };
 
-  const handleAddZone = () => {
+  const handleAddZone = async () => {
     if (!deliveryZonesRef || !newNeighborhood || !newFee || !newTime) {
       toast({
         variant: 'destructive',
@@ -220,34 +227,44 @@ export default function SettingsPage() {
       companyId: user?.uid,
     };
 
-    addDocumentNonBlocking(deliveryZonesRef, newZone);
-
-    toast({
-      title: 'Sucesso!',
-      description: `Bairro ${newNeighborhood} adicionado.`,
-    });
-
-    // Reset form and close dialog
-    setNewNeighborhood('');
-    setNewFee('');
-    setNewTime('');
-    setIsZoneDialogOpen(false);
+    try {
+        await addDocument(deliveryZonesRef, newZone);
+        toast({
+          title: 'Sucesso!',
+          description: `Bairro ${newNeighborhood} adicionado.`,
+        });
+        // Reset form and close dialog
+        setNewNeighborhood('');
+        setNewFee('');
+        setNewTime('');
+        setIsZoneDialogOpen(false);
+    } catch(error) {
+        console.error("Failed to add delivery zone:", error);
+    }
   };
   
-  const handleDeleteZone = (zoneId: string) => {
+  const handleDeleteZone = async (zoneId: string) => {
     if (!firestore || !user) return;
     const zoneRef = doc(firestore, 'companies', user.uid, 'deliveryZones', zoneId);
-    deleteDocumentNonBlocking(zoneRef);
-    toast({
-        title: 'Sucesso!',
-        description: 'Bairro removido.',
-    });
+    try {
+        await deleteDocument(zoneRef);
+        toast({
+            title: 'Sucesso!',
+            description: 'Bairro removido.',
+        });
+    } catch (error) {
+        console.error("Failed to delete delivery zone:", error);
+    }
   };
 
-  const handleZoneIsActiveChange = (zone: DeliveryZone, isActive: boolean) => {
+  const handleZoneIsActiveChange = async (zone: DeliveryZone, isActive: boolean) => {
     if (!firestore || !user) return;
     const zoneRef = doc(firestore, 'companies', user.uid, 'deliveryZones', zone.id);
-    setDocumentNonBlocking(zoneRef, { isActive }, { merge: true });
+    try {
+        await setDocument(zoneRef, { isActive }, { merge: true });
+    } catch (error) {
+        console.error("Failed to update delivery zone status:", error);
+    }
   }
 
   const isLoading = isUserLoadingAuth || isLoadingCompany || isLoadingZones;
