@@ -8,11 +8,11 @@ import { Badge } from '@/components/ui/badge';
 export function DashboardNav() {
   const pathname = usePathname();
   const navItems = [
-    { href: '/dashboard', label: 'Dashboard', icon: Home },
-    { href: '/dashboard/orders', label: 'Orders', icon: ShoppingCart, badge: '6' },
-    { href: '/dashboard/products', label: 'Products', icon: Package },
-    { href: '/dashboard/coupons', label: 'Coupons', icon: Ticket },
-    { href: '/dashboard/settings', label: 'Settings', icon: SettingsIcon },
+    { href: '/dashboard', label: 'Painel', icon: Home },
+    { href: '/dashboard/orders', label: 'Pedidos', icon: ShoppingCart, badge: '6' },
+    { href: '/dashboard/products', label: 'Produtos', icon: Package },
+    { href: '/dashboard/coupons', label: 'Cupons', icon: Ticket },
+    { href: '/dashboard/settings', label: 'Configurações', icon: SettingsIcon },
   ];
 
   return (

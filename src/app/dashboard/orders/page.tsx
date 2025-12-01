@@ -24,7 +24,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, Printer, Truck } from 'lucide-react';
+import { MoreHorizontal, Package, Printer, Truck } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 
 const orders = [

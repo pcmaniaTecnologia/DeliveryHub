@@ -29,10 +29,10 @@ import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart';
 
 const salesData = [
   { date: 'Jan', sales: Math.floor(Math.random() * 2000) + 1000 },
-  { date: 'Feb', sales: Math.floor(Math.random() * 2000) + 1000 },
+  { date: 'Fev', sales: Math.floor(Math.random() * 2000) + 1000 },
   { date: 'Mar', sales: Math.floor(Math.random() * 2000) + 1000 },
-  { date: 'Apr', sales: Math.floor(Math.random() * 2000) + 1000 },
-  { date: 'May', sales: Math.floor(Math.random() * 2000) + 1000 },
+  { date: 'Abr', sales: Math.floor(Math.random() * 2000) + 1000 },
+  { date: 'Mai', sales: Math.floor(Math.random() * 2000) + 1000 },
   { date: 'Jun', sales: Math.floor(Math.random() * 2000) + 1000 },
 ];
 
@@ -46,7 +46,7 @@ const recentOrders = [
 
 const chartConfig = {
   sales: {
-    label: 'Sales',
+    label: 'Vendas',
     color: 'hsl(var(--primary))',
   },
 };
@@ -55,7 +55,7 @@ export default function DashboardPage() {
   return (
     <>
       <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+        <h2 className="text-3xl font-bold tracking-tight">Painel</h2>
         <div className="flex items-center space-x-2">
             <Button>Hoje</Button>
             <Button variant="outline">Semana</Button>
