@@ -24,17 +24,11 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Clock, DollarSign, PlusCircle, Trash2 } from 'lucide-react';
-import { useFirestore, useDoc, setDocumentNonBlocking, useMemoFirebase, useUser } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { useFirestore, useDoc, setDocumentNonBlocking, useMemoFirebase, useUser, useCollection, addDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
+import { doc, collection, deleteDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
-
-
-const deliveryZones = [
-  { neighborhood: 'Centro', fee: 'R$5,00', time: '30 min', active: true },
-  { neighborhood: 'Bela Vista', fee: 'R$7,00', time: '45 min', active: true },
-  { neighborhood: 'Jardins', fee: 'R$10,00', time: '50 min', active: false },
-];
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
 type PaymentMethods = {
   cash: boolean;
@@ -60,11 +54,26 @@ type BusinessHours = {
   sunday: DayHours;
 };
 
+type DeliveryZone = {
+  id: string;
+  neighborhood: string;
+  deliveryFee: number;
+  deliveryTime: number;
+  isActive: boolean;
+};
+
 
 export default function SettingsPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
   const { user, isUserLoading: isUserLoadingAuth } = useUser();
+
+  // Dialog state for adding new delivery zone
+  const [isZoneDialogOpen, setIsZoneDialogOpen] = useState(false);
+  const [newNeighborhood, setNewNeighborhood] = useState('');
+  const [newFee, setNewFee] = useState('');
+  const [newTime, setNewTime] = useState('');
+
 
   const companyRef = useMemoFirebase(() => {
       if (!firestore || !user) return null;
@@ -72,6 +81,14 @@ export default function SettingsPage() {
   }, [firestore, user]);
   
   const { data: companyData, isLoading: isLoadingCompany } = useDoc(companyRef);
+
+  const deliveryZonesRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return collection(firestore, 'companies', user.uid, 'deliveryZones');
+  }, [firestore, user]);
+
+  const { data: deliveryZones, isLoading: isLoadingZones } = useCollection<DeliveryZone>(deliveryZonesRef);
+
 
   const [storeName, setStoreName] = useState('');
   const [phone, setPhone] = useState('');
@@ -107,8 +124,12 @@ export default function SettingsPage() {
           console.error("Error parsing theme colors", e);
         }
       }
-      if (companyData.paymentMethods) {
-        setPaymentMethods(companyData.paymentMethods);
+       if (companyData.paymentMethods) {
+        // This check is important to handle the format difference
+        const methods = typeof companyData.paymentMethods === 'string'
+          ? JSON.parse(companyData.paymentMethods)
+          : companyData.paymentMethods;
+        setPaymentMethods(methods);
       }
        if (companyData.businessHours) {
         try {
@@ -181,8 +202,55 @@ export default function SettingsPage() {
     });
   };
 
+  const handleAddZone = () => {
+    if (!deliveryZonesRef || !newNeighborhood || !newFee || !newTime) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: 'Por favor, preencha todos os campos.',
+      });
+      return;
+    }
 
-  const isLoading = isUserLoadingAuth || isLoadingCompany;
+    const newZone = {
+      neighborhood: newNeighborhood,
+      deliveryFee: parseFloat(newFee),
+      deliveryTime: parseInt(newTime, 10),
+      isActive: true,
+      companyId: user?.uid,
+    };
+
+    addDocumentNonBlocking(deliveryZonesRef, newZone);
+
+    toast({
+      title: 'Sucesso!',
+      description: `Bairro ${newNeighborhood} adicionado.`,
+    });
+
+    // Reset form and close dialog
+    setNewNeighborhood('');
+    setNewFee('');
+    setNewTime('');
+    setIsZoneDialogOpen(false);
+  };
+  
+  const handleDeleteZone = (zoneId: string) => {
+    if (!firestore || !user) return;
+    const zoneRef = doc(firestore, 'companies', user.uid, 'deliveryZones', zoneId);
+    deleteDocumentNonBlocking(zoneRef);
+    toast({
+        title: 'Sucesso!',
+        description: 'Bairro removido.',
+    });
+  };
+
+  const handleZoneIsActiveChange = (zone: DeliveryZone, isActive: boolean) => {
+    if (!firestore || !user) return;
+    const zoneRef = doc(firestore, 'companies', user.uid, 'deliveryZones', zone.id);
+    setDocumentNonBlocking(zoneRef, { isActive }, { merge: true });
+  }
+
+  const isLoading = isUserLoadingAuth || isLoadingCompany || isLoadingZones;
 
   const weekDays: { key: keyof BusinessHours; label: string }[] = [
     { key: 'sunday', label: 'Domingo' },
@@ -268,26 +336,27 @@ export default function SettingsPage() {
                 <div key={key} className="flex items-center justify-between rounded-lg border p-4">
                   <div className="flex items-center gap-4">
                     <Switch
-                      checked={businessHours[key].isOpen}
+                      checked={businessHours[key]?.isOpen}
                       onCheckedChange={(checked) => handleHoursChange(key, 'isOpen', checked)}
                       id={`switch-${key}`}
+                      disabled={isLoading}
                     />
                     <Label htmlFor={`switch-${key}`} className="w-24">{label}</Label>
                   </div>
                   <div className="flex items-center gap-2">
                     <Input
                       type="time"
-                      value={businessHours[key].openTime}
+                      value={businessHours[key]?.openTime}
                       onChange={(e) => handleHoursChange(key, 'openTime', e.target.value)}
-                      disabled={!businessHours[key].isOpen || isLoading}
+                      disabled={!businessHours[key]?.isOpen || isLoading}
                       className="w-32"
                     />
                     <span>às</span>
                     <Input
                       type="time"
-                      value={businessHours[key].closeTime}
+                      value={businessHours[key]?.closeTime}
                       onChange={(e) => handleHoursChange(key, 'closeTime', e.target.value)}
-                      disabled={!businessHours[key].isOpen || isLoading}
+                      disabled={!businessHours[key]?.isOpen || isLoading}
                       className="w-32"
                     />
                   </div>
@@ -304,62 +373,123 @@ export default function SettingsPage() {
 
 
         <TabsContent value="delivery">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Entregas e Frete</CardTitle>
-                  <CardDescription>
-                    Configure suas taxas e áreas de entrega.
-                  </CardDescription>
+          <Dialog open={isZoneDialogOpen} onOpenChange={setIsZoneDialogOpen}>
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Entregas e Frete</CardTitle>
+                    <CardDescription>
+                      Configure suas taxas e áreas de entrega.
+                    </CardDescription>
+                  </div>
+                  <DialogTrigger asChild>
+                    <Button size="sm" className="gap-1">
+                      <PlusCircle className="h-4 w-4" />
+                      Adicionar Bairro
+                    </Button>
+                  </DialogTrigger>
                 </div>
-                <Button size="sm" className="gap-1">
-                  <PlusCircle className="h-4 w-4" />
-                  Adicionar Bairro
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Bairro</TableHead>
-                    <TableHead>
-                      <DollarSign className="inline-block h-4 w-4 mr-1" />
-                      Taxa
-                    </TableHead>
-                    <TableHead>
-                      <Clock className="inline-block h-4 w-4 mr-1" />
-                      Tempo
-                    </TableHead>
-                    <TableHead>Ativo</TableHead>
-                    <TableHead>
-                      <span className="sr-only">Ações</span>
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {deliveryZones.map((zone) => (
-                    <TableRow key={zone.neighborhood}>
-                      <TableCell className="font-medium">
-                        {zone.neighborhood}
-                      </TableCell>
-                      <TableCell>{zone.fee}</TableCell>
-                      <TableCell>{zone.time}</TableCell>
-                      <TableCell>
-                        <Switch checked={zone.active} />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="icon">
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </TableCell>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Bairro</TableHead>
+                      <TableHead>
+                        <DollarSign className="inline-block h-4 w-4 mr-1" />
+                        Taxa
+                      </TableHead>
+                      <TableHead>
+                        <Clock className="inline-block h-4 w-4 mr-1" />
+                        Tempo
+                      </TableHead>
+                      <TableHead>Ativo</TableHead>
+                      <TableHead>
+                        <span className="sr-only">Ações</span>
+                      </TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {isLoading && <TableRow><TableCell colSpan={5} className="text-center">Carregando...</TableCell></TableRow>}
+                    {!isLoading && deliveryZones?.map((zone) => (
+                      <TableRow key={zone.id}>
+                        <TableCell className="font-medium">
+                          {zone.neighborhood}
+                        </TableCell>
+                        <TableCell>R${zone.deliveryFee.toFixed(2)}</TableCell>
+                        <TableCell>{zone.deliveryTime} min</TableCell>
+                        <TableCell>
+                          <Switch 
+                            checked={zone.isActive}
+                            onCheckedChange={(checked) => handleZoneIsActiveChange(zone, checked)}
+                          />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="icon" onClick={() => handleDeleteZone(zone.id)}>
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Adicionar Bairro</DialogTitle>
+                <DialogDescription>
+                  Preencha os dados da nova área de entrega.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="neighborhood" className="text-right">
+                    Bairro
+                  </Label>
+                  <Input
+                    id="neighborhood"
+                    value={newNeighborhood}
+                    onChange={(e) => setNewNeighborhood(e.target.value)}
+                    className="col-span-3"
+                    placeholder="Ex: Centro"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="fee" className="text-right">
+                    Taxa (R$)
+                  </Label>
+                  <Input
+                    id="fee"
+                    type="number"
+                    value={newFee}
+                    onChange={(e) => setNewFee(e.target.value)}
+                    className="col-span-3"
+                    placeholder="5.00"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="time" className="text-right">
+                    Tempo (min)
+                  </Label>
+                  <Input
+                    id="time"
+                    type="number"
+                    value={newTime}
+                    onChange={(e) => setNewTime(e.target.value)}
+                    className="col-span-3"
+                    placeholder="30"
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsZoneDialogOpen(false)}>Cancelar</Button>
+                <Button onClick={handleAddZone}>Salvar</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </TabsContent>
 
         <TabsContent value="notifications">
@@ -417,6 +547,7 @@ export default function SettingsPage() {
                     id="payment-cash" 
                     checked={paymentMethods.cash} 
                     onCheckedChange={(c) => handlePaymentMethodChange('cash', c)}
+                    disabled={isLoading}
                   />
                 </div>
                 {paymentMethods.cash && (
@@ -425,6 +556,7 @@ export default function SettingsPage() {
                       id="ask-for-change" 
                       checked={paymentMethods.cashAskForChange}
                       onCheckedChange={(c) => handleCashAskForChange(c as boolean)}
+                      disabled={isLoading}
                     />
                     <Label htmlFor="ask-for-change" className="text-sm font-normal">
                       Perguntar se o cliente precisa de troco
@@ -440,6 +572,7 @@ export default function SettingsPage() {
                   id="payment-pix" 
                   checked={paymentMethods.pix} 
                   onCheckedChange={(c) => handlePaymentMethodChange('pix', c)}
+                  disabled={isLoading}
                 />
               </div>
               <div className="flex items-center justify-between rounded-lg border p-4">
@@ -450,6 +583,7 @@ export default function SettingsPage() {
                   id="payment-credit" 
                   checked={paymentMethods.credit} 
                   onCheckedChange={(c) => handlePaymentMethodChange('credit', c)}
+                  disabled={isLoading}
                 />
               </div>
               <div className="flex items-center justify-between rounded-lg border p-4">
@@ -460,11 +594,14 @@ export default function SettingsPage() {
                   id="payment-debit"
                   checked={paymentMethods.debit} 
                   onCheckedChange={(c) => handlePaymentMethodChange('debit', c)}
+                  disabled={isLoading}
                 />
               </div>
             </CardContent>
              <CardFooter>
-              <Button onClick={handleSavePayments}>Salvar Pagamentos</Button>
+              <Button onClick={handleSavePayments} disabled={isLoading}>
+                 {isLoading ? 'Carregando...' : 'Salvar Pagamentos'}
+              </Button>
             </CardFooter>
           </Card>
         </TabsContent>
@@ -472,3 +609,5 @@ export default function SettingsPage() {
     </div>
   );
 }
+
+    
