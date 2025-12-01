@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -52,6 +51,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { PlaceHolderImages, type ImagePlaceholder } from '@/lib/placeholder-images';
@@ -365,5 +365,3 @@ export default function ProductsPage() {
     </Card>
   );
 }
-
-    
