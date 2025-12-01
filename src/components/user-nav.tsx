@@ -1,3 +1,5 @@
+'use client';
+
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -9,28 +11,33 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { PlaceHolderImages } from '@/lib/placeholder-images';
+import { useAuth, useUser } from '@/firebase';
 import Link from 'next/link';
 
 export function UserNav() {
-  const userAvatar = PlaceHolderImages.find(p => p.id === 'user-avatar');
+  const { user } = useUser();
+  const auth = useAuth();
+
+  const handleSignOut = () => {
+    auth.signOut();
+  };
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-8 w-8 rounded-full">
           <Avatar className="h-9 w-9 border">
-            {userAvatar && <AvatarImage src={userAvatar.imageUrl} alt="User avatar" data-ai-hint={userAvatar.imageHint} />}
-            <AvatarFallback>DH</AvatarFallback>
+            {user?.photoURL && <AvatarImage src={user.photoURL} alt={user.displayName ?? 'User avatar'} />}
+            <AvatarFallback>{user?.displayName?.[0] ?? 'D'}</AvatarFallback>
           </Avatar>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">The Burger Shop</p>
+            <p className="text-sm font-medium leading-none">{user?.displayName ?? 'The Burger Shop'}</p>
             <p className="text-xs leading-none text-muted-foreground">
-              contact@burgershop.com
+              {user?.email ?? 'contact@burgershop.com'}
             </p>
           </div>
         </DropdownMenuLabel>
@@ -47,8 +54,8 @@ export function UserNav() {
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link href="/">Sair</Link>
+        <DropdownMenuItem onClick={handleSignOut}>
+          Sair
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

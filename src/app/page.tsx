@@ -1,18 +1,58 @@
-import Link from "next/link"
-import { Package2 } from "lucide-react"
+'use client';
 
-import { Button } from "@/components/ui/button"
+import { useEffect } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { Package2 } from 'lucide-react';
+import { useAuth, useUser } from '@/firebase';
+import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+} from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { signInWithGoogle } from '@/firebase/auth'; // Corrected import path
+import { useToast } from '@/hooks/use-toast';
 
 export default function LoginPage() {
+  const auth = useAuth();
+  const { user, isUserLoading } = useUser();
+  const router = useRouter();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (!isUserLoading && user) {
+      router.push('/dashboard');
+    }
+  }, [user, isUserLoading, router]);
+
+  const handleGoogleSignIn = async () => {
+    try {
+      await signInWithGoogle(auth);
+      // The useEffect will handle the redirection
+    } catch (error) {
+      console.error('Google Sign-In Error:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro de Login',
+        description: 'Não foi possível fazer login com o Google. Tente novamente.',
+      });
+    }
+  };
+
+  if (isUserLoading || user) {
+    // You can show a loading spinner here
+    return (
+        <div className="flex min-h-screen flex-col items-center justify-center">
+            <p>Carregando...</p>
+        </div>
+    )
+  }
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-muted/40 p-4">
       <Card className="w-full max-w-sm">
@@ -49,12 +89,12 @@ export default function LoginPage() {
             <Button type="submit" className="w-full" asChild>
               <Link href="/dashboard">Entrar</Link>
             </Button>
-            <Button variant="outline" className="w-full">
+            <Button variant="outline" className="w-full" onClick={handleGoogleSignIn}>
               Entrar com Google
             </Button>
           </div>
           <div className="mt-4 text-center text-sm">
-            Não tem uma conta?{" "}
+            Não tem uma conta?{' '}
             <Link href="#" className="underline">
               Inscreva-se
             </Link>
@@ -65,5 +105,5 @@ export default function LoginPage() {
         Criado por PC MANIA
       </div>
     </div>
-  )
+  );
 }
