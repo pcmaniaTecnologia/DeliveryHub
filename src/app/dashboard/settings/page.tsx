@@ -23,7 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Clock, DollarSign, PlusCircle, Trash2 } from 'lucide-react';
+import { BellRing, Clock, DollarSign, PlusCircle, Trash2 } from 'lucide-react';
 import { useFirestore, useDoc, setDocument, useMemoFirebase, useUser, useCollection, addDocument, deleteDocument } from '@/firebase';
 import { doc, collection } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -108,6 +108,7 @@ export default function SettingsPage() {
   const [phone, setPhone] = useState('');
   const [primaryColor, setPrimaryColor] = useState('#29ABE2');
   const [accentColor, setAccentColor] = useState('#29E2D1');
+  const [soundNotificationEnabled, setSoundNotificationEnabled] = useState(true);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethods>({
     cash: true,
     pix: true,
@@ -129,6 +130,7 @@ export default function SettingsPage() {
     if (companyData) {
       setStoreName(companyData.name || '');
       setPhone(companyData.phone || '');
+      setSoundNotificationEnabled(companyData.soundNotificationEnabled ?? true);
       if (companyData.themeColors) {
         try {
           const colors = JSON.parse(companyData.themeColors);
@@ -165,6 +167,7 @@ export default function SettingsPage() {
         phone: phone,
         themeColors: themeColors,
         ownerId: user.uid,
+        soundNotificationEnabled: soundNotificationEnabled,
     };
 
     try {
@@ -367,8 +370,27 @@ export default function SettingsPage() {
                 <Label htmlFor="phone">Telefone/WhatsApp</Label>
                 <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} disabled={isLoading}/>
               </div>
+              <Separator />
+               <div className="space-y-4">
+                 <Label className="text-base">Notificações</Label>
+                 <div className="flex flex-row items-center justify-between rounded-lg border p-4">
+                    <div className="space-y-0.5">
+                      <Label className="font-medium" htmlFor="sound-notification">Ativar notificação sonora para novos pedidos</Label>
+                      <p className="text-[0.8rem] text-muted-foreground">
+                        Um som será reproduzido sempre que um novo pedido chegar.
+                      </p>
+                    </div>
+                    <Switch
+                      id="sound-notification"
+                      checked={soundNotificationEnabled}
+                      onCheckedChange={setSoundNotificationEnabled}
+                      disabled={isLoading}
+                    />
+                  </div>
+              </div>
+              <Separator />
               <div className="space-y-2">
-                <Label>Cores do Tema</Label>
+                <Label className="text-base">Aparência</Label>
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2">
                     <Label htmlFor="primary-color">Primária</Label>
@@ -708,3 +730,5 @@ export default function SettingsPage() {
     </div>
   );
 }
+
+    
