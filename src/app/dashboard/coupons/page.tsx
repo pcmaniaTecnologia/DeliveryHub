@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -111,7 +112,9 @@ export default function CouponsPage() {
   const { data: coupons, isLoading: isLoadingCoupons } = useCollection<Coupon>(couponsRef);
 
   const onSubmit = async (values: z.infer<typeof couponFormSchema>) => {
-    if (!couponsRef || !user) return;
+    if (!user) return;
+    
+    const couponsCollectionRef = collection(firestore, `companies/${user.uid}/coupons`);
 
     const newCoupon = {
       ...values,
@@ -121,7 +124,7 @@ export default function CouponsPage() {
     };
 
     try {
-      await addDocument(couponsRef, newCoupon);
+      await addDocument(couponsCollectionRef, newCoupon);
       toast({
         title: 'Cupom Adicionado!',
         description: `O cupom ${values.name} foi criado com sucesso.`,
@@ -362,3 +365,5 @@ export default function CouponsPage() {
     </Card>
   );
 }
+
+    
