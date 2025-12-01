@@ -40,6 +40,7 @@ type OrderItem = {
 type Order = {
   id: string;
   customer: string;
+  phone: string;
   date: string;
   status: 'Entregue' | 'Saiu para entrega' | 'Em preparo' | 'Aguardando pagamento' | 'Novo' | 'Cancelado' | 'Pronto para retirada';
   total: string;
@@ -50,12 +51,12 @@ type Order = {
 };
 
 const orders: Order[] = [
-  { id: 'ORD001', customer: 'Liam Johnson', date: '2023-11-23', status: 'Entregue', total: 'R$35.50', deliveryType: 'Delivery', address: 'Rua das Flores, 123, Apto 4B, São Paulo, SP', paymentMethod: 'Cartão de Crédito', items: [{ name: 'Cheeseburger Clássico', quantity: 1, price: 25.50 }, { name: 'Refrigerante', quantity: 1, price: 5.00 }, { name: 'Batata Frita', quantity: 1, price: 5.00 }] },
-  { id: 'ORD002', customer: 'Olivia Smith', date: '2023-11-23', status: 'Saiu para entrega', total: 'R$150.00', deliveryType: 'Delivery', address: 'Av. Principal, 456, Centro, Rio de Janeiro, RJ', paymentMethod: 'PIX', items: [{ name: 'Pizza Margherita', quantity: 2, price: 45.00 }, { name: 'Refrigerante 2L', quantity: 1, price: 10.00 }] },
-  { id: 'ORD003', customer: 'Noah Williams', date: '2023-11-24', status: 'Em preparo', total: 'R$350.00', deliveryType: 'Retirada', address: 'N/A', paymentMethod: 'Dinheiro', items: [{ name: 'Spaghetti Carbonara', quantity: 4, price: 55.90 }] },
-  { id: 'ORD004', customer: 'Emma Brown', date: '2023-11-24', status: 'Aguardando pagamento', total: 'R$450.00', deliveryType: 'Delivery', address: 'Rua da Praia, 789, Litoral, Salvador, BA', paymentMethod: 'Aguardando', items: [{ name: 'Sushi de Salmão (8pçs)', quantity: 10, price: 28.00 }] },
-  { id: 'ORD005', customer: 'Liam Johnson', date: '2023-11-25', status: 'Novo', total: 'R$550.00', deliveryType: 'Retirada', address: 'N/A', paymentMethod: 'Cartão de Débito', items: [{ name: 'Salada Caesar', quantity: 5, price: 35.75 }] },
-  { id: 'ORD006', customer: 'Ava Jones', date: '2023-11-25', status: 'Cancelado', total: 'R$200.00', deliveryType: 'Delivery', address: 'Alameda dos Anjos, 101, Paraíso, Belo Horizonte, MG', paymentMethod: 'PIX', items: [{ name: 'Pizza Margherita', quantity: 4, price: 45.00 }] },
+  { id: 'ORD001', customer: 'Liam Johnson', phone: '(11) 98765-4321', date: '2023-11-23', status: 'Entregue', total: 'R$35.50', deliveryType: 'Delivery', address: 'Rua das Flores, 123, Apto 4B, São Paulo, SP', paymentMethod: 'Cartão de Crédito', items: [{ name: 'Cheeseburger Clássico', quantity: 1, price: 25.50 }, { name: 'Refrigerante', quantity: 1, price: 5.00 }, { name: 'Batata Frita', quantity: 1, price: 5.00 }] },
+  { id: 'ORD002', customer: 'Olivia Smith', phone: '(21) 91234-5678', date: '2023-11-23', status: 'Saiu para entrega', total: 'R$150.00', deliveryType: 'Delivery', address: 'Av. Principal, 456, Centro, Rio de Janeiro, RJ', paymentMethod: 'PIX', items: [{ name: 'Pizza Margherita', quantity: 2, price: 45.00 }, { name: 'Refrigerante 2L', quantity: 1, price: 10.00 }] },
+  { id: 'ORD003', customer: 'Noah Williams', phone: '(31) 95555-4444', date: '2023-11-24', status: 'Em preparo', total: 'R$350.00', deliveryType: 'Retirada', address: 'N/A', paymentMethod: 'Dinheiro', items: [{ name: 'Spaghetti Carbonara', quantity: 4, price: 55.90 }] },
+  { id: 'ORD004', customer: 'Emma Brown', phone: '(71) 93333-2222', date: '2023-11-24', status: 'Aguardando pagamento', total: 'R$450.00', deliveryType: 'Delivery', address: 'Rua da Praia, 789, Litoral, Salvador, BA', paymentMethod: 'Aguardando', items: [{ name: 'Sushi de Salmão (8pçs)', quantity: 10, price: 28.00 }] },
+  { id: 'ORD005', customer: 'Liam Johnson', phone: '(11) 98765-4321', date: '2023-11-25', status: 'Novo', total: 'R$550.00', deliveryType: 'Retirada', address: 'N/A', paymentMethod: 'Cartão de Débito', items: [{ name: 'Salada Caesar', quantity: 5, price: 35.75 }] },
+  { id: 'ORD006', customer: 'Ava Jones', phone: '(48) 92222-1111', date: '2023-11-25', status: 'Cancelado', total: 'R$200.00', deliveryType: 'Delivery', address: 'Alameda dos Anjos, 101, Paraíso, Belo Horizonte, MG', paymentMethod: 'PIX', items: [{ name: 'Pizza Margherita', quantity: 4, price: 45.00 }] },
 ];
 
 const statusMap: { [key: string]: Order['status'][] } = {
@@ -85,6 +86,7 @@ function OrderPrintPreview({ order, onClose }: { order: Order; onClose: () => vo
                         <div className="space-y-1">
                             <h3 className="font-semibold">Cliente</h3>
                             <p>{order.customer}</p>
+                            <p className="text-muted-foreground">{order.phone}</p>
                             {order.deliveryType === 'Delivery' && <p className="text-muted-foreground">{order.address}</p>}
                         </div>
                         <Separator />
