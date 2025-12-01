@@ -1,4 +1,10 @@
+'use client';
+
+import { useState } from 'react';
 import { MoreHorizontal, PlusCircle } from 'lucide-react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -15,6 +21,7 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
+  DropdownMenuSeparator
 } from '@/components/ui/dropdown-menu';
 import {
   Table,
@@ -32,19 +39,141 @@ import {
   DialogTitle,
   DialogTrigger,
   DialogFooter,
+  DialogClose,
 } from '@/components/ui/dialog';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useUser, useFirestore, useCollection, useMemoFirebase, addDocument, deleteDocument } from '@/firebase';
+import { collection, doc } from 'firebase/firestore';
+import { useToast } from '@/hooks/use-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { format } from 'date-fns';
 
-const coupons = [
-  { code: 'BEMVINDO10', type: 'Porcentagem', value: '10%', usage: '5/100', expiry: '2024-12-31', status: 'Ativo' },
-  { code: 'FRETEGRATIS', type: 'Fixo', value: 'R$15,00', usage: '82/200', expiry: '2024-11-30', status: 'Ativo' },
-  { code: 'NATAL25', type: 'Porcentagem', value: '25%', usage: '0/50', expiry: '2024-12-25', status: 'Agendado' },
-  { code: 'EXPIRADO', type: 'Fixo', value: 'R$5,00', usage: '30/30', expiry: '2023-10-31', status: 'Expirado' },
-];
+type Coupon = {
+  id: string;
+  companyId: string;
+  name: string;
+  type: 'percentage' | 'fixed';
+  value: number;
+  validUntilDate?: string;
+  usageLimit?: number;
+  usageCount?: number; // To track usage
+  isActive: boolean;
+};
+
+const couponFormSchema = z.object({
+  name: z.string().min(3, { message: 'O código deve ter pelo menos 3 caracteres.' }),
+  type: z.enum(['percentage', 'fixed'], { required_error: 'O tipo é obrigatório.' }),
+  value: z.coerce.number().positive({ message: 'O valor deve ser positivo.' }),
+  validUntilDate: z.string().optional(),
+  usageLimit: z.coerce.number().int().positive().optional(),
+});
 
 export default function CouponsPage() {
+  const { user, isUserLoading } = useUser();
+  const firestore = useFirestore();
+  const { toast } = useToast();
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+
+  const form = useForm<z.infer<typeof couponFormSchema>>({
+    resolver: zodResolver(couponFormSchema),
+    defaultValues: {
+      name: '',
+      type: 'percentage',
+      value: 0,
+      validUntilDate: '',
+    },
+  });
+
+  const couponsRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return collection(firestore, `companies/${user.uid}/coupons`);
+  }, [firestore, user]);
+
+  const { data: coupons, isLoading: isLoadingCoupons } = useCollection<Coupon>(couponsRef);
+
+  const onSubmit = async (values: z.infer<typeof couponFormSchema>) => {
+    if (!couponsRef || !user) return;
+
+    const newCoupon = {
+      ...values,
+      companyId: user.uid,
+      isActive: true,
+      usageCount: 0,
+    };
+
+    try {
+      await addDocument(couponsRef, newCoupon);
+      toast({
+        title: 'Cupom Adicionado!',
+        description: `O cupom ${values.name} foi criado com sucesso.`,
+      });
+      form.reset();
+      setIsDialogOpen(false);
+    } catch (error) {
+      console.error("Failed to add coupon:", error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao salvar',
+        description: 'Não foi possível adicionar o cupom. Verifique suas permissões.',
+      });
+    }
+  };
+
+  const handleDeleteCoupon = async (couponId: string) => {
+    if (!firestore || !user) return;
+    const couponDocRef = doc(firestore, `companies/${user.uid}/coupons/${couponId}`);
+    try {
+      await deleteDocument(couponDocRef);
+      toast({
+        title: 'Cupom Excluído',
+        description: 'O cupom foi removido com sucesso.',
+        variant: 'destructive'
+      });
+    } catch (error) {
+      console.error("Failed to delete coupon:", error);
+       toast({
+        variant: 'destructive',
+        title: 'Erro ao excluir',
+        description: 'Não foi possível remover o cupom.',
+      });
+    }
+  };
+
+  const getCouponStatus = (coupon: Coupon): { text: string; variant: 'default' | 'destructive' | 'secondary' } => {
+    if (!coupon.isActive) {
+      return { text: 'Inativo', variant: 'secondary' };
+    }
+    if (coupon.validUntilDate && new Date(coupon.validUntilDate) < new Date()) {
+      return { text: 'Expirado', variant: 'destructive' };
+    }
+    if (coupon.usageLimit && (coupon.usageCount ?? 0) >= coupon.usageLimit) {
+        return { text: 'Esgotado', variant: 'destructive' };
+    }
+    return { text: 'Ativo', variant: 'default' };
+  };
+  
+  const isLoading = isUserLoading || isLoadingCoupons;
+
   return (
     <Card>
       <CardHeader>
@@ -53,7 +182,7 @@ export default function CouponsPage() {
             <CardTitle>Cupons de Desconto</CardTitle>
             <CardDescription>Crie e gerencie seus cupons promocionais.</CardDescription>
           </div>
-          <Dialog>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button size="sm" className="gap-1">
                 <PlusCircle className="h-4 w-4" />
@@ -65,39 +194,89 @@ export default function CouponsPage() {
                 <DialogTitle>Adicionar Novo Cupom</DialogTitle>
                 <DialogDescription>Preencha os detalhes do seu novo cupom.</DialogDescription>
               </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="code" className="text-right">Código</Label>
-                  <Input id="code" placeholder="Ex: BEMVINDO10" className="col-span-3" />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="type" className="text-right">Tipo</Label>
-                  <Select>
-                    <SelectTrigger className="col-span-3">
-                      <SelectValue placeholder="Selecione o tipo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="percentage">Porcentagem (%)</SelectItem>
-                      <SelectItem value="fixed">Valor Fixo (R$)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="value" className="text-right">Valor</Label>
-                  <Input id="value" type="number" placeholder="10.00" className="col-span-3" />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="expiry" className="text-right">Validade</Label>
-                  <Input id="expiry" type="date" className="col-span-3" />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="limit" className="text-right">Limite de uso</Label>
-                  <Input id="limit" type="number" placeholder="100" className="col-span-3" />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button type="submit">Salvar Cupom</Button>
-              </DialogFooter>
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem className="grid grid-cols-4 items-center gap-4">
+                        <FormLabel className="text-right">Código</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Ex: BEMVINDO10" className="col-span-3" {...field} />
+                        </FormControl>
+                        <FormMessage className="col-span-4 pl-[calc(25%+1rem)]" />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="type"
+                    render={({ field }) => (
+                      <FormItem className="grid grid-cols-4 items-center gap-4">
+                        <FormLabel className="text-right">Tipo</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                           <FormControl>
+                            <SelectTrigger className="col-span-3">
+                              <SelectValue placeholder="Selecione o tipo" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="percentage">Porcentagem (%)</SelectItem>
+                            <SelectItem value="fixed">Valor Fixo (R$)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage className="col-span-4 pl-[calc(25%+1rem)]" />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="value"
+                    render={({ field }) => (
+                      <FormItem className="grid grid-cols-4 items-center gap-4">
+                        <FormLabel className="text-right">Valor</FormLabel>
+                        <FormControl>
+                          <Input type="number" step="0.01" placeholder="10.00" className="col-span-3" {...field} />
+                        </FormControl>
+                        <FormMessage className="col-span-4 pl-[calc(25%+1rem)]" />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="validUntilDate"
+                    render={({ field }) => (
+                      <FormItem className="grid grid-cols-4 items-center gap-4">
+                        <FormLabel className="text-right">Validade</FormLabel>
+                        <FormControl>
+                          <Input type="date" className="col-span-3" {...field} />
+                        </FormControl>
+                        <FormMessage className="col-span-4 pl-[calc(25%+1rem)]" />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="usageLimit"
+                    render={({ field }) => (
+                      <FormItem className="grid grid-cols-4 items-center gap-4">
+                        <FormLabel className="text-right">Limite de uso</FormLabel>
+                        <FormControl>
+                          <Input type="number" placeholder="100" className="col-span-3" {...field} />
+                        </FormControl>
+                        <FormMessage className="col-span-4 pl-[calc(25%+1rem)]" />
+                      </FormItem>
+                    )}
+                  />
+                  <DialogFooter>
+                     <DialogClose asChild>
+                      <Button type="button" variant="outline">Cancelar</Button>
+                    </DialogClose>
+                    <Button type="submit">Salvar Cupom</Button>
+                  </DialogFooter>
+                </form>
+              </Form>
             </DialogContent>
           </Dialog>
         </div>
@@ -116,15 +295,22 @@ export default function CouponsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {coupons.map((coupon) => (
-              <TableRow key={coupon.code}>
-                <TableCell className="font-medium">{coupon.code}</TableCell>
-                <TableCell>{coupon.type}</TableCell>
-                <TableCell>{coupon.value}</TableCell>
-                <TableCell>{coupon.usage}</TableCell>
-                <TableCell>{coupon.expiry}</TableCell>
+             {isLoading && (
+              <TableRow>
+                <TableCell colSpan={7} className="text-center">Carregando cupons...</TableCell>
+              </TableRow>
+            )}
+            {!isLoading && coupons?.map((coupon) => {
+              const status = getCouponStatus(coupon);
+              return (
+              <TableRow key={coupon.id}>
+                <TableCell className="font-medium">{coupon.name}</TableCell>
+                <TableCell>{coupon.type === 'percentage' ? 'Porcentagem' : 'Fixo'}</TableCell>
+                <TableCell>{coupon.type === 'percentage' ? `${coupon.value}%` : `R$${coupon.value.toFixed(2)}`}</TableCell>
+                <TableCell>{`${coupon.usageCount ?? 0} / ${coupon.usageLimit ?? '∞'}`}</TableCell>
+                <TableCell>{coupon.validUntilDate ? format(new Date(coupon.validUntilDate), 'dd/MM/yyyy') : 'Sem limite'}</TableCell>
                 <TableCell>
-                  <Badge variant={coupon.status === 'Expirado' ? 'destructive' : 'default'}>{coupon.status}</Badge>
+                  <Badge variant={status.variant}>{status.text}</Badge>
                 </TableCell>
                 <TableCell>
                   <DropdownMenu>
@@ -136,22 +322,45 @@ export default function CouponsPage() {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuLabel>Ações</DropdownMenuLabel>
-                      <DropdownMenuItem>Editar</DropdownMenuItem>
-                      <DropdownMenuItem>Desativar</DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive">Excluir</DropdownMenuItem>
+                      <DropdownMenuItem disabled>Editar</DropdownMenuItem>
+                      <DropdownMenuItem disabled>Desativar</DropdownMenuItem>
+                       <DropdownMenuSeparator />
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                             <Button variant="ghost" className="w-full justify-start text-sm text-destructive font-normal px-2 relative items-center rounded-sm focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 hover:bg-destructive/10">
+                                Excluir
+                             </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Essa ação não pode ser desfeita. Isso excluirá permanentemente o cupom.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleDeleteCoupon(coupon.id)} className="bg-destructive hover:bg-destructive/90">
+                                Excluir
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>
               </TableRow>
-            ))}
+            )})}
           </TableBody>
         </Table>
       </CardContent>
       <CardFooter>
         <div className="text-xs text-muted-foreground">
-          Mostrando <strong>1-{coupons.length}</strong> de <strong>{coupons.length}</strong> cupons
+          Mostrando <strong>1-{coupons?.length ?? 0}</strong> de <strong>{coupons?.length ?? 0}</strong> cupons
         </div>
       </CardFooter>
     </Card>
   );
 }
+
+    
