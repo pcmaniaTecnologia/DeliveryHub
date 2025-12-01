@@ -49,7 +49,6 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useUser, useFirestore, useCollection, useMemoFirebase, addDocument, deleteDocument } from '@/firebase';
@@ -131,11 +130,7 @@ export default function CouponsPage() {
       setIsDialogOpen(false);
     } catch (error) {
       console.error("Failed to add coupon:", error);
-      toast({
-        variant: 'destructive',
-        title: 'Erro ao salvar',
-        description: 'Não foi possível adicionar o cupom. Verifique suas permissões.',
-      });
+      // Firebase permission errors are handled globally
     }
   };
 
@@ -351,16 +346,19 @@ export default function CouponsPage() {
                 </TableCell>
               </TableRow>
             )})}
+             {!isLoading && coupons?.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center">Nenhum cupom encontrado.</TableCell>
+                </TableRow>
+              )}
           </TableBody>
         </Table>
       </CardContent>
       <CardFooter>
         <div className="text-xs text-muted-foreground">
-          Mostrando <strong>1-{coupons?.length ?? 0}</strong> de <strong>{coupons?.length ?? 0}</strong> cupons
+          Mostrando <strong>{coupons?.length ?? 0}</strong> de <strong>{coupons?.length ?? 0}</strong> cupons
         </div>
       </CardFooter>
     </Card>
   );
 }
-
-    
