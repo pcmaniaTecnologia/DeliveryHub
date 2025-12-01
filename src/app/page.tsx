@@ -20,7 +20,7 @@ export default function LoginPage() {
           <div className="mb-4 flex justify-center">
             <Package2 className="h-10 w-10 text-primary" />
           </div>
-          <CardTitle className="text-2xl font-bold">Welcome to DeliveryHub</CardTitle>
+          <CardTitle className="text-2xl font-bold">BEM VINDO AO DeliveryHub</CardTitle>
           <CardDescription>Enter your email below to login to your account</CardDescription>
         </CardHeader>
         <CardContent>
