@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect } from 'react';
@@ -7,12 +8,20 @@ import {
   Menu,
   Package2,
 } from 'lucide-react';
+import { useDoc, useFirestore, useMemoFirebase } from '@/firebase';
+import { doc } from 'firebase/firestore';
 
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { UserNav } from '@/components/user-nav';
 import { DashboardNav } from '@/components/dashboard-nav';
 import { useUser } from '@/firebase';
+import { hexToHsl } from '@/lib/utils';
+
+type CompanyData = {
+    themeColors?: string;
+};
+
 
 export default function DashboardLayout({
   children,
@@ -21,12 +30,44 @@ export default function DashboardLayout({
 }) {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
+  const firestore = useFirestore();
+
+  const companyRef = useMemoFirebase(() => {
+    if (!firestore || !user?.uid) return null;
+    return doc(firestore, 'companies', user.uid);
+  }, [firestore, user?.uid]);
+
+  const { data: companyData } = useDoc<CompanyData>(companyRef);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
       router.push('/');
     }
   }, [user, isUserLoading, router]);
+  
+  useEffect(() => {
+    if (companyData?.themeColors) {
+        try {
+            const { primary, accent } = JSON.parse(companyData.themeColors);
+            if (primary) {
+                const primaryHsl = hexToHsl(primary);
+                if (primaryHsl) {
+                    document.documentElement.style.setProperty('--primary', `${primaryHsl.h} ${primaryHsl.s}% ${primaryHsl.l}%`);
+                    document.documentElement.style.setProperty('--ring', `${primaryHsl.h} ${primaryHsl.s}% ${primaryHsl.l}%`);
+                }
+            }
+            if (accent) {
+                 const accentHsl = hexToHsl(accent);
+                 if (accentHsl) {
+                    document.documentElement.style.setProperty('--accent', `${accentHsl.h} ${accentHsl.s}% ${accentHsl.l}%`);
+                 }
+            }
+        } catch (error) {
+            console.error("Failed to parse or apply theme colors:", error);
+        }
+    }
+}, [companyData]);
+
 
   if (isUserLoading || !user) {
     return (
