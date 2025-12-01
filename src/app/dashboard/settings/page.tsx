@@ -27,12 +27,23 @@ import { Clock, DollarSign, PlusCircle, Trash2 } from 'lucide-react';
 import { useFirestore, useDoc, setDocumentNonBlocking, useMemoFirebase, useUser } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
+import { Checkbox } from '@/components/ui/checkbox';
+
 
 const deliveryZones = [
   { neighborhood: 'Centro', fee: 'R$5,00', time: '30 min', active: true },
   { neighborhood: 'Bela Vista', fee: 'R$7,00', time: '45 min', active: true },
   { neighborhood: 'Jardins', fee: 'R$10,00', time: '50 min', active: false },
 ];
+
+type PaymentMethods = {
+  cash: boolean;
+  pix: boolean;
+  credit: boolean;
+  debit: boolean;
+  cashAskForChange: boolean;
+};
+
 
 export default function SettingsPage() {
   const firestore = useFirestore();
@@ -41,7 +52,6 @@ export default function SettingsPage() {
 
   const companyRef = useMemoFirebase(() => {
       if (!firestore || !user) return null;
-      // Use the authenticated user's UID as the company ID
       return doc(firestore, 'companies', user.uid)
   }, [firestore, user]);
   
@@ -51,6 +61,13 @@ export default function SettingsPage() {
   const [phone, setPhone] = useState('');
   const [primaryColor, setPrimaryColor] = useState('#29ABE2');
   const [accentColor, setAccentColor] = useState('#29E2D1');
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethods>({
+    cash: true,
+    pix: true,
+    credit: true,
+    debit: false,
+    cashAskForChange: false,
+  });
 
   useEffect(() => {
     if (companyData) {
@@ -65,6 +82,9 @@ export default function SettingsPage() {
           console.error("Error parsing theme colors", e);
         }
       }
+      if (companyData.paymentMethods) {
+        setPaymentMethods(companyData.paymentMethods);
+      }
     }
   }, [companyData]);
 
@@ -76,7 +96,6 @@ export default function SettingsPage() {
         accent: accentColor,
     });
 
-    // Add ownerId to the document on save
     const updatedData = {
         name: storeName,
         phone: phone,
@@ -89,6 +108,23 @@ export default function SettingsPage() {
     toast({
         title: 'Sucesso!',
         description: 'As configurações da sua empresa foram salvas.',
+    });
+  };
+
+  const handlePaymentMethodChange = (method: keyof Omit<PaymentMethods, 'cashAskForChange'>, checked: boolean) => {
+    setPaymentMethods(prev => ({ ...prev, [method]: checked }));
+  };
+
+  const handleCashAskForChange = (checked: boolean) => {
+    setPaymentMethods(prev => ({ ...prev, cashAskForChange: checked }));
+  };
+
+  const handleSavePayments = () => {
+    if (!companyRef) return;
+    setDocumentNonBlocking(companyRef, { paymentMethods }, { merge: true });
+    toast({
+      title: 'Sucesso!',
+      description: 'Métodos de pagamento salvos.',
     });
   };
 
@@ -260,31 +296,64 @@ export default function SettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center justify-between rounded-lg border p-4">
-                <Label htmlFor="payment-cash" className="flex-grow">
-                  Dinheiro
-                </Label>
-                <Switch id="payment-cash" defaultChecked />
+              <div className="rounded-lg border p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="payment-cash" className="flex-grow">
+                    Dinheiro
+                  </Label>
+                  <Switch 
+                    id="payment-cash" 
+                    checked={paymentMethods.cash} 
+                    onCheckedChange={(c) => handlePaymentMethodChange('cash', c)}
+                  />
+                </div>
+                {paymentMethods.cash && (
+                  <div className="flex items-center space-x-2 pl-2 pt-2 border-t mt-2">
+                    <Checkbox 
+                      id="ask-for-change" 
+                      checked={paymentMethods.cashAskForChange}
+                      onCheckedChange={(c) => handleCashAskForChange(c as boolean)}
+                    />
+                    <Label htmlFor="ask-for-change" className="text-sm font-normal">
+                      Perguntar se o cliente precisa de troco
+                    </Label>
+                  </div>
+                )}
               </div>
               <div className="flex items-center justify-between rounded-lg border p-4">
                 <Label htmlFor="payment-pix" className="flex-grow">
                   PIX
                 </Label>
-                <Switch id="payment-pix" defaultChecked />
+                <Switch 
+                  id="payment-pix" 
+                  checked={paymentMethods.pix} 
+                  onCheckedChange={(c) => handlePaymentMethodChange('pix', c)}
+                />
               </div>
               <div className="flex items-center justify-between rounded-lg border p-4">
                 <Label htmlFor="payment-credit" className="flex-grow">
                   Cartão de Crédito
                 </Label>
-                <Switch id="payment-credit" defaultChecked />
+                <Switch 
+                  id="payment-credit" 
+                  checked={paymentMethods.credit} 
+                  onCheckedChange={(c) => handlePaymentMethodChange('credit', c)}
+                />
               </div>
               <div className="flex items-center justify-between rounded-lg border p-4">
                 <Label htmlFor="payment-debit" className="flex-grow">
                   Cartão de Débito
                 </Label>
-                <Switch id="payment-debit" />
+                <Switch 
+                  id="payment-debit"
+                  checked={paymentMethods.debit} 
+                  onCheckedChange={(c) => handlePaymentMethodChange('debit', c)}
+                />
               </div>
             </CardContent>
+             <CardFooter>
+              <Button onClick={handleSavePayments}>Salvar Pagamentos</Button>
+            </CardFooter>
           </Card>
         </TabsContent>
       </Tabs>
