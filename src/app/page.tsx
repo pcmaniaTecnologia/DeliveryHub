@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Package2 } from 'lucide-react';
-import { useAuth, useUser } from '@/firebase';
+import { useUser } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -15,34 +15,16 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { signInWithGoogle } from '@/firebase/auth';
-import { useToast } from '@/hooks/use-toast';
 
 export default function LoginPage() {
-  const auth = useAuth();
   const { user, isUserLoading } = useUser();
   const router = useRouter();
-  const { toast } = useToast();
 
   useEffect(() => {
     if (!isUserLoading && user) {
       router.push('/dashboard');
     }
   }, [user, isUserLoading, router]);
-
-  const handleGoogleSignIn = async () => {
-    if (!auth) return;
-    try {
-      await signInWithGoogle(auth);
-      // O useEffect irá lidar com o redirecionamento
-    } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Erro de Login',
-        description: 'Não foi possível fazer login com o Google. Verifique se o método de login com Google está ativo no console do Firebase.',
-      });
-    }
-  };
 
   if (isUserLoading || user) {
     return (
@@ -87,9 +69,6 @@ export default function LoginPage() {
             </div>
             <Button type="submit" className="w-full">
               Entrar
-            </Button>
-            <Button variant="outline" className="w-full" onClick={handleGoogleSignIn}>
-              Entrar com Google
             </Button>
           </div>
           <div className="mt-4 text-center text-sm">
