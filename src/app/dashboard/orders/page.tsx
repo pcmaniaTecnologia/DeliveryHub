@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import {
   Card,
   CardContent,
@@ -26,10 +27,19 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, Package, Printer, Truck } from 'lucide-react';
-import { Separator } from '@/components/ui/separator';
+import { MoreHorizontal, Package, Printer, Truck, X } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 
-const orders = [
+type Order = {
+  id: string;
+  customer: string;
+  date: string;
+  status: 'Entregue' | 'Saiu para entrega' | 'Em preparo' | 'Aguardando pagamento' | 'Novo' | 'Cancelado' | 'Pronto para retirada';
+  total: string;
+  deliveryType: 'Delivery' | 'Retirada';
+};
+
+const orders: Order[] = [
   { id: 'ORD001', customer: 'Liam Johnson', date: '2023-11-23', status: 'Entregue', total: 'R$250.00', deliveryType: 'Delivery' },
   { id: 'ORD002', customer: 'Olivia Smith', date: '2023-11-23', status: 'Saiu para entrega', total: 'R$150.00', deliveryType: 'Delivery' },
   { id: 'ORD003', customer: 'Noah Williams', date: '2023-11-24', status: 'Em preparo', total: 'R$350.00', deliveryType: 'Retirada' },
@@ -38,21 +48,49 @@ const orders = [
   { id: 'ORD006', customer: 'Ava Jones', date: '2023-11-25', status: 'Cancelado', total: 'R$200.00', deliveryType: 'Delivery' },
 ];
 
-const statusMap: { [key: string]: string[] } = {
-  "Todos": orders.map(o => o.status),
+const statusMap: { [key: string]: Order['status'][] } = {
+  "Todos": ["Novo", "Aguardando pagamento", "Em preparo", "Saiu para entrega", "Pronto para retirada", "Entregue", "Cancelado"],
   "Novo": ["Novo", "Aguardando pagamento"],
   "Em preparo": ["Em preparo"],
   "Pronto": ["Saiu para entrega", "Pronto para retirada"],
   "Finalizados": ["Entregue", "Cancelado"],
 }
 
+function OrderPrintPreview({ order, onClose }: { order: Order; onClose: () => void }) {
+    const handlePrint = () => {
+        window.print();
+    };
+
+    return (
+        <Dialog open onOpenChange={onClose}>
+            <DialogContent className="sm:max-w-md print:shadow-none print:border-none">
+                <div id="print-content">
+                    <DialogHeader>
+                        <DialogTitle>Detalhes do Pedido: {order.id}</DialogTitle>
+                    </DialogHeader>
+                    <div className="py-4 space-y-2">
+                        <p><strong>Cliente:</strong> {order.customer}</p>
+                        <p><strong>Data:</strong> {order.date}</p>
+                        <p><strong>Status:</strong> {order.status}</p>
+                        <p><strong>Tipo:</strong> {order.deliveryType}</p>
+                        <p><strong>Total:</strong> {order.total}</p>
+                    </div>
+                </div>
+                <DialogFooter className="print:hidden">
+                    <Button variant="outline" onClick={onClose}>Fechar</Button>
+                    <Button onClick={handlePrint}><Printer className="mr-2 h-4 w-4" />Imprimir</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 
 export default function OrdersPage() {
-  const handlePrint = () => {
-    window.print();
-  };
+    const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
   return (
+    <>
     <Card>
       <CardHeader>
         <CardTitle>Pedidos</CardTitle>
@@ -60,7 +98,7 @@ export default function OrdersPage() {
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="Todos">
-          <TabsList>
+          <TabsList className="print:hidden">
             {Object.keys(statusMap).map(status => (
               <TabsTrigger key={status} value={status}>{status}</TabsTrigger>
             ))}
@@ -77,7 +115,7 @@ export default function OrdersPage() {
                         <TableHead className="hidden sm:table-cell">Tipo</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="text-right">Total</TableHead>
-                        <TableHead className="text-right">Ações</TableHead>
+                        <TableHead className="text-right print:hidden">Ações</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -98,7 +136,7 @@ export default function OrdersPage() {
                             <Badge variant={order.status === 'Cancelado' ? 'destructive' : 'default'} className="whitespace-nowrap">{order.status}</Badge>
                           </TableCell>
                           <TableCell className="text-right">{order.total}</TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="text-right print:hidden">
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="icon">
@@ -108,7 +146,7 @@ export default function OrdersPage() {
                               <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Ações</DropdownMenuLabel>
                                 <DropdownMenuItem>Ver Detalhes</DropdownMenuItem>
-                                <DropdownMenuItem onClick={handlePrint}>
+                                <DropdownMenuItem onClick={() => setSelectedOrder(order)}>
                                   <Printer className="mr-2 h-4 w-4" />
                                   Imprimir
                                 </DropdownMenuItem>
@@ -133,5 +171,9 @@ export default function OrdersPage() {
         </Tabs>
       </CardContent>
     </Card>
+    {selectedOrder && (
+        <OrderPrintPreview order={selectedOrder} onClose={() => setSelectedOrder(null)} />
+    )}
+    </>
   );
 }
