@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -109,6 +110,8 @@ export default function SettingsPage() {
   const [primaryColor, setPrimaryColor] = useState('#29ABE2');
   const [accentColor, setAccentColor] = useState('#29E2D1');
   const [soundNotificationEnabled, setSoundNotificationEnabled] = useState(true);
+  const [closedMessage, setClosedMessage] = useState('');
+  const [averagePrepTime, setAveragePrepTime] = useState(30);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethods>({
     cash: true,
     pix: true,
@@ -131,6 +134,8 @@ export default function SettingsPage() {
       setStoreName(companyData.name || '');
       setPhone(companyData.phone || '');
       setSoundNotificationEnabled(companyData.soundNotificationEnabled ?? true);
+      setClosedMessage(companyData.closedMessage || '');
+      setAveragePrepTime(companyData.averagePrepTime || 30);
       if (companyData.themeColors) {
         try {
           const colors = JSON.parse(companyData.themeColors);
@@ -168,6 +173,8 @@ export default function SettingsPage() {
         themeColors: themeColors,
         ownerId: user.uid,
         soundNotificationEnabled: soundNotificationEnabled,
+        closedMessage: closedMessage,
+        averagePrepTime: averagePrepTime,
     };
 
     try {
@@ -369,6 +376,14 @@ export default function SettingsPage() {
               <div className="space-y-2">
                 <Label htmlFor="phone">Telefone/WhatsApp</Label>
                 <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} disabled={isLoading}/>
+              </div>
+               <div className="space-y-2">
+                <Label htmlFor="average-prep-time">Tempo médio de preparo (minutos)</Label>
+                <Input id="average-prep-time" type="number" value={averagePrepTime} onChange={(e) => setAveragePrepTime(Number(e.target.value))} disabled={isLoading} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="closed-message">Mensagem de loja fechada</Label>
+                <Textarea id="closed-message" value={closedMessage} onChange={(e) => setClosedMessage(e.target.value)} placeholder="Estamos fechados no momento, mas abriremos amanhã às 9h!" disabled={isLoading} />
               </div>
               <Separator />
                <div className="space-y-4">
@@ -730,5 +745,3 @@ export default function SettingsPage() {
     </div>
   );
 }
-
-    
