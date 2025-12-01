@@ -1,3 +1,5 @@
+'use client';
+
 import {
   Card,
   CardContent,
@@ -46,6 +48,10 @@ const statusMap: { [key: string]: string[] } = {
 
 
 export default function OrdersPage() {
+  const handlePrint = () => {
+    window.print();
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -102,7 +108,7 @@ export default function OrdersPage() {
                               <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Ações</DropdownMenuLabel>
                                 <DropdownMenuItem>Ver Detalhes</DropdownMenuItem>
-                                <DropdownMenuItem>
+                                <DropdownMenuItem onClick={handlePrint}>
                                   <Printer className="mr-2 h-4 w-4" />
                                   Imprimir
                                 </DropdownMenuItem>
