@@ -1,3 +1,40 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "user-avatar",
+      "description": "User avatar for dropdown menu",
+      "imageUrl": "https://images.unsplash.com/photo-1630910561339-4e22c7150093?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwzfHxwZXJzb24lMjBhdmF0YXJ8ZW58MHx8fHwxNzY0NTQxNjQwfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "person avatar"
+    },
+    {
+      "id": "product-1",
+      "description": "A delicious burger",
+      "imageUrl": "https://images.unsplash.com/photo-1551782450-a2132b4ba21d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8YnVyZ2VyfGVufDB8fHx8MTc2NDU2MTkzNHww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "burger"
+    },
+    {
+      "id": "product-2",
+      "description": "A fresh pizza",
+      "imageUrl": "https://images.unsplash.com/photo-1593504049359-74330189a345?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw0fHxwaXp6YXxlbnwwfHx8fDE3NjQ2MTcwMTl8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "pizza"
+    },
+    {
+      "id": "product-3",
+      "description": "A healthy salad",
+      "imageUrl": "https://images.unsplash.com/photo-1600335895229-6e75511892c8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHxzYWxhZHxlbnwwfHx8fDE3NjQ2MjMzODF8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "salad"
+    },
+    {
+      "id": "product-4",
+      "description": "A plate of sushi",
+      "imageUrl": "https://images.unsplash.com/photo-1633478062482-790e3b5dd810?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8c3VzaGl8ZW58MHx8fHwxNzY0NTY5NDEyfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "sushi"
+    },
+    {
+      "id": "product-5",
+      "description": "A bowl of pasta",
+      "imageUrl": "https://images.unsplash.com/photo-1598866594230-a7c12756260f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8cGFzdGF8ZW58MHx8fHwxNzY0NjE3MDE5fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "pasta"
+    }
+  ]
 }
