@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import { MoreHorizontal, PlusCircle } from 'lucide-react';
-import { useForm } from 'react-hook-form';
+import { useForm } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Badge } from '@/components/ui/badge';
@@ -105,16 +105,14 @@ export default function CouponsPage() {
   });
 
   const couponsRef = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
+    if (!firestore || !user?.uid) return null;
     return collection(firestore, `companies/${user.uid}/coupons`);
-  }, [firestore, user]);
+  }, [firestore, user?.uid]);
 
   const { data: coupons, isLoading: isLoadingCoupons } = useCollection<Coupon>(couponsRef);
 
   const onSubmit = async (values: z.infer<typeof couponFormSchema>) => {
-    if (!user) return;
-    
-    const couponsCollectionRef = collection(firestore, `companies/${user.uid}/coupons`);
+    if (!user || !couponsRef) return;
 
     const newCoupon = {
       ...values,
@@ -124,7 +122,7 @@ export default function CouponsPage() {
     };
 
     try {
-      await addDocument(couponsCollectionRef, newCoupon);
+      await addDocument(couponsRef, newCoupon);
       toast({
         title: 'Cupom Adicionado!',
         description: `O cupom ${values.name} foi criado com sucesso.`,
@@ -170,7 +168,7 @@ export default function CouponsPage() {
     return { text: 'Ativo', variant: 'default' };
   };
   
-  const isLoading = isUserLoading || isLoadingCoupons;
+  const isLoading = isUserLoading || (couponsRef && isLoadingCoupons);
 
   return (
     <Card>
@@ -325,9 +323,9 @@ export default function CouponsPage() {
                        <DropdownMenuSeparator />
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                             <Button variant="ghost" className="w-full justify-start text-sm text-destructive font-normal px-2 relative items-center rounded-sm focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 hover:bg-destructive/10">
+                             <div className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 text-destructive hover:bg-destructive/10">
                                 Excluir
-                             </Button>
+                             </div>
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
