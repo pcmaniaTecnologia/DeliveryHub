@@ -24,8 +24,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Clock, DollarSign, PlusCircle, Trash2 } from 'lucide-react';
-import { useFirestore, useDoc, setDocumentNonBlocking, useMemoFirebase } from '@/firebase';
-import { doc, DocumentReference, DocumentData } from 'firebase/firestore';
+import { useFirestore, useDoc, setDocumentNonBlocking, useMemoFirebase, useUser } from '@/firebase';
+import { doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 
 const deliveryZones = [
@@ -34,17 +34,16 @@ const deliveryZones = [
   { neighborhood: 'Jardins', fee: 'R$10,00', time: '50 min', active: false },
 ];
 
-// Mock company ID
-const COMPANY_ID = 'the-burger-shop';
-
 export default function SettingsPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
+  const { user, isUserLoading: isUserLoadingAuth } = useUser();
 
   const companyRef = useMemoFirebase(() => {
-      if (!firestore) return null;
-      return doc(firestore, 'companies', COMPANY_ID)
-  }, [firestore]);
+      if (!firestore || !user) return null;
+      // Use the authenticated user's UID as the company ID
+      return doc(firestore, 'companies', user.uid)
+  }, [firestore, user]);
   
   const { data: companyData, isLoading: isLoadingCompany } = useDoc(companyRef);
 
@@ -70,17 +69,19 @@ export default function SettingsPage() {
   }, [companyData]);
 
   const handleSaveChanges = () => {
-    if (!companyRef) return;
+    if (!companyRef || !user) return;
 
     const themeColors = JSON.stringify({
         primary: primaryColor,
         accent: accentColor,
     });
 
+    // Add ownerId to the document on save
     const updatedData = {
         name: storeName,
         phone: phone,
         themeColors: themeColors,
+        ownerId: user.uid,
     };
 
     setDocumentNonBlocking(companyRef, updatedData, { merge: true });
@@ -90,6 +91,8 @@ export default function SettingsPage() {
         description: 'As configurações da sua empresa foram salvas.',
     });
   };
+
+  const isLoading = isUserLoadingAuth || isLoadingCompany;
 
   return (
     <div className="space-y-6">
@@ -120,33 +123,33 @@ export default function SettingsPage() {
             <CardContent className="space-y-6">
               <div className="space-y-2">
                 <Label htmlFor="store-name">Nome da Loja</Label>
-                <Input id="store-name" value={storeName} onChange={(e) => setStoreName(e.target.value)} disabled={isLoadingCompany} />
+                <Input id="store-name" value={storeName} onChange={(e) => setStoreName(e.target.value)} disabled={isLoading} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="logo">Logomarca</Label>
-                <Input id="logo" type="file" disabled={isLoadingCompany} />
+                <Input id="logo" type="file" disabled={isLoading} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="phone">Telefone/WhatsApp</Label>
-                <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} disabled={isLoadingCompany}/>
+                <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} disabled={isLoading}/>
               </div>
               <div className="space-y-2">
                 <Label>Cores do Tema</Label>
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2">
                     <Label htmlFor="primary-color">Primária</Label>
-                    <Input id="primary-color" type="color" value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} className="h-8 w-14 p-1" disabled={isLoadingCompany} />
+                    <Input id="primary-color" type="color" value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} className="h-8 w-14 p-1" disabled={isLoading} />
                   </div>
                   <div className="flex items-center gap-2">
                     <Label htmlFor="accent-color">Destaque</Label>
-                    <Input id="accent-color" type="color" value={accentColor} onChange={(e) => setAccentColor(e.target.value)} className="h-8 w-14 p-1" disabled={isLoadingCompany} />
+                    <Input id="accent-color" type="color" value={accentColor} onChange={(e) => setAccentColor(e.target.value)} className="h-8 w-14 p-1" disabled={isLoading} />
                   </div>
                 </div>
               </div>
             </CardContent>
             <CardFooter>
-              <Button onClick={handleSaveChanges} disabled={isLoadingCompany}>
-                {isLoadingCompany ? 'Carregando...' : 'Salvar Alterações'}
+              <Button onClick={handleSaveChanges} disabled={isLoading}>
+                {isLoading ? 'Carregando...' : 'Salvar Alterações'}
               </Button>
             </CardFooter>
           </Card>

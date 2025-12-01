@@ -82,6 +82,20 @@ service cloud.firestore {
     function isCreatingOwnDoc(userId) {
       return isOwner(userId) && request.resource.data.id == userId;
     }
+    
+    /**
+     * Ensures the incoming document has an `ownerId` field matching the user.
+     */
+    function isCreatingOwnCompany() {
+      return request.auth.uid == request.resource.data.ownerId;
+    }
+
+    /**
+     * Ensures the `ownerId` of an existing document matches the user.
+     */
+    function isCompanyOwner(companyId) {
+        return request.auth.uid == get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId;
+    }
 
     /**
      * Ensures an ownership field is not changed during an update.
@@ -103,9 +117,10 @@ service cloud.firestore {
      * @principle Enforces role-based access for company management while allowing public read access for storefronts.
      */
     match /companies/{companyId} {
-      allow get, list: if true;
-      allow create: if isSuperAdmin() && request.resource.data.id == companyId;
-      allow update: if (isCompanyAdmin(companyId) || isSuperAdmin()) && resource != null;
+      allow get: if true;
+      allow list: if false;
+      allow create: if isCreatingOwnCompany();
+      allow update: if isCompanyOwner(companyId) || isSuperAdmin();
       allow delete: if isSuperAdmin() && resource != null;
     }
 
