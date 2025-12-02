@@ -160,40 +160,33 @@ export default function DashboardPage() {
         
         const salesByPaymentMethod = successfulOrders.reduce<SalesByPaymentMethod>((acc, order) => {
             const methods = order.paymentMethod.split(', ');
-            methods.forEach(methodStr => {
-                if (methodStr.toLowerCase().includes('dinheiro')) {
-                    const amountMatch = methodStr.match(/R\$\s*([\d,.]+)/);
-                    if (amountMatch) {
-                        acc.cash += parseFloat(amountMatch[1].replace('.', '').replace(',', '.'));
-                    } else {
-                        acc.cash += order.totalAmount;
-                    }
+            const orderTotal = order.totalAmount;
+            const methodsWithValues = methods.map(m => {
+                const match = m.match(/(.+) \(R\$\s*([\d,.]+)\)/);
+                if (match) {
+                    return { method: match[1].trim(), amount: parseFloat(match[2].replace('.', '').replace(',', '.')) };
                 }
-                if (methodStr.toLowerCase().includes('pix')) {
-                     const amountMatch = methodStr.match(/R\$\s*([\d,.]+)/);
-                    if (amountMatch) {
-                        acc.pix += parseFloat(amountMatch[1].replace('.', '').replace(',', '.'));
-                    } else {
-                        acc.pix += order.totalAmount;
-                    }
-                }
-                if (methodStr.toLowerCase().includes('crédito')) {
-                    const amountMatch = methodStr.match(/R\$\s*([\d,.]+)/);
-                    if (amountMatch) {
-                        acc.credit += parseFloat(amountMatch[1].replace('.', '').replace(',', '.'));
-                    } else {
-                       acc.credit += order.totalAmount;
-                    }
-                }
-                if (methodStr.toLowerCase().includes('débito')) {
-                    const amountMatch = methodStr.match(/R\$\s*([\d,.]+)/);
-                    if (amountMatch) {
-                        acc.debit += parseFloat(amountMatch[1].replace('.', '').replace(',', '.'));
-                    } else {
-                       acc.debit += order.totalAmount;
-                    }
-                }
+                return { method: m.trim(), amount: null };
             });
+
+            // If only one method and no value, attribute full amount
+            if (methodsWithValues.length === 1 && methodsWithValues[0].amount === null) {
+                 const singleMethod = methodsWithValues[0].method.toLowerCase();
+                 if (singleMethod.includes('dinheiro')) acc.cash += orderTotal;
+                 if (singleMethod.includes('pix')) acc.pix += orderTotal;
+                 if (singleMethod.includes('crédito')) acc.credit += orderTotal;
+                 if (singleMethod.includes('débito')) acc.debit += orderTotal;
+            } else { // Distribute based on values
+                 methodsWithValues.forEach(({ method, amount }) => {
+                    const methodLc = method.toLowerCase();
+                    const value = amount || 0;
+                    if (methodLc.includes('dinheiro')) acc.cash += value;
+                    if (methodLc.includes('pix')) acc.pix += value;
+                    if (methodLc.includes('crédito')) acc.credit += value;
+                    if (methodLc.includes('débito')) acc.debit += value;
+                });
+            }
+
             return acc;
         }, { cash: 0, pix: 0, credit: 0, debit: 0 });
 
@@ -315,10 +308,10 @@ export default function DashboardPage() {
             <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                     <PieChart className="h-5 w-5 text-muted-foreground" />
-                    Fechamento de Caixa (dia)
+                    Fechamento de Caixa {dateRangeLabel}
                 </CardTitle>
                 <CardDescription>
-                    Total de vendas do dia detalhado por forma de pagamento.
+                    Total de vendas do período detalhado por forma de pagamento.
                 </CardDescription>
             </CardHeader>
             <CardContent>
