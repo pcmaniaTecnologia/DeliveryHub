@@ -1,5 +1,5 @@
 'use client';
-import { Banknote, CreditCard, DollarSign, Package, PieChart, Pizza, ShoppingCart, Users } from 'lucide-react';
+import { Banknote, CreditCard, DollarSign, Package, PieChart, Landmark, ShoppingCart, Users } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -322,7 +322,7 @@ export default function DashboardPage() {
                         <span className="font-medium">R$ {salesByPaymentMethod.cash.toFixed(2)}</span>
                     </div>
                     <div className="flex items-center">
-                        <Pizza className="h-5 w-5 mr-3 text-muted-foreground" />
+                        <Landmark className="h-5 w-5 mr-3 text-muted-foreground" />
                         <span className="flex-1">PIX</span>
                         <span className="font-medium">R$ {salesByPaymentMethod.pix.toFixed(2)}</span>
                     </div>
