@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Sheet,
   SheetContent,
@@ -16,12 +16,14 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useCart, type CartItem } from '@/context/cart-context';
-import { ShoppingCart, Minus, Plus, Trash2 } from 'lucide-react';
+import { ShoppingCart, Minus, Plus, Trash2, CreditCard, DollarSign, Landmark } from 'lucide-react';
 import {
   useFirestore,
-  addDocument
+  addDocument,
+  useDoc,
+  useMemoFirebase,
 } from '@/firebase';
-import { collection, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -36,6 +38,19 @@ import {
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Skeleton } from '@/components/ui/skeleton';
+
+type PaymentMethods = {
+  cash: boolean;
+  pix: boolean;
+  credit: boolean;
+  debit: boolean;
+};
+
+type CompanyData = {
+    paymentMethods?: PaymentMethods;
+};
 
 
 const CartItemCard = ({ item }: { item: CartItem }) => {
@@ -77,6 +92,13 @@ export default function CartSheet({ companyId }: { companyId: string}) {
   const [isOrderFinished, setIsOrderFinished] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
 
+  const companyRef = useMemoFirebase(() => {
+    if (!firestore || !companyId) return null;
+    return doc(firestore, 'companies', companyId);
+  }, [firestore, companyId]);
+
+  const { data: companyData, isLoading: isLoadingCompany } = useDoc<CompanyData>(companyRef);
+
   // Form states
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -86,6 +108,15 @@ export default function CartSheet({ companyId }: { companyId: string}) {
   
   const handlePlaceOrder = async () => {
     if (!firestore || !companyId) return;
+
+    if (!customerName || !customerPhone || !paymentMethod || (deliveryType === 'Delivery' && !deliveryAddress)) {
+        toast({
+            variant: 'destructive',
+            title: 'Campos obrigatórios',
+            description: 'Por favor, preencha todos os campos para finalizar o pedido.',
+        });
+        return;
+    }
 
     const ordersRef = collection(firestore, 'companies', companyId, 'orders');
 
@@ -129,6 +160,16 @@ export default function CartSheet({ companyId }: { companyId: string}) {
         setIsCheckoutOpen(false);
     }
   }
+
+  const enabledPaymentMethods = useMemo(() => {
+    if (!companyData?.paymentMethods) return [];
+    const methods = [];
+    if (companyData.paymentMethods.cash) methods.push({ id: 'Dinheiro', label: 'Dinheiro', icon: DollarSign });
+    if (companyData.paymentMethods.pix) methods.push({ id: 'PIX', label: 'PIX', icon: Landmark });
+    if (companyData.paymentMethods.credit) methods.push({ id: 'Cartão de Crédito', label: 'Cartão de Crédito', icon: CreditCard });
+    if (companyData.paymentMethods.debit) methods.push({ id: 'Cartão de Débito', label: 'Cartão de Débito', icon: CreditCard });
+    return methods;
+  }, [companyData]);
 
   const renderCartContent = () => (
     <>
@@ -194,10 +235,27 @@ export default function CartSheet({ companyId }: { companyId: string}) {
                     </div>
                  )}
                 <Separator className="my-4" />
-                 <h3 className="font-semibold">Pagamento</h3>
-                 <div className="grid gap-2">
-                    <Label htmlFor="payment">Forma de Pagamento</Label>
-                    <Input id="payment" value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} placeholder="Ex: PIX, Cartão de Crédito" required />
+                 <div className="space-y-3">
+                    <h3 className="font-semibold">Forma de Pagamento</h3>
+                     {isLoadingCompany ? (
+                        <div className="space-y-2">
+                            <Skeleton className="h-6 w-1/2" />
+                            <Skeleton className="h-6 w-1/2" />
+                        </div>
+                    ) : (
+                        <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod}>
+                            {enabledPaymentMethods.map(({ id, label, icon: Icon }) => (
+                                <div key={id} className="flex items-center space-x-2">
+                                    <RadioGroupItem value={id} id={id} />
+                                    <Label htmlFor={id} className="flex items-center gap-2 font-normal">
+                                      <Icon className="h-5 w-5 text-muted-foreground" />
+                                      {label}
+                                    </Label>
+                                </div>
+                            ))}
+                            {enabledPaymentMethods.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma forma de pagamento configurada pela loja.</p>}
+                        </RadioGroup>
+                    )}
                 </div>
             </div>
         </ScrollArea>
