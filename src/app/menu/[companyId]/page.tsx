@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useMemo } from 'react';
+import React, { useMemo } from 'react';
 import Image from 'next/image';
 import { useCollection, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
@@ -85,7 +85,7 @@ const ProductCard = ({ product, index }: { product: Product, index: number }) =>
 };
 
 export default function MenuPage({ params }: { params: { companyId: string } }) {
-  const { companyId } = params;
+  const companyId = React.use(Promise.resolve(params.companyId));
   const firestore = useFirestore();
 
   // Fetch company data
