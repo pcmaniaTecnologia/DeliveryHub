@@ -20,6 +20,7 @@ import {
   CreditCard,
   Landmark,
   DollarSign,
+  Printer,
 } from 'lucide-react';
 import {
   Dialog,
@@ -42,13 +43,21 @@ import {
   SheetClose,
 } from '@/components/ui/sheet';
 import { useUser, useFirestore, useCollection, useMemoFirebase, addDocument, deleteDocument, updateDocument, FirestorePermissionError, errorEmitter } from '@/firebase';
-import { collection, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-
+import type { Order } from '../orders/page';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 type Table = {
   id: string;
@@ -86,6 +95,78 @@ const availablePaymentMethods: PaymentMethod[] = [
     { method: 'Cartão de Crédito', icon: CreditCard },
 ];
 
+
+function OrderPrintPreview({ order, onClose }: { order: Order; onClose: () => void }) {
+    const handlePrint = () => {
+        window.print();
+    };
+
+    return (
+        <Dialog open onOpenChange={onClose}>
+            <DialogContent className="sm:max-w-lg print:shadow-none print:border-none">
+                <div id="print-content">
+                    <DialogHeader className="text-center">
+                        <DialogTitle className="text-2xl">The Burger Shop</DialogTitle>
+                        <p className="text-sm text-muted-foreground">Pedido: {order.id.substring(0, 6).toUpperCase()}</p>
+                        <p className="text-sm text-muted-foreground">{order.orderDate.toDate().toLocaleString('pt-BR')}</p>
+                    </DialogHeader>
+                    <Separator className="my-4" />
+                    <div className="space-y-4">
+                        <div className="space-y-1">
+                            <h3 className="font-semibold">Cliente</h3>
+                            <p>{order.customerName || 'Cliente anônimo'}</p>
+                            {order.deliveryType === 'Delivery' && <p className="text-muted-foreground">{order.deliveryAddress}</p>}
+                        </div>
+                        <Separator />
+                        <div>
+                            <h3 className="font-semibold mb-2">Itens do Pedido</h3>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Produto</TableHead>
+                                        <TableHead className="text-center">Qtd.</TableHead>
+                                        <TableHead className="text-right">Preço</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {order.orderItems.map((item, index) => (
+                                        <TableRow key={index}>
+                                            <TableCell>{item.productId}</TableCell>
+                                            <TableCell className="text-center">{item.quantity}</TableCell>
+                                            <TableCell className="text-right">R${(item.unitPrice * item.quantity).toFixed(2)}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                        <Separator />
+                         <div className="space-y-2">
+                             <div className="flex justify-between">
+                                <span>Subtotal</span>
+                                <span>R${order.totalAmount.toFixed(2)}</span>
+                             </div>
+                             <div className="flex justify-between font-bold text-lg">
+                                <span>Total</span>
+                                <span>R${order.totalAmount.toFixed(2)}</span>
+                             </div>
+                        </div>
+                        <Separator />
+                        <div className="space-y-1">
+                            <h3 className="font-semibold">Pagamento</h3>
+                            <p>Forma de Pagamento: {order.paymentMethod}</p>
+                            <p>Tipo de Entrega: {order.deliveryType}</p>
+                        </div>
+                    </div>
+                </div>
+                <DialogFooter className="print:hidden mt-6">
+                    <Button variant="outline" onClick={onClose}>Fechar</Button>
+                    <Button onClick={handlePrint}><Printer className="mr-2 h-4 w-4" />Imprimir</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 export default function TablesPage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
@@ -95,6 +176,7 @@ export default function TablesPage() {
   const [isAddTableDialogOpen, setIsAddTableDialogOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
+  const [orderToPrint, setOrderToPrint] = useState<Order | null>(null);
   
   const [selectedPayments, setSelectedPayments] = useState<{[key: string]: boolean}>({});
   const [paymentAmounts, setPaymentAmounts] = useState<{[key: string]: string}>({});
@@ -242,63 +324,69 @@ export default function TablesPage() {
   };
   
     const handleFinalizeOrder = () => {
-    const paymentMethods = Object.entries(selectedPayments)
-        .filter(([, isSelected]) => isSelected)
-        .map(([method]) => {
-            const amount = paymentAmounts[method] ? ` (R$ ${paymentAmounts[method]})` : '';
-            return `${method}${amount}`;
-        }).join(', ');
-        
-    if (!paymentMethods) {
-        toast({ variant: 'destructive', title: 'Erro', description: 'Selecione pelo menos uma forma de pagamento.' });
-        return;
-    }
+        const paymentMethodsStr = Object.entries(selectedPayments)
+            .filter(([, isSelected]) => isSelected)
+            .map(([method]) => {
+                const amount = paymentAmounts[method] ? ` (R$ ${paymentAmounts[method]})` : '';
+                return `${method}${amount}`;
+            }).join(', ');
+            
+        if (!paymentMethodsStr) {
+            toast({ variant: 'destructive', title: 'Erro', description: 'Selecione pelo menos uma forma de pagamento.' });
+            return;
+        }
 
-    if (!selectedTable || !ordersRef || !user || !firestore) {
-      toast({ variant: 'destructive', title: 'Erro', description: 'Mesa não selecionada.' });
-      return;
-    }
-    if (!selectedTable.orderItems || selectedTable.orderItems.length === 0) {
-      toast({ variant: 'destructive', title: 'Erro', description: 'A comanda está vazia.' });
-      return;
-    }
+        if (!selectedTable || !ordersRef || !user || !firestore) {
+          toast({ variant: 'destructive', title: 'Erro', description: 'Mesa não selecionada.' });
+          return;
+        }
+        if (!selectedTable.orderItems || selectedTable.orderItems.length === 0) {
+          toast({ variant: 'destructive', title: 'Erro', description: 'A comanda está vazia.' });
+          return;
+        }
 
-    const orderData = {
-      companyId: user.uid,
-      customerId: `table-${selectedTable.id}`, // Placeholder customer ID
-      customerName: `Mesa ${selectedTable.name}`, // Customer name for display
-      orderDate: serverTimestamp(),
-      status: 'Entregue', // Assuming table orders are delivered immediately
-      deliveryAddress: selectedTable.name,
-      deliveryType: 'Retirada', // Or 'Dine-in' if you add it
-      paymentMethod: paymentMethods,
-      orderItems: selectedTable.orderItems.map(item => ({ ...item, productId: item.productName })),
-      totalAmount: selectedTable.total,
-      notes: `Pedido da ${selectedTable.name}`,
-    };
+        const orderData = {
+          companyId: user.uid,
+          customerId: `table-${selectedTable.id}`, // Placeholder customer ID
+          customerName: `Mesa ${selectedTable.name}`, // Customer name for display
+          orderDate: serverTimestamp(),
+          status: 'Entregue', // Assuming table orders are delivered immediately
+          deliveryAddress: selectedTable.name,
+          deliveryType: 'Retirada', // Or 'Dine-in' if you add it
+          paymentMethod: paymentMethodsStr,
+          orderItems: selectedTable.orderItems.map(item => ({ ...item, productId: item.productName })),
+          totalAmount: selectedTable.total,
+          notes: `Pedido da ${selectedTable.name}`,
+        };
 
-    const tableDocRef = doc(firestore, `companies/${user.uid}/tables/${selectedTable.id}`);
-    const tableUpdateData = {
-      orderItems: [],
-      total: 0,
-      status: 'free',
-    };
+        const tableDocRef = doc(firestore, `companies/${user.uid}/tables/${selectedTable.id}`);
+        const tableUpdateData = {
+          orderItems: [],
+          total: 0,
+          status: 'free',
+        };
 
-    addDocument(ordersRef, orderData)
-      .then(() => {
-        return updateDocument(tableDocRef, tableUpdateData);
-      })
-      .then(() => {
-        toast({ title: 'Pedido Finalizado!', description: `O pedido da ${selectedTable.name} foi registrado.` });
-        setIsPaymentDialogOpen(false);
-        setSelectedTable(null);
-      })
-      .catch((error) => {
-        // The addDocument/updateDocument functions will emit the contextual error
-        toast({ variant: 'destructive', title: 'Erro ao finalizar', description: 'Não foi possível finalizar o pedido. Verifique as permissões.' });
-        console.error(error);
-      });
-  };
+        addDocument(ordersRef, orderData)
+          .then((newOrderRef) => {
+             updateDocument(tableDocRef, tableUpdateData)
+                .then(() => {
+                    toast({ title: 'Pedido Finalizado!', description: `O pedido da ${selectedTable.name} foi registrado.` });
+                    
+                    const finalOrder: Order = {
+                        ...(orderData as any),
+                        id: newOrderRef.id,
+                        orderDate: Timestamp.now(), // Use client-side timestamp for immediate preview
+                    };
+                    
+                    setIsPaymentDialogOpen(false);
+                    setSelectedTable(null);
+                    setOrderToPrint(finalOrder); // Show print preview
+                });
+          })
+          .catch((error) => {
+            console.error(error);
+          });
+      };
 
   
   const isLoading = isLoadingTables || isLoadingProducts;
@@ -453,7 +541,6 @@ export default function TablesPage() {
               </div>
               <SheetFooter className="mt-4">
                  <Button variant="outline" onClick={() => setSelectedTable(null)}>Fechar</Button>
-                 <Button variant="destructive" onClick={() => handleFinalizeOrder('Cancelado')} disabled={!selectedTable.orderItems || selectedTable.orderItems.length === 0}>Limpar Comanda</Button>
                  <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
                     <DialogTrigger asChild>
                         <Button disabled={!selectedTable.orderItems || selectedTable.orderItems.length === 0}>Finalizar Pedido</Button>
@@ -534,6 +621,10 @@ export default function TablesPage() {
           )}
         </SheetContent>
       </Sheet>
+      
+      {orderToPrint && (
+        <OrderPrintPreview order={orderToPrint} onClose={() => setOrderToPrint(null)} />
+      )}
     </>
   );
 }
