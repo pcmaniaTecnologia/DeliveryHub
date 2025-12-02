@@ -24,7 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { BellRing, Clock, DollarSign, PlusCircle, Trash2 } from 'lucide-react';
+import { BellRing, Clock, DollarSign, PlusCircle, Trash2, Copy } from 'lucide-react';
 import { useFirestore, useDoc, setDocument, useMemoFirebase, useUser, useCollection, addDocument, deleteDocument } from '@/firebase';
 import { doc, collection } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -112,6 +112,7 @@ export default function SettingsPage() {
   const [soundNotificationEnabled, setSoundNotificationEnabled] = useState(true);
   const [closedMessage, setClosedMessage] = useState('');
   const [averagePrepTime, setAveragePrepTime] = useState(30);
+  const [menuLink, setMenuLink] = useState('');
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethods>({
     cash: true,
     pix: true,
@@ -158,6 +159,20 @@ export default function SettingsPage() {
       }
     }
   }, [companyData]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && user?.uid) {
+      setMenuLink(`${window.location.origin}/menu/${user.uid}`);
+    }
+  }, [user?.uid]);
+
+  const handleCopyToClipboard = () => {
+    navigator.clipboard.writeText(menuLink);
+    toast({
+      title: 'Link Copiado!',
+      description: 'O link do cardápio foi copiado para a área de transferência.',
+    });
+  };
 
   const handleSaveChanges = async () => {
     if (!companyRef || !user) return;
@@ -384,6 +399,17 @@ export default function SettingsPage() {
               <div className="space-y-2">
                 <Label htmlFor="closed-message">Mensagem de loja fechada</Label>
                 <Textarea id="closed-message" value={closedMessage} onChange={(e) => setClosedMessage(e.target.value)} placeholder="Estamos fechados no momento, mas abriremos amanhã às 9h!" disabled={isLoading} />
+              </div>
+              <Separator />
+               <div className="space-y-2">
+                <Label htmlFor="menu-link">Link do Cardápio</Label>
+                <div className="flex items-center gap-2">
+                  <Input id="menu-link" value={menuLink} readOnly disabled={isLoading} />
+                  <Button variant="outline" size="icon" onClick={handleCopyToClipboard} disabled={isLoading}>
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+                <p className="text-sm text-muted-foreground">Compartilhe este link com seus clientes para que eles possam ver seu cardápio.</p>
               </div>
               <Separator />
                <div className="space-y-4">
