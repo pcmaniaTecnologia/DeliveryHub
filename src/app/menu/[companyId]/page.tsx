@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { useCollection, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { PlaceHolderImages } from '@/lib/placeholder-images';
+import { PlaceHolderImages, type ImagePlaceholder } from '@/lib/placeholder-images';
 import { Button } from '@/components/ui/button';
 import { Clock, ShoppingCart } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -39,7 +39,7 @@ type Category = {
 const ProductCard = ({ product, index }: { product: Product, index: number }) => {
     const { addToCart } = useCart();
     
-   const imagePlaceholder = useMemo(() => {
+   const imagePlaceholder: ImagePlaceholder = useMemo(() => {
     if (product.imageUrl) {
       return {
         id: product.id,
@@ -48,7 +48,7 @@ const ProductCard = ({ product, index }: { product: Product, index: number }) =>
         description: product.name,
       };
     }
-    const defaultPlaceholder = {
+    const defaultPlaceholder: ImagePlaceholder = {
       id: 'default',
       imageUrl: `https://picsum.photos/seed/${product.id}/400/300`,
       imageHint: 'food placeholder',
