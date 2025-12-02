@@ -98,17 +98,20 @@ export default function TablesPage() {
   
   const [selectedPayments, setSelectedPayments] = useState<{[key: string]: boolean}>({});
   const [paymentAmounts, setPaymentAmounts] = useState<{[key: string]: string}>({});
-  const [receivedAmount, setReceivedAmount] = useState<string>('');
 
-  const change = useMemo(() => {
+  const { totalPaid, remainingAmount, change } = useMemo(() => {
     const total = selectedTable?.total ?? 0;
-    const received = parseFloat(receivedAmount) || 0;
-    if (received >= total) {
-      return received - total;
-    }
-    return 0;
-  }, [receivedAmount, selectedTable?.total]);
-
+    const paid = Object.values(paymentAmounts).reduce(
+      (sum, amount) => sum + (parseFloat(amount) || 0),
+      0
+    );
+    const difference = paid - total;
+    return {
+      totalPaid: paid,
+      remainingAmount: difference < 0 ? -difference : 0,
+      change: difference > 0 ? difference : 0,
+    };
+  }, [paymentAmounts, selectedTable?.total]);
 
   // Firestore Refs
   const tablesRef = useMemoFirebase(() => 
@@ -132,7 +135,6 @@ export default function TablesPage() {
     if (!isPaymentDialogOpen) {
       setSelectedPayments({});
       setPaymentAmounts({});
-      setReceivedAmount('');
     }
   }, [isPaymentDialogOpen]);
 
@@ -463,10 +465,10 @@ export default function TablesPage() {
                                Selecione a forma de pagamento e finalize a conta.
                             </DialogDescription>
                         </DialogHeader>
-                        <div className="py-4 space-y-6">
-                            <div className="flex justify-between items-center text-3xl font-bold text-primary">
+                        <div className="py-4 space-y-4">
+                            <div className="flex justify-between items-center text-2xl font-bold">
                                 <span>Total:</span>
-                                <span>R$ {selectedTable.total?.toFixed(2) ?? '0.00'}</span>
+                                <span className="text-primary">R$ {selectedTable.total?.toFixed(2) ?? '0.00'}</span>
                             </div>
                             
                             <div className="space-y-4">
@@ -477,7 +479,15 @@ export default function TablesPage() {
                                             <Checkbox
                                                 id={`payment-${method}`}
                                                 checked={!!selectedPayments[method]}
-                                                onCheckedChange={(checked) => setSelectedPayments(prev => ({...prev, [method]: !!checked}))}
+                                                onCheckedChange={(checked) => {
+                                                  const newSelected = {...selectedPayments, [method]: !!checked};
+                                                  if (!checked) {
+                                                    const newAmounts = {...paymentAmounts};
+                                                    delete newAmounts[method];
+                                                    setPaymentAmounts(newAmounts);
+                                                  }
+                                                  setSelectedPayments(newSelected);
+                                                }}
                                             />
                                             <Label htmlFor={`payment-${method}`} className="flex items-center gap-2 font-normal">
                                                 <Icon className="h-5 w-5 text-muted-foreground" /> {method}
@@ -486,7 +496,7 @@ export default function TablesPage() {
                                         {selectedPayments[method] && (
                                             <Input 
                                                 type="number" 
-                                                placeholder="Valor pago neste método"
+                                                placeholder={`Valor em ${method}`}
                                                 value={paymentAmounts[method] || ''}
                                                 onChange={(e) => setPaymentAmounts(prev => ({...prev, [method]: e.target.value}))}
                                                 className="ml-7"
@@ -497,29 +507,25 @@ export default function TablesPage() {
                             </div>
                             
                             <Separator />
-                            
-                            <div className="space-y-2">
-                                <Label htmlFor="received-amount">Valor Recebido</Label>
-                                <Input 
-                                    id="received-amount"
-                                    type="number"
-                                    placeholder="Ex: 50.00"
-                                    value={receivedAmount}
-                                    onChange={(e) => setReceivedAmount(e.target.value)}
-                                />
-                            </div>
 
-                             {change > 0 && (
-                               <div className="text-center text-lg font-medium">
-                                    <p className="text-muted-foreground">Troco</p>
-                                    <p className="text-2xl font-bold text-green-600">R$ {change.toFixed(2)}</p>
-                               </div>
-                            )}
+                            <div className="text-center text-lg font-medium space-y-1">
+                                {remainingAmount > 0 ? (
+                                    <>
+                                        <p className="text-muted-foreground">Falta</p>
+                                        <p className="text-2xl font-bold text-destructive">R$ {remainingAmount.toFixed(2)}</p>
+                                    </>
+                                ) : (
+                                    <>
+                                        <p className="text-muted-foreground">Troco</p>
+                                        <p className="text-2xl font-bold text-green-600">R$ {change.toFixed(2)}</p>
+                                    </>
+                                )}
+                           </div>
                             
                         </div>
                         <DialogFooter>
                             <DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose>
-                            <Button onClick={handleFinalizeOrder}>Confirmar Pagamento</Button>
+                            <Button onClick={handleFinalizeOrder} disabled={remainingAmount > 0}>Confirmar Pagamento</Button>
                         </DialogFooter>
                     </DialogContent>
                  </Dialog>
@@ -531,5 +537,7 @@ export default function TablesPage() {
     </>
   );
 }
+
+    
 
     
