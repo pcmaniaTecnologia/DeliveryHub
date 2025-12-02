@@ -6,6 +6,9 @@ import { doc } from 'firebase/firestore';
 import { hexToHsl } from '@/lib/utils';
 import { Package2 } from 'lucide-react';
 import Link from 'next/link';
+import { CartProvider } from '@/context/cart-context';
+import CartSheet from './_components/cart-sheet';
+
 
 type CompanyData = {
     themeColors?: string;
@@ -60,27 +63,30 @@ export default function MenuLayout({
 }, [companyData]);
 
   return (
-    <div className="min-h-screen bg-background">
-       <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm md:px-6">
-        <nav className="flex w-full items-center justify-between text-lg font-medium">
-          <Link
-            href={`/menu/${companyId}`}
-            className="flex items-center gap-2 text-lg font-semibold"
-          >
-            <Package2 className="h-6 w-6 text-primary" />
-            <span className="sr-only">Menu</span>
-          </Link>
-        </nav>
-      </header>
-      <main>{children}</main>
-        <footer className="mt-12 border-t py-6">
-            <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-                <p>&copy; {new Date().getFullYear()} DeliveryHub. Todos os direitos reservados.</p>
-                <p className="mt-1">
-                    Desenvolvido por <a href="#" className="underline">PC Mania</a>
-                </p>
-            </div>
-        </footer>
-    </div>
+    <CartProvider>
+        <div className="min-h-screen bg-background">
+        <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm md:px-6">
+            <nav className="flex w-full items-center justify-between text-lg font-medium">
+            <Link
+                href={`/menu/${companyId}`}
+                className="flex items-center gap-2 text-lg font-semibold"
+            >
+                <Package2 className="h-6 w-6 text-primary" />
+                <span className="sr-only">Menu</span>
+            </Link>
+            </nav>
+        </header>
+        <main>{children}</main>
+            <CartSheet companyId={companyId} />
+            <footer className="mt-12 border-t py-6">
+                <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
+                    <p>&copy; {new Date().getFullYear()} DeliveryHub. Todos os direitos reservados.</p>
+                    <p className="mt-1">
+                        Desenvolvido por <a href="#" className="underline">PC Mania</a>
+                    </p>
+                </div>
+            </footer>
+        </div>
+    </CartProvider>
   );
 }

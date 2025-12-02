@@ -8,8 +8,9 @@ import { collection, doc } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { Button } from '@/components/ui/button';
-import { Clock } from 'lucide-react';
+import { Clock, ShoppingCart } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useCart } from '@/context/cart-context';
 
 type Company = {
     name: string;
@@ -36,6 +37,7 @@ type Category = {
 
 
 const ProductCard = ({ product, index }: { product: Product, index: number }) => {
+    const { addToCart } = useCart();
     
    const imagePlaceholder = useMemo(() => {
     if (product.imageUrl) {
@@ -64,7 +66,7 @@ const ProductCard = ({ product, index }: { product: Product, index: number }) =>
                     src={imagePlaceholder.imageUrl}
                     alt={product.name}
                     fill
-                    objectFit="cover"
+                    style={{objectFit:"cover"}}
                     className="transition-transform duration-300 group-hover:scale-105"
                     data-ai-hint={imagePlaceholder.imageHint}
                     unoptimized
@@ -76,7 +78,7 @@ const ProductCard = ({ product, index }: { product: Product, index: number }) =>
             </CardHeader>
             <CardFooter className="flex items-center justify-between">
                 <p className="text-lg font-bold text-primary">R${product.price.toFixed(2)}</p>
-                <Button>Adicionar</Button>
+                <Button onClick={() => addToCart(product)}>Adicionar</Button>
             </CardFooter>
         </Card>
     )
