@@ -41,7 +41,7 @@ import {
   SheetFooter,
   SheetClose,
 } from '@/components/ui/sheet';
-import { useUser, useFirestore, useCollection, useMemoFirebase, addDocument, deleteDocument, updateDocument } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase, addDocument, deleteDocument, updateDocument, FirestorePermissionError, errorEmitter } from '@/firebase';
 import { collection, doc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -201,52 +201,54 @@ export default function TablesPage() {
     }
   };
 
-  const handleFinalizeOrder = async (paymentMethod: string) => {
-    if (!selectedTable || !ordersRef || !user) {
-        toast({ variant: 'destructive', title: 'Erro', description: 'Mesa não selecionada.' });
-        return;
+  const handleFinalizeOrder = (paymentMethod: string) => {
+    if (!selectedTable || !ordersRef || !user || !firestore) {
+      toast({ variant: 'destructive', title: 'Erro', description: 'Mesa não selecionada.' });
+      return;
     }
     if (!selectedTable.orderItems || selectedTable.orderItems.length === 0) {
-        toast({ variant: 'destructive', title: 'Erro', description: 'A comanda está vazia.' });
-        return;
+      toast({ variant: 'destructive', title: 'Erro', description: 'A comanda está vazia.' });
+      return;
     }
 
     const orderData = {
-        companyId: user.uid,
-        customerId: `table-${selectedTable.id}`, // Placeholder customer ID
-        customerName: `Mesa ${selectedTable.name}`, // Customer name for display
-        orderDate: serverTimestamp(),
-        status: 'Entregue', // Assuming table orders are delivered immediately
-        deliveryAddress: selectedTable.name,
-        deliveryType: 'Retirada', // Or 'Dine-in' if you add it
-        paymentMethod: paymentMethod,
-        orderItems: selectedTable.orderItems.map(item => ({...item, productId: item.productName})),
-        totalAmount: selectedTable.total,
-        notes: `Pedido da ${selectedTable.name}`,
+      companyId: user.uid,
+      customerId: `table-${selectedTable.id}`, // Placeholder customer ID
+      customerName: `Mesa ${selectedTable.name}`, // Customer name for display
+      orderDate: serverTimestamp(),
+      status: 'Entregue', // Assuming table orders are delivered immediately
+      deliveryAddress: selectedTable.name,
+      deliveryType: 'Retirada', // Or 'Dine-in' if you add it
+      paymentMethod: paymentMethod,
+      orderItems: selectedTable.orderItems.map(item => ({ ...item, productId: item.productName })),
+      totalAmount: selectedTable.total,
+      notes: `Pedido da ${selectedTable.name}`,
     };
 
-    try {
-        // 1. Create a new order
-        await addDocument(ordersRef, orderData);
+    const tableDocRef = doc(firestore, `companies/${user.uid}/tables/${selectedTable.id}`);
+    const tableUpdateData = {
+      orderItems: [],
+      total: 0,
+      status: 'free',
+    };
 
-        // 2. Clear the table
-        const tableDocRef = doc(firestore, `companies/${user.uid}/tables/${selectedTable.id}`);
-        await updateDocument(tableDocRef, {
-            orderItems: [],
-            total: 0,
-            status: 'free',
-        });
-
+    // Use non-blocking calls with .catch for error handling
+    addDocument(ordersRef, orderData)
+      .then(() => {
+        // Only clear the table if the order was created successfully
+        return updateDocument(tableDocRef, tableUpdateData);
+      })
+      .then(() => {
         toast({ title: 'Pedido Finalizado!', description: `O pedido da ${selectedTable.name} foi registrado.` });
-        
-        // 3. Close dialogs and reset state
         setIsPaymentDialogOpen(false);
         setSelectedTable(null);
-
-    } catch (error) {
-        console.error(error);
-        toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível finalizar o pedido.' });
-    }
+      })
+      .catch((error) => {
+        // The addDocument/updateDocument functions will emit the contextual error
+        // so we don't need to do it here. We can show a generic toast.
+        toast({ variant: 'destructive', title: 'Erro ao finalizar', description: 'Não foi possível finalizar o pedido. Verifique as permissões.' });
+        console.error(error); // Keep console log for now if useful
+      });
   };
   
   const isLoading = isLoadingTables || isLoadingProducts;
