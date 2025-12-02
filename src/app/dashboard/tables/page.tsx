@@ -17,6 +17,9 @@ import {
   Trash2,
   MinusCircle,
   Plus,
+  CreditCard,
+  Landmark,
+  DollarSign,
 } from 'lucide-react';
 import {
   Dialog,
@@ -39,7 +42,7 @@ import {
   SheetClose,
 } from '@/components/ui/sheet';
 import { useUser, useFirestore, useCollection, useMemoFirebase, addDocument, deleteDocument, updateDocument } from '@/firebase';
-import { collection, doc } from 'firebase/firestore';
+import { collection, doc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -75,6 +78,7 @@ export default function TablesPage() {
 
   const [tableName, setTableName] = useState('');
   const [isAddTableDialogOpen, setIsAddTableDialogOpen] = useState(false);
+  const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
 
   // Firestore Refs
@@ -84,6 +88,10 @@ export default function TablesPage() {
 
   const productsRef = useMemoFirebase(() => 
     user ? collection(firestore, `companies/${user.uid}/products`) : null
+  , [firestore, user]);
+
+  const ordersRef = useMemoFirebase(() =>
+    user ? collection(firestore, `companies/${user.uid}/orders`) : null
   , [firestore, user]);
 
   // Data Hooks
@@ -193,22 +201,53 @@ export default function TablesPage() {
     }
   };
 
-  const handleClearOrder = async () => {
-     if (!selectedTable || !user || !firestore) return;
-     const tableDocRef = doc(firestore, `companies/${user.uid}/tables/${selectedTable.id}`);
-     try {
-        await updateDocument(tableDocRef, { 
+  const handleFinalizeOrder = async (paymentMethod: string) => {
+    if (!selectedTable || !ordersRef || !user) {
+        toast({ variant: 'destructive', title: 'Erro', description: 'Mesa não selecionada.' });
+        return;
+    }
+    if (!selectedTable.orderItems || selectedTable.orderItems.length === 0) {
+        toast({ variant: 'destructive', title: 'Erro', description: 'A comanda está vazia.' });
+        return;
+    }
+
+    const orderData = {
+        companyId: user.uid,
+        customerId: `table-${selectedTable.id}`, // Placeholder customer ID
+        customerName: `Mesa ${selectedTable.name}`, // Customer name for display
+        orderDate: serverTimestamp(),
+        status: 'Entregue', // Assuming table orders are delivered immediately
+        deliveryAddress: selectedTable.name,
+        deliveryType: 'Retirada', // Or 'Dine-in' if you add it
+        paymentMethod: paymentMethod,
+        orderItems: selectedTable.orderItems.map(item => ({...item, productId: item.productName})),
+        totalAmount: selectedTable.total,
+        notes: `Pedido da ${selectedTable.name}`,
+    };
+
+    try {
+        // 1. Create a new order
+        await addDocument(ordersRef, orderData);
+
+        // 2. Clear the table
+        const tableDocRef = doc(firestore, `companies/${user.uid}/tables/${selectedTable.id}`);
+        await updateDocument(tableDocRef, {
             orderItems: [],
             total: 0,
             status: 'free',
         });
-        setSelectedTable(prev => prev ? { ...prev, orderItems: [], total: 0, status: 'free' } : null);
-        toast({ title: 'Comanda Limpa', description: `A comanda da ${selectedTable.name} foi limpa.` });
-     } catch(error) {
+
+        toast({ title: 'Pedido Finalizado!', description: `O pedido da ${selectedTable.name} foi registrado.` });
+        
+        // 3. Close dialogs and reset state
+        setIsPaymentDialogOpen(false);
+        setSelectedTable(null);
+
+    } catch (error) {
         console.error(error);
-        toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível limpar a comanda.' });
-     }
-  }
+        toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível finalizar o pedido.' });
+    }
+  };
   
   const isLoading = isLoadingTables || isLoadingProducts;
 
@@ -362,8 +401,40 @@ export default function TablesPage() {
               </div>
               <SheetFooter className="mt-4">
                  <Button variant="outline" onClick={() => setSelectedTable(null)}>Fechar</Button>
-                 <Button variant="destructive" onClick={handleClearOrder} disabled={!selectedTable.orderItems || selectedTable.orderItems.length === 0}>Limpar Comanda</Button>
-                 <Button onClick={() => toast({title: "Em breve!", description: "A finalização do pedido será implementada em breve."})}>Registrar Pedido</Button>
+                 <Button variant="destructive" onClick={() => handleFinalizeOrder('Cancelado')} disabled={!selectedTable.orderItems || selectedTable.orderItems.length === 0}>Limpar Comanda</Button>
+                 <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
+                    <DialogTrigger asChild>
+                        <Button disabled={!selectedTable.orderItems || selectedTable.orderItems.length === 0}>Finalizar Pedido</Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Finalizar Pedido: {selectedTable.name}</DialogTitle>
+                            <DialogDescription>
+                               Selecione a forma de pagamento.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="py-4">
+                            <div className="flex justify-between items-center mb-6 text-2xl font-bold">
+                                <span>Total:</span>
+                                <span>R$ {selectedTable.total?.toFixed(2) ?? '0.00'}</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <Button size="lg" variant="outline" onClick={() => handleFinalizeOrder('Dinheiro')}>
+                                    <DollarSign className="mr-2 h-5 w-5"/> Dinheiro
+                                </Button>
+                                <Button size="lg" variant="outline" onClick={() => handleFinalizeOrder('PIX')}>
+                                    <Landmark className="mr-2 h-5 w-5"/> PIX
+                                </Button>
+                                <Button size="lg" variant="outline" onClick={() => handleFinalizeOrder('Cartão de Débito')}>
+                                    <CreditCard className="mr-2 h-5 w-5"/> Débito
+                                </Button>
+                                <Button size="lg" variant="outline" onClick={() => handleFinalizeOrder('Cartão de Crédito')}>
+                                    <CreditCard className="mr-2 h-5 w-5"/> Crédito
+                                </Button>
+                            </div>
+                        </div>
+                    </DialogContent>
+                 </Dialog>
               </SheetFooter>
             </>
           )}
