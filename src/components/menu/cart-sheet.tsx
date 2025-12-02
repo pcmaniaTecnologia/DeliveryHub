@@ -39,7 +39,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -125,12 +125,22 @@ export default function CartSheet({ companyId }: { companyId: string}) {
   const [addressNumber, setAddressNumber] = useState('');
   const [addressNeighborhood, setAddressNeighborhood] = useState('');
   const [addressComplement, setAddressComplement] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('');
+
+  // Payment State
+  const [selectedPayments, setSelectedPayments] = useState<{[key: string]: boolean}>({});
+  const [paymentAmounts, setPaymentAmounts] = useState<{[key: string]: string}>({});
   
   const handlePlaceOrder = async () => {
     if (!firestore || !companyId) return;
 
-    let isFormValid = customerName && customerPhone && paymentMethod;
+    const paymentMethodsStr = Object.entries(selectedPayments)
+        .filter(([, isSelected]) => isSelected)
+        .map(([method]) => {
+            const amount = paymentAmounts[method] ? ` (R$ ${paymentAmounts[method]})` : '';
+            return `${method}${amount}`;
+        }).join(', ');
+
+    let isFormValid = customerName && customerPhone && paymentMethodsStr;
     if (deliveryType === 'Delivery' && (!addressStreet || !addressNumber || !addressNeighborhood)) {
       isFormValid = false;
     }
@@ -139,7 +149,7 @@ export default function CartSheet({ companyId }: { companyId: string}) {
         toast({
             variant: 'destructive',
             title: 'Campos obrigatórios',
-            description: 'Por favor, preencha todos os campos para finalizar o pedido.',
+            description: 'Por favor, preencha nome, telefone, endereço (se delivery) e forma de pagamento.',
         });
         return;
     }
@@ -159,7 +169,7 @@ export default function CartSheet({ companyId }: { companyId: string}) {
         status: 'Novo',
         deliveryAddress: fullAddress,
         deliveryType: deliveryType,
-        paymentMethod: paymentMethod,
+        paymentMethod: paymentMethodsStr,
         orderItems: cartItems.map(item => ({
             productId: item.product.id,
             productName: item.product.name,
@@ -174,6 +184,16 @@ export default function CartSheet({ companyId }: { companyId: string}) {
         await addDocument(ordersRef, orderData);
         setIsOrderFinished(true);
         clearCart();
+        // Reset local form state
+        setCustomerName('');
+        setCustomerPhone('');
+        setAddressStreet('');
+        setAddressNumber('');
+        setAddressNeighborhood('');
+        setAddressComplement('');
+        setSelectedPayments({});
+        setPaymentAmounts({});
+        setIsCheckoutOpen(false);
     } catch (error) {
         console.error("Error placing order:", error);
         toast({
@@ -182,7 +202,6 @@ export default function CartSheet({ companyId }: { companyId: string}) {
             description: 'Não foi possível completar seu pedido. Tente novamente.',
         });
     }
-
   };
 
   const handleSheetOpenChange = (open: boolean) => {
@@ -307,18 +326,41 @@ export default function CartSheet({ companyId }: { companyId: string}) {
                             <Skeleton className="h-6 w-1/2" />
                         </div>
                     ) : (
-                        <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod}>
-                            {enabledPaymentMethods.map(({ id, label, icon: Icon }) => (
-                                <div key={id} className="flex items-center space-x-2">
-                                    <RadioGroupItem value={id} id={id} />
-                                    <Label htmlFor={id} className="flex items-center gap-2 font-normal">
-                                      <Icon className="h-5 w-5 text-muted-foreground" />
-                                      {label}
-                                    </Label>
-                                </div>
-                            ))}
-                            {enabledPaymentMethods.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma forma de pagamento configurada pela loja.</p>}
-                        </RadioGroup>
+                        <div className="space-y-4">
+                          {enabledPaymentMethods.map(({ id, label, icon: Icon }) => (
+                            <div key={id}>
+                              <div className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={`payment-${id}`}
+                                  checked={!!selectedPayments[id]}
+                                  onCheckedChange={(checked) => {
+                                    const newSelected = { ...selectedPayments, [id]: !!checked };
+                                    if (!checked) {
+                                      const newAmounts = { ...paymentAmounts };
+                                      delete newAmounts[id];
+                                      setPaymentAmounts(newAmounts);
+                                    }
+                                    setSelectedPayments(newSelected);
+                                  }}
+                                />
+                                <Label htmlFor={`payment-${id}`} className="flex items-center gap-2 font-normal">
+                                  <Icon className="h-5 w-5 text-muted-foreground" />
+                                  {label}
+                                </Label>
+                              </div>
+                              {selectedPayments[id] && (
+                                <Input
+                                  type="number"
+                                  placeholder={`Valor em ${label}`}
+                                  value={paymentAmounts[id] || ''}
+                                  onChange={(e) => setPaymentAmounts(prev => ({ ...prev, [id]: e.target.value }))}
+                                  className="mt-2 ml-7 w-auto"
+                                />
+                              )}
+                            </div>
+                          ))}
+                          {enabledPaymentMethods.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma forma de pagamento configurada pela loja.</p>}
+                        </div>
                     )}
                 </div>
             </div>
