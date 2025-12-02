@@ -1,10 +1,11 @@
 'use client';
-import { DollarSign, Package, ShoppingCart, Users } from 'lucide-react';
+import { Banknote, CreditCard, DollarSign, Package, PieChart, Pizza, ShoppingCart, Users } from 'lucide-react';
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
+  CardDescription
 } from '@/components/ui/card';
 import {
   Bar,
@@ -26,8 +27,8 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart';
-import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
-import { collection, doc, type Timestamp } from 'firebase/firestore';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, type Timestamp } from 'firebase/firestore';
 import { useState, useMemo } from 'react';
 import { subDays, format, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -38,6 +39,7 @@ type Order = {
   orderDate: Timestamp;
   status: 'Novo' | 'Aguardando pagamento' | 'Em preparo' | 'Pronto para retirada' | 'Saiu para entrega' | 'Entregue' | 'Cancelado';
   totalAmount: number;
+  paymentMethod: string;
   customerName?: string; // Will be added dynamically
 };
 
@@ -47,6 +49,13 @@ type Customer = {
     lastName: string;
     email: string;
 }
+
+type SalesByPaymentMethod = {
+    cash: number;
+    pix: number;
+    credit: number;
+    debit: number;
+};
 
 const chartConfig = {
   sales: {
@@ -102,7 +111,8 @@ export default function DashboardPage() {
         avgTicket, 
         pendingOrders,
         salesChartData,
-        recentOrdersWithDetails
+        recentOrdersWithDetails,
+        salesByPaymentMethod
     } = useMemo(() => {
         if (!orders) {
             return { 
@@ -112,27 +122,81 @@ export default function DashboardPage() {
                 pendingOrders: 0,
                 salesChartData: [],
                 recentOrders: [],
-                recentOrdersWithDetails: []
+                recentOrdersWithDetails: [],
+                salesByPaymentMethod: { cash: 0, pix: 0, credit: 0, debit: 0 }
             };
         }
 
         const now = new Date();
-        const startOfToday = startOfDay(now);
-        const endOfToday = endOfDay(now);
+        let startDate: Date;
 
-        const ordersToday = orders.filter(order => {
+        switch(dateRange) {
+            case 'week':
+                startDate = startOfDay(subDays(now, 6));
+                break;
+            case 'month':
+                startDate = startOfDay(subDays(now, 29));
+                break;
+            case 'today':
+            default:
+                startDate = startOfDay(now);
+                break;
+        }
+
+        const endDate = endOfDay(now);
+
+        const filteredOrders = orders.filter(order => {
             const orderDate = order.orderDate.toDate();
-            return isWithinInterval(orderDate, { start: startOfToday, end: endOfToday });
+            return isWithinInterval(orderDate, { start: startDate, end: endDate });
         });
 
-        const totalSales = ordersToday.reduce((sum, order) => order.status !== 'Cancelado' ? sum + order.totalAmount : sum, 0);
-        const successfulOrdersToday = ordersToday.filter(order => order.status !== 'Cancelado');
-        const totalOrders = successfulOrdersToday.length;
+        const successfulOrders = filteredOrders.filter(order => order.status !== 'Cancelado');
+
+        const totalSales = successfulOrders.reduce((sum, order) => sum + order.totalAmount, 0);
+        const totalOrders = successfulOrders.length;
         const avgTicket = totalOrders > 0 ? totalSales / totalOrders : 0;
         
         const pendingOrders = orders.filter(order => ['Novo', 'Aguardando pagamento', 'Em preparo'].includes(order.status)).length;
         
-        // Sales chart data for the last 7 days
+        const salesByPaymentMethod = successfulOrders.reduce<SalesByPaymentMethod>((acc, order) => {
+            const methods = order.paymentMethod.split(', ');
+            methods.forEach(methodStr => {
+                if (methodStr.toLowerCase().includes('dinheiro')) {
+                    const amountMatch = methodStr.match(/R\$\s*([\d,.]+)/);
+                    if (amountMatch) {
+                        acc.cash += parseFloat(amountMatch[1].replace('.', '').replace(',', '.'));
+                    } else {
+                        acc.cash += order.totalAmount;
+                    }
+                }
+                if (methodStr.toLowerCase().includes('pix')) {
+                     const amountMatch = methodStr.match(/R\$\s*([\d,.]+)/);
+                    if (amountMatch) {
+                        acc.pix += parseFloat(amountMatch[1].replace('.', '').replace(',', '.'));
+                    } else {
+                        acc.pix += order.totalAmount;
+                    }
+                }
+                if (methodStr.toLowerCase().includes('crédito')) {
+                    const amountMatch = methodStr.match(/R\$\s*([\d,.]+)/);
+                    if (amountMatch) {
+                        acc.credit += parseFloat(amountMatch[1].replace('.', '').replace(',', '.'));
+                    } else {
+                       acc.credit += order.totalAmount;
+                    }
+                }
+                if (methodStr.toLowerCase().includes('débito')) {
+                    const amountMatch = methodStr.match(/R\$\s*([\d,.]+)/);
+                    if (amountMatch) {
+                        acc.debit += parseFloat(amountMatch[1].replace('.', '').replace(',', '.'));
+                    } else {
+                       acc.debit += order.totalAmount;
+                    }
+                }
+            });
+            return acc;
+        }, { cash: 0, pix: 0, credit: 0, debit: 0 });
+
         const salesChartData = Array.from({ length: 7 }).map((_, i) => {
             const date = subDays(now, i);
             const dayStart = startOfDay(date);
@@ -157,15 +221,17 @@ export default function DashboardPage() {
         
         const recentOrdersWithDetails = recentOrders;
 
-        return { totalSales, totalOrders, avgTicket, pendingOrders, salesChartData, recentOrdersWithDetails };
+        return { totalSales, totalOrders, avgTicket, pendingOrders, salesChartData, recentOrdersWithDetails, salesByPaymentMethod };
 
-    }, [orders]);
-    
-    // This is a placeholder for fetching customer details.
-    // In a real app, you might fetch customer names based on recentOrdersWithDetails customerIds.
-    // For simplicity, we'll just display ID for now if name is not on order.
+    }, [orders, dateRange]);
     
     const isLoading = isUserLoading || isLoadingOrders;
+    
+    const dateRangeLabel = {
+        today: '(dia)',
+        week: '(semana)',
+        month: '(mês)',
+    }[dateRange];
 
     if (isLoading) {
         return (
@@ -189,32 +255,29 @@ export default function DashboardPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total de Vendas (dia)</CardTitle>
+            <CardTitle className="text-sm font-medium">Total de Vendas {dateRangeLabel}</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">R${totalSales.toFixed(2)}</div>
-            {/* <p className="text-xs text-muted-foreground">+20.1% do mês passado</p> */}
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total de Pedidos (dia)</CardTitle>
+            <CardTitle className="text-sm font-medium">Total de Pedidos {dateRangeLabel}</CardTitle>
             <ShoppingCart className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">+{totalOrders}</div>
-            {/* <p className="text-xs text-muted-foreground">+180.1% do mês passado</p> */}
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Ticket Médio</CardTitle>
+            <CardTitle className="text-sm font-medium">Ticket Médio {dateRangeLabel}</CardTitle>
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">R${avgTicket.toFixed(2)}</div>
-            {/* <p className="text-xs text-muted-foreground">+19% do mês passado</p> */}
           </CardContent>
         </Card>
         <Card>
@@ -224,7 +287,6 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{pendingOrders}</div>
-            {/* <p className="text-xs text-muted-foreground">+2 desde a última hora</p> */}
           </CardContent>
         </Card>
       </div>
@@ -250,6 +312,48 @@ export default function DashboardPage() {
         </Card>
 
         <Card className="col-span-4 lg:col-span-3">
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                    <PieChart className="h-5 w-5 text-muted-foreground" />
+                    Fechamento de Caixa (dia)
+                </CardTitle>
+                <CardDescription>
+                    Total de vendas do dia detalhado por forma de pagamento.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="space-y-4">
+                    <div className="flex items-center">
+                        <Banknote className="h-5 w-5 mr-3 text-muted-foreground" />
+                        <span className="flex-1">Dinheiro</span>
+                        <span className="font-medium">R$ {salesByPaymentMethod.cash.toFixed(2)}</span>
+                    </div>
+                    <div className="flex items-center">
+                        <Pizza className="h-5 w-5 mr-3 text-muted-foreground" />
+                        <span className="flex-1">PIX</span>
+                        <span className="font-medium">R$ {salesByPaymentMethod.pix.toFixed(2)}</span>
+                    </div>
+                    <div className="flex items-center">
+                        <CreditCard className="h-5 w-5 mr-3 text-muted-foreground" />
+                        <span className="flex-1">Cartão de Crédito</span>
+                        <span className="font-medium">R$ {salesByPaymentMethod.credit.toFixed(2)}</span>
+                    </div>
+                    <div className="flex items-center">
+                        <CreditCard className="h-5 w-5 mr-3 text-muted-foreground" />
+                        <span className="flex-1">Cartão de Débito</span>
+                        <span className="font-medium">R$ {salesByPaymentMethod.debit.toFixed(2)}</span>
+                    </div>
+                     <div className="flex items-center border-t pt-4 mt-4">
+                        <DollarSign className="h-5 w-5 mr-3 text-muted-foreground" />
+                        <span className="flex-1 font-bold">Total</span>
+                        <span className="font-bold text-lg">R$ {totalSales.toFixed(2)}</span>
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
+      </div>
+
+       <Card className="col-span-4 lg:col-span-7">
           <CardHeader>
             <CardTitle>Pedidos Recentes</CardTitle>
           </CardHeader>
@@ -257,7 +361,6 @@ export default function DashboardPage() {
              <RecentOrdersTable orders={recentOrdersWithDetails} />
           </CardContent>
         </Card>
-      </div>
     </>
   );
 }
