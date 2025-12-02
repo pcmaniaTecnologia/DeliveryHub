@@ -62,7 +62,7 @@ const ProductCard = ({ product, index }: { product: Product, index: number }) =>
                 <Image
                     src={imagePlaceholder.imageUrl}
                     alt={product.name}
-                    layout="fill"
+                    fill
                     objectFit="cover"
                     className="transition-transform duration-300 group-hover:scale-105"
                     data-ai-hint={imagePlaceholder.imageHint}
