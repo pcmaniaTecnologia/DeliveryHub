@@ -130,6 +130,20 @@ export default function CartSheet({ companyId }: { companyId: string}) {
   const [selectedPayments, setSelectedPayments] = useState<{[key: string]: boolean}>({});
   const [paymentAmounts, setPaymentAmounts] = useState<{[key: string]: string}>({});
   
+  const { totalPaid, remainingAmount, change } = useMemo(() => {
+    const total = totalPrice;
+    const paid = Object.values(paymentAmounts).reduce(
+      (sum, amount) => sum + (parseFloat(amount) || 0),
+      0
+    );
+    const difference = paid - total;
+    return {
+      totalPaid: paid,
+      remainingAmount: difference < 0 ? -difference : 0,
+      change: difference > 0 ? difference : 0,
+    };
+  }, [paymentAmounts, totalPrice]);
+
   const handlePlaceOrder = async () => {
     if (!firestore || !companyId) return;
 
@@ -150,6 +164,15 @@ export default function CartSheet({ companyId }: { companyId: string}) {
             variant: 'destructive',
             title: 'Campos obrigatórios',
             description: 'Por favor, preencha nome, telefone, endereço (se delivery) e forma de pagamento.',
+        });
+        return;
+    }
+    
+    if (remainingAmount > 0) {
+        toast({
+            variant: 'destructive',
+            title: 'Pagamento incompleto',
+            description: `Ainda falta R$ ${remainingAmount.toFixed(2)} para completar o pagamento.`,
         });
         return;
     }
@@ -281,8 +304,8 @@ export default function CartSheet({ companyId }: { companyId: string}) {
                     <Button variant={deliveryType === 'Retirada' ? 'default' : 'outline'} className="flex-1" onClick={() => setDeliveryType('Retirada')}>Retirada</Button>
                  </div>
                  {deliveryType === 'Delivery' && (
-                     <div className="space-y-2 mt-4">
-                        <div className="grid grid-cols-2 gap-4">
+                     <div className="space-y-4 mt-4">
+                        <div className="grid grid-cols-2 gap-2">
                             <div className="grid gap-2 col-span-2">
                                 <Label htmlFor="address-street">Rua</Label>
                                 <Input id="address-street" value={addressStreet} onChange={e => setAddressStreet(e.target.value)} placeholder="Ex: Av. Brasil" required />
@@ -291,29 +314,29 @@ export default function CartSheet({ companyId }: { companyId: string}) {
                                 <Label htmlFor="address-number">Número</Label>
                                 <Input id="address-number" value={addressNumber} onChange={e => setAddressNumber(e.target.value)} placeholder="Ex: 123" required />
                             </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="address-neighborhood">Bairro</Label>
-                                <Select value={addressNeighborhood} onValueChange={setAddressNeighborhood}>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Selecione o bairro" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {isLoadingZones ? (
-                                      <SelectItem value="loading" disabled>Carregando...</SelectItem>
-                                    ) : activeDeliveryZones.length > 0 ? (
-                                      activeDeliveryZones.map(zone => (
-                                        <SelectItem key={zone.id} value={zone.neighborhood}>{zone.neighborhood}</SelectItem>
-                                      ))
-                                    ) : (
-                                      <SelectItem value="no-zones" disabled>Nenhum bairro disponível</SelectItem>
-                                    )}
-                                  </SelectContent>
-                                </Select>
+                             <div className="grid gap-2">
+                                <Label htmlFor="address-complement">Complemento</Label>
+                                <Input id="address-complement" value={addressComplement} onChange={e => setAddressComplement(e.target.value)} placeholder="Ex: Apto 101" />
                             </div>
                         </div>
                         <div className="grid gap-2">
-                            <Label htmlFor="address-complement">Complemento (Opcional)</Label>
-                            <Input id="address-complement" value={addressComplement} onChange={e => setAddressComplement(e.target.value)} placeholder="Ex: Apto 101" />
+                            <Label htmlFor="address-neighborhood">Bairro</Label>
+                            <Select value={addressNeighborhood} onValueChange={setAddressNeighborhood}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione o bairro" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {isLoadingZones ? (
+                                  <SelectItem value="loading" disabled>Carregando...</SelectItem>
+                                ) : activeDeliveryZones.length > 0 ? (
+                                  activeDeliveryZones.map(zone => (
+                                    <SelectItem key={zone.id} value={zone.neighborhood}>{zone.neighborhood}</SelectItem>
+                                  ))
+                                ) : (
+                                  <SelectItem value="no-zones" disabled>Nenhum bairro disponível</SelectItem>
+                                )}
+                              </SelectContent>
+                            </Select>
                         </div>
                     </div>
                  )}
@@ -363,14 +386,32 @@ export default function CartSheet({ companyId }: { companyId: string}) {
                         </div>
                     )}
                 </div>
+                 <Separator className="my-4" />
+                 <div className="space-y-2 rounded-lg border bg-muted/50 p-4">
+                    <div className="flex justify-between">
+                        <span>Total do Pedido</span>
+                        <span className="font-semibold">R$ {totalPrice.toFixed(2)}</span>
+                    </div>
+                     <div className="flex justify-between">
+                        <span>Valor Pago</span>
+                        <span className="font-semibold">R$ {totalPaid.toFixed(2)}</span>
+                    </div>
+                    {remainingAmount > 0 ? (
+                        <div className="flex justify-between text-destructive font-bold">
+                            <span>Restante a Pagar</span>
+                            <span>R$ {remainingAmount.toFixed(2)}</span>
+                        </div>
+                    ) : (
+                         <div className="flex justify-between text-green-600 font-bold">
+                            <span>Troco</span>
+                            <span>R$ {change.toFixed(2)}</span>
+                        </div>
+                    )}
+                 </div>
             </div>
         </ScrollArea>
         <SheetFooter className="flex-col space-y-4 !space-x-0 pt-4 border-t">
-            <div className="flex justify-between font-bold text-lg">
-                <span>Total</span>
-                <span>R$ {totalPrice.toFixed(2)}</span>
-            </div>
-            <Button size="lg" className="w-full" onClick={handlePlaceOrder}>
+            <Button size="lg" className="w-full" onClick={handlePlaceOrder} disabled={remainingAmount > 0}>
                 Enviar Pedido
             </Button>
             <Button variant="outline" className="w-full" onClick={() => setIsCheckoutOpen(false)}>
