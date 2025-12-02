@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Card,
   CardContent,
@@ -47,6 +47,8 @@ import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+
 
 type Table = {
   id: string;
@@ -71,6 +73,19 @@ type OrderItem = {
   notes?: string;
 };
 
+type PaymentMethod = {
+    method: 'Dinheiro' | 'PIX' | 'Cartão de Débito' | 'Cartão de Crédito';
+    amount?: number;
+    icon: React.ElementType;
+}
+
+const availablePaymentMethods: PaymentMethod[] = [
+    { method: 'Dinheiro', icon: DollarSign },
+    { method: 'PIX', icon: Landmark },
+    { method: 'Cartão de Débito', icon: CreditCard },
+    { method: 'Cartão de Crédito', icon: CreditCard },
+];
+
 export default function TablesPage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
@@ -80,6 +95,20 @@ export default function TablesPage() {
   const [isAddTableDialogOpen, setIsAddTableDialogOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
+  
+  const [selectedPayments, setSelectedPayments] = useState<{[key: string]: boolean}>({});
+  const [paymentAmounts, setPaymentAmounts] = useState<{[key: string]: string}>({});
+  const [receivedAmount, setReceivedAmount] = useState<string>('');
+
+  const change = useMemo(() => {
+    const total = selectedTable?.total ?? 0;
+    const received = parseFloat(receivedAmount) || 0;
+    if (received >= total) {
+      return received - total;
+    }
+    return 0;
+  }, [receivedAmount, selectedTable?.total]);
+
 
   // Firestore Refs
   const tablesRef = useMemoFirebase(() => 
@@ -97,6 +126,15 @@ export default function TablesPage() {
   // Data Hooks
   const { data: tables, isLoading: isLoadingTables } = useCollection<Table>(tablesRef);
   const { data: products, isLoading: isLoadingProducts } = useCollection<Product>(productsRef);
+
+  useEffect(() => {
+    // Reset payment state when dialog closes or table changes
+    if (!isPaymentDialogOpen) {
+      setSelectedPayments({});
+      setPaymentAmounts({});
+      setReceivedAmount('');
+    }
+  }, [isPaymentDialogOpen]);
 
   const handleAddTable = async () => {
     if (!tableName.trim() || !tablesRef) return;
@@ -200,8 +238,20 @@ export default function TablesPage() {
         toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível remover o item.' });
     }
   };
+  
+    const handleFinalizeOrder = () => {
+    const paymentMethods = Object.entries(selectedPayments)
+        .filter(([, isSelected]) => isSelected)
+        .map(([method]) => {
+            const amount = paymentAmounts[method] ? ` (R$ ${paymentAmounts[method]})` : '';
+            return `${method}${amount}`;
+        }).join(', ');
+        
+    if (!paymentMethods) {
+        toast({ variant: 'destructive', title: 'Erro', description: 'Selecione pelo menos uma forma de pagamento.' });
+        return;
+    }
 
-  const handleFinalizeOrder = (paymentMethod: string) => {
     if (!selectedTable || !ordersRef || !user || !firestore) {
       toast({ variant: 'destructive', title: 'Erro', description: 'Mesa não selecionada.' });
       return;
@@ -219,7 +269,7 @@ export default function TablesPage() {
       status: 'Entregue', // Assuming table orders are delivered immediately
       deliveryAddress: selectedTable.name,
       deliveryType: 'Retirada', // Or 'Dine-in' if you add it
-      paymentMethod: paymentMethod,
+      paymentMethod: paymentMethods,
       orderItems: selectedTable.orderItems.map(item => ({ ...item, productId: item.productName })),
       totalAmount: selectedTable.total,
       notes: `Pedido da ${selectedTable.name}`,
@@ -232,10 +282,8 @@ export default function TablesPage() {
       status: 'free',
     };
 
-    // Use non-blocking calls with .catch for error handling
     addDocument(ordersRef, orderData)
       .then(() => {
-        // Only clear the table if the order was created successfully
         return updateDocument(tableDocRef, tableUpdateData);
       })
       .then(() => {
@@ -245,11 +293,11 @@ export default function TablesPage() {
       })
       .catch((error) => {
         // The addDocument/updateDocument functions will emit the contextual error
-        // so we don't need to do it here. We can show a generic toast.
         toast({ variant: 'destructive', title: 'Erro ao finalizar', description: 'Não foi possível finalizar o pedido. Verifique as permissões.' });
-        console.error(error); // Keep console log for now if useful
+        console.error(error);
       });
   };
+
   
   const isLoading = isLoadingTables || isLoadingProducts;
 
@@ -408,33 +456,71 @@ export default function TablesPage() {
                     <DialogTrigger asChild>
                         <Button disabled={!selectedTable.orderItems || selectedTable.orderItems.length === 0}>Finalizar Pedido</Button>
                     </DialogTrigger>
-                    <DialogContent>
+                     <DialogContent>
                         <DialogHeader>
                             <DialogTitle>Finalizar Pedido: {selectedTable.name}</DialogTitle>
                             <DialogDescription>
-                               Selecione a forma de pagamento.
+                               Selecione a forma de pagamento e finalize a conta.
                             </DialogDescription>
                         </DialogHeader>
-                        <div className="py-4">
-                            <div className="flex justify-between items-center mb-6 text-2xl font-bold">
+                        <div className="py-4 space-y-6">
+                            <div className="flex justify-between items-center text-3xl font-bold text-primary">
                                 <span>Total:</span>
                                 <span>R$ {selectedTable.total?.toFixed(2) ?? '0.00'}</span>
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <Button size="lg" variant="outline" onClick={() => handleFinalizeOrder('Dinheiro')}>
-                                    <DollarSign className="mr-2 h-5 w-5"/> Dinheiro
-                                </Button>
-                                <Button size="lg" variant="outline" onClick={() => handleFinalizeOrder('PIX')}>
-                                    <Landmark className="mr-2 h-5 w-5"/> PIX
-                                </Button>
-                                <Button size="lg" variant="outline" onClick={() => handleFinalizeOrder('Cartão de Débito')}>
-                                    <CreditCard className="mr-2 h-5 w-5"/> Débito
-                                </Button>
-                                <Button size="lg" variant="outline" onClick={() => handleFinalizeOrder('Cartão de Crédito')}>
-                                    <CreditCard className="mr-2 h-5 w-5"/> Crédito
-                                </Button>
+                            
+                            <div className="space-y-4">
+                                <Label>Formas de Pagamento</Label>
+                                {availablePaymentMethods.map(({ method, icon: Icon }) => (
+                                    <div key={method} className="space-y-2">
+                                        <div className="flex items-center space-x-2">
+                                            <Checkbox
+                                                id={`payment-${method}`}
+                                                checked={!!selectedPayments[method]}
+                                                onCheckedChange={(checked) => setSelectedPayments(prev => ({...prev, [method]: !!checked}))}
+                                            />
+                                            <Label htmlFor={`payment-${method}`} className="flex items-center gap-2 font-normal">
+                                                <Icon className="h-5 w-5 text-muted-foreground" /> {method}
+                                            </Label>
+                                        </div>
+                                        {selectedPayments[method] && (
+                                            <Input 
+                                                type="number" 
+                                                placeholder="Valor pago neste método"
+                                                value={paymentAmounts[method] || ''}
+                                                onChange={(e) => setPaymentAmounts(prev => ({...prev, [method]: e.target.value}))}
+                                                className="ml-7"
+                                            />
+                                        )}
+                                    </div>
+                                ))}
                             </div>
+                            
+                            <Separator />
+                            
+                            <div className="space-y-2">
+                                <Label htmlFor="received-amount">Valor Recebido</Label>
+                                <Input 
+                                    id="received-amount"
+                                    type="number"
+                                    placeholder="Ex: 50.00"
+                                    value={receivedAmount}
+                                    onChange={(e) => setReceivedAmount(e.target.value)}
+                                />
+                            </div>
+
+                             {change > 0 && (
+                               <div className="text-center text-lg font-medium">
+                                    <p className="text-muted-foreground">Troco</p>
+                                    <p className="text-2xl font-bold text-green-600">R$ {change.toFixed(2)}</p>
+                               </div>
+                            )}
+                            
                         </div>
+                        <DialogFooter>
+                            <DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose>
+                            <Button onClick={handleFinalizeOrder}>Confirmar Pagamento</Button>
+                        </DialogFooter>
                     </DialogContent>
                  </Dialog>
               </SheetFooter>
@@ -445,3 +531,5 @@ export default function TablesPage() {
     </>
   );
 }
+
+    
