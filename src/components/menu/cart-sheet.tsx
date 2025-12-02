@@ -22,6 +22,7 @@ import {
   addDocument,
   useDoc,
   useMemoFirebase,
+  useCollection,
 } from '@/firebase';
 import { collection, doc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -40,6 +41,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
 
 type PaymentMethods = {
   cash: boolean;
@@ -50,6 +53,14 @@ type PaymentMethods = {
 
 type CompanyData = {
     paymentMethods?: PaymentMethods;
+};
+
+type DeliveryZone = {
+  id: string;
+  neighborhood: string;
+  deliveryFee: number;
+  deliveryTime: number;
+  isActive: boolean;
 };
 
 
@@ -98,6 +109,13 @@ export default function CartSheet({ companyId }: { companyId: string}) {
   }, [firestore, companyId]);
 
   const { data: companyData, isLoading: isLoadingCompany } = useDoc<CompanyData>(companyRef);
+
+  const deliveryZonesRef = useMemoFirebase(() => {
+    if (!firestore || !companyId) return null;
+    return collection(firestore, `companies/${companyId}/deliveryZones`);
+  }, [firestore, companyId]);
+  
+  const { data: deliveryZones, isLoading: isLoadingZones } = useCollection<DeliveryZone>(deliveryZonesRef);
 
   // Form states
   const [customerName, setCustomerName] = useState('');
@@ -182,6 +200,10 @@ export default function CartSheet({ companyId }: { companyId: string}) {
     if (companyData.paymentMethods.debit) methods.push({ id: 'Cartão de Débito', label: 'Cartão de Débito', icon: CreditCard });
     return methods;
   }, [companyData]);
+  
+  const activeDeliveryZones = useMemo(() => {
+    return deliveryZones?.filter(zone => zone.isActive) ?? [];
+  }, [deliveryZones]);
 
   const renderCartContent = () => (
     <>
@@ -241,18 +263,33 @@ export default function CartSheet({ companyId }: { companyId: string}) {
                  </div>
                  {deliveryType === 'Delivery' && (
                      <div className="space-y-2 mt-4">
-                        <div className="grid gap-2">
-                            <Label htmlFor="address-street">Rua</Label>
-                            <Input id="address-street" value={addressStreet} onChange={e => setAddressStreet(e.target.value)} placeholder="Ex: Av. Brasil" required />
-                        </div>
                         <div className="grid grid-cols-2 gap-4">
+                            <div className="grid gap-2 col-span-2">
+                                <Label htmlFor="address-street">Rua</Label>
+                                <Input id="address-street" value={addressStreet} onChange={e => setAddressStreet(e.target.value)} placeholder="Ex: Av. Brasil" required />
+                            </div>
                             <div className="grid gap-2">
                                 <Label htmlFor="address-number">Número</Label>
                                 <Input id="address-number" value={addressNumber} onChange={e => setAddressNumber(e.target.value)} placeholder="Ex: 123" required />
                             </div>
                             <div className="grid gap-2">
                                 <Label htmlFor="address-neighborhood">Bairro</Label>
-                                <Input id="address-neighborhood" value={addressNeighborhood} onChange={e => setAddressNeighborhood(e.target.value)} placeholder="Ex: Centro" required />
+                                <Select value={addressNeighborhood} onValueChange={setAddressNeighborhood}>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Selecione o bairro" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {isLoadingZones ? (
+                                      <SelectItem value="loading" disabled>Carregando...</SelectItem>
+                                    ) : activeDeliveryZones.length > 0 ? (
+                                      activeDeliveryZones.map(zone => (
+                                        <SelectItem key={zone.id} value={zone.neighborhood}>{zone.neighborhood}</SelectItem>
+                                      ))
+                                    ) : (
+                                      <SelectItem value="no-zones" disabled>Nenhum bairro disponível</SelectItem>
+                                    )}
+                                  </SelectContent>
+                                </Select>
                             </div>
                         </div>
                         <div className="grid gap-2">
