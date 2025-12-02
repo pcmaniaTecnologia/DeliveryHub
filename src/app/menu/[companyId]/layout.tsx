@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect } from 'react';
@@ -7,7 +8,7 @@ import { hexToHsl } from '@/lib/utils';
 import { Package2 } from 'lucide-react';
 import Link from 'next/link';
 import { CartProvider } from '@/context/cart-context';
-import CartSheet from './_components/cart-sheet';
+import CartSheet from '@/components/menu/cart-sheet';
 
 
 type CompanyData = {
