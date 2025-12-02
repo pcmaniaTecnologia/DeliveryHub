@@ -103,13 +103,21 @@ export default function CartSheet({ companyId }: { companyId: string}) {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [deliveryType, setDeliveryType] = useState<'Delivery' | 'Retirada'>('Delivery');
-  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [addressStreet, setAddressStreet] = useState('');
+  const [addressNumber, setAddressNumber] = useState('');
+  const [addressNeighborhood, setAddressNeighborhood] = useState('');
+  const [addressComplement, setAddressComplement] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
   
   const handlePlaceOrder = async () => {
     if (!firestore || !companyId) return;
 
-    if (!customerName || !customerPhone || !paymentMethod || (deliveryType === 'Delivery' && !deliveryAddress)) {
+    let isFormValid = customerName && customerPhone && paymentMethod;
+    if (deliveryType === 'Delivery' && (!addressStreet || !addressNumber || !addressNeighborhood)) {
+      isFormValid = false;
+    }
+
+    if (!isFormValid) {
         toast({
             variant: 'destructive',
             title: 'Campos obrigatórios',
@@ -120,6 +128,10 @@ export default function CartSheet({ companyId }: { companyId: string}) {
 
     const ordersRef = collection(firestore, 'companies', companyId, 'orders');
 
+    const fullAddress = deliveryType === 'Delivery'
+      ? `${addressStreet}, ${addressNumber} - ${addressNeighborhood}${addressComplement ? ` (${addressComplement})` : ''}`
+      : 'Retirada no local';
+
     const orderData = {
         companyId: companyId,
         customerId: customerPhone || 'anonymous',
@@ -127,7 +139,7 @@ export default function CartSheet({ companyId }: { companyId: string}) {
         customerPhone: customerPhone,
         orderDate: serverTimestamp(),
         status: 'Novo',
-        deliveryAddress: deliveryType === 'Delivery' ? deliveryAddress : 'Retirada no local',
+        deliveryAddress: fullAddress,
         deliveryType: deliveryType,
         paymentMethod: paymentMethod,
         orderItems: cartItems.map(item => ({
@@ -223,15 +235,30 @@ export default function CartSheet({ companyId }: { companyId: string}) {
                 </div>
                  <Separator className="my-4" />
                  <h3 className="font-semibold">Entrega</h3>
-                 {/* Simple radio buttons for now */}
                  <div className="flex gap-4">
                     <Button variant={deliveryType === 'Delivery' ? 'default' : 'outline'} className="flex-1" onClick={() => setDeliveryType('Delivery')}>Delivery</Button>
                     <Button variant={deliveryType === 'Retirada' ? 'default' : 'outline'} className="flex-1" onClick={() => setDeliveryType('Retirada')}>Retirada</Button>
                  </div>
                  {deliveryType === 'Delivery' && (
-                     <div className="grid gap-2">
-                        <Label htmlFor="address">Endereço de Entrega</Label>
-                        <Textarea id="address" value={deliveryAddress} onChange={e => setDeliveryAddress(e.target.value)} placeholder="Rua, número, bairro, cidade..." required />
+                     <div className="space-y-2 mt-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor="address-street">Rua</Label>
+                            <Input id="address-street" value={addressStreet} onChange={e => setAddressStreet(e.target.value)} placeholder="Ex: Av. Brasil" required />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="grid gap-2">
+                                <Label htmlFor="address-number">Número</Label>
+                                <Input id="address-number" value={addressNumber} onChange={e => setAddressNumber(e.target.value)} placeholder="Ex: 123" required />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="address-neighborhood">Bairro</Label>
+                                <Input id="address-neighborhood" value={addressNeighborhood} onChange={e => setAddressNeighborhood(e.target.value)} placeholder="Ex: Centro" required />
+                            </div>
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="address-complement">Complemento (Opcional)</Label>
+                            <Input id="address-complement" value={addressComplement} onChange={e => setAddressComplement(e.target.value)} placeholder="Ex: Apto 101" />
+                        </div>
                     </div>
                  )}
                 <Separator className="my-4" />
