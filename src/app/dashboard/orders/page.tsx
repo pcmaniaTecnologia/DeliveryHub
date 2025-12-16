@@ -91,39 +91,56 @@ function OrderPrintPreview({ order, company, onClose }: { order: Order; company?
         const content = printContentRef.current;
         if (!content) return;
 
-        // Create a hidden iframe
         const iframe = document.createElement('iframe');
         iframe.style.position = 'absolute';
         iframe.style.width = '0';
         iframe.style.height = '0';
-        iframe.style.border = '0';
+        iframe.style.border = 'none';
         document.body.appendChild(iframe);
 
         const iframeDoc = iframe.contentWindow?.document;
-        if (!iframeDoc) return;
+        if (!iframeDoc) {
+             document.body.removeChild(iframe);
+             return;
+        }
         
-        // Write the content to the iframe
-        iframeDoc.open();
-        iframeDoc.write('<html><head><title>Imprimir Pedido</title>');
-        // You can link external stylesheets or add style blocks here
-        const styles = Array.from(document.styleSheets)
-            .map(s => s.href ? `<link rel="stylesheet" href="${s.href}">` : '')
+        const styleSheets = Array.from(document.styleSheets)
+            .map(sheet => sheet.href ? `<link rel="stylesheet" href="${sheet.href}">` : '')
             .join('');
-        iframeDoc.write(styles);
-        iframeDoc.write('<style>@media print { body * { visibility: visible; } .no-print { display: none; } } body { margin: 1.5rem; }</style>')
-        iframeDoc.write('</head><body>');
-        iframeDoc.write(content.innerHTML);
-        iframeDoc.write('</body></html>');
+
+        iframeDoc.open();
+        iframeDoc.write(`
+            <html>
+            <head>
+                <title>Imprimir Pedido</title>
+                ${styleSheets}
+                <style>
+                    @media print {
+                        body, html {
+                           margin: 0;
+                           padding: 0;
+                        }
+                        .print-container {
+                            padding: 1.5rem;
+                            font-family: Arial, sans-serif;
+                        }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="print-container">${content.innerHTML}</div>
+            </body>
+            </html>
+        `);
         iframeDoc.close();
 
-        // Focus and print the iframe
-        iframe.contentWindow?.focus();
-        iframe.contentWindow?.print();
-
-        // Remove the iframe after printing (with a delay)
-        setTimeout(() => {
-            document.body.removeChild(iframe);
-        }, 500);
+        iframe.onload = function() {
+            setTimeout(() => {
+                iframe.contentWindow?.focus();
+                iframe.contentWindow?.print();
+                document.body.removeChild(iframe);
+            }, 500); // Small delay to ensure content and styles are loaded
+        };
     };
 
     return (
@@ -222,10 +239,12 @@ export default function OrdersPage() {
 
     // Initialize the set of seen orders on first load
     useEffect(() => {
-      if (orders) {
-        lastSeenOrderIds.current = new Set(orders.map(o => o.id));
+      if (orders && !isLoadingOrders) {
+        if (lastSeenOrderIds.current.size === 0) {
+            lastSeenOrderIds.current = new Set(orders.map(o => o.id));
+        }
       }
-    }, [!orders]); // Run only once after initial load
+    }, [orders, isLoadingOrders]);
 
     // This effect handles the audio initialization
     useEffect(() => {
@@ -415,3 +434,4 @@ export default function OrdersPage() {
     
 
     
+
