@@ -189,18 +189,6 @@ service cloud.firestore {
     }
 
     /**
-     * @description Manages tables within a restaurant. Only company members can manage tables.
-     * @path /companies/{companyId}/tables/{tableId}
-     * @allow (read, write) Any member of the company can manage tables.
-     * @deny (read, write) A user from a different company tries to access table data.
-     * @principle Secures operational data to authorized personnel within the company.
-     */
-    match /companies/{companyId}/tables/{tableId} {
-      allow read, write: if isCompanyMember(companyId) || isSuperAdmin();
-    }
-
-
-    /**
      * @description Manages discount coupons for a company. Readable and writable only by company members to prevent abuse.
      * @path /companies/{companyId}/coupons/{couponId}
      * @allow (get) A company member reads a coupon's details.

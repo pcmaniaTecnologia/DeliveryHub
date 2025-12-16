@@ -382,25 +382,6 @@
         "unitPrice"
       ]
     },
-    "Table": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Table",
-      "type": "object",
-      "description": "Represents a table in the restaurant.",
-      "properties": {
-        "id": { "type": "string", "description": "Unique ID for the table." },
-        "name": { "type": "string", "description": "Name or number of the table." },
-        "status": { "type": "string", "description": "Status of the table (e.g., 'free', 'busy')." },
-        "companyId": { "type": "string", "description": "Company this table belongs to." },
-        "orderItems": {
-          "type": "array",
-          "description": "Items currently in the table's order.",
-          "items": { "$ref": "#/backend/entities/OrderItem" }
-        },
-        "total": { "type": "number", "description": "Current total of the order." }
-      },
-      "required": ["id", "name", "status", "companyId"]
-    },
     "DeliveryZone": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "DeliveryZone",
@@ -660,26 +641,6 @@
             {
               "name": "subcategoryId",
               "description": "The unique identifier of the subcategory."
-            }
-          ]
-        }
-      },
-       {
-        "path": "/companies/{companyId}/tables/{tableId}",
-        "definition": {
-          "entityName": "Table",
-          "schema": {
-            "$ref": "#/backend/entities/Table"
-          },
-          "description": "Stores restaurant tables for a company. Includes 'companyId' for authorization.",
-          "params": [
-            {
-              "name": "companyId",
-              "description": "The unique identifier of the company."
-            },
-            {
-              "name": "tableId",
-              "description": "The unique identifier of the table."
             }
           ]
         }
