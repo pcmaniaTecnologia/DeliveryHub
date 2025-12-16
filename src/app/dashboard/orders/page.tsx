@@ -83,13 +83,11 @@ const statusMap: { [key: string]: Order['status'][] } = {
   "Finalizados": ["Entregue", "Cancelado"],
 }
 
-function OrderPrintPreview({ order, company, onClose, onPrint }: { order: Order; company?: Company; onClose: () => void; onPrint: () => void; }) {
+function OrderPrintPreview({ order, company, onClose }: { order: Order; company?: Company; onClose: () => void; }) {
 
-    useEffect(() => {
-        if (order) {
-            onPrint();
-        }
-    }, [order, onPrint]);
+    const handlePrint = () => {
+        window.print();
+    };
 
     return (
         <Dialog open onOpenChange={onClose}>
@@ -150,7 +148,7 @@ function OrderPrintPreview({ order, company, onClose, onPrint }: { order: Order;
                 </div>
                 <DialogFooter className="print:hidden mt-6">
                     <Button variant="outline" onClick={onClose}>Fechar</Button>
-                    <Button onClick={onPrint}><Printer className="mr-2 h-4 w-4" />Imprimir</Button>
+                    <Button onClick={handlePrint}><Printer className="mr-2 h-4 w-4" />Imprimir</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
@@ -164,8 +162,8 @@ export default function OrdersPage() {
     const audioRef = useRef<HTMLAudioElement | null>(null);
     
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-    const [isPrinting, setIsPrinting] = useState(false);
-    const [lastSeenOrderIds, setLastSeenOrderIds] = useState<Set<string>>(new Set());
+    const [printingOrder, setPrintingOrder] = useState<Order | null>(null);
+    const lastSeenOrderIds = useRef(new Set<string>());
 
     const companyRef = useMemoFirebase(() => {
       if (!firestore || !user?.uid) return null;
@@ -181,19 +179,14 @@ export default function OrdersPage() {
 
     const { data: orders, isLoading: isLoadingOrders } = useCollection<Order>(ordersRef);
 
-    const handlePrint = () => {
-        window.print();
-    };
-
     const openPrintDialog = (order: Order) => {
-        setSelectedOrder(order);
-        setIsPrinting(true);
+        setPrintingOrder(order);
     };
 
     // Initialize the set of seen orders on first load
     useEffect(() => {
       if (orders) {
-        setLastSeenOrderIds(new Set(orders.map(o => o.id)));
+        lastSeenOrderIds.current = new Set(orders.map(o => o.id));
       }
     }, [!orders]); // Run only once after initial load
 
@@ -209,7 +202,7 @@ export default function OrdersPage() {
             return;
         }
 
-        const newOrders = orders.filter(order => order.status === 'Novo' && !lastSeenOrderIds.has(order.id));
+        const newOrders = orders.filter(order => order.status === 'Novo' && !lastSeenOrderIds.current.has(order.id));
 
         if (newOrders.length > 0) {
             const latestNewOrder = newOrders.sort((a, b) => b.orderDate.toMillis() - a.orderDate.toMillis())[0];
@@ -227,10 +220,10 @@ export default function OrdersPage() {
             }
 
             // Update the set of seen orders
-            setLastSeenOrderIds(prev => new Set([...prev, ...newOrders.map(o => o.id)]));
+            newOrders.forEach(o => lastSeenOrderIds.current.add(o.id));
         }
 
-    }, [orders, isLoadingOrders, companyData, lastSeenOrderIds]);
+    }, [orders, isLoadingOrders, companyData]);
 
 
     const handleUpdateStatus = async (orderId: string, status: Order['status']) => {
@@ -351,7 +344,7 @@ export default function OrdersPage() {
         </Tabs>
       </CardContent>
     </Card>
-    {selectedOrder && !isPrinting && (
+    {selectedOrder && (
         <Dialog open onOpenChange={() => setSelectedOrder(null)}>
             <DialogContent>
                  <DialogHeader>
@@ -370,15 +363,11 @@ export default function OrdersPage() {
             </DialogContent>
         </Dialog>
     )}
-    {selectedOrder && isPrinting && (
+    {printingOrder && (
         <OrderPrintPreview 
-            order={selectedOrder}
+            order={printingOrder}
             company={companyData || undefined}
-            onClose={() => {
-                setSelectedOrder(null);
-                setIsPrinting(false);
-            }} 
-            onPrint={handlePrint}
+            onClose={() => setPrintingOrder(null)} 
         />
     )}
     </>
