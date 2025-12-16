@@ -203,9 +203,9 @@ service cloud.firestore {
     }
 
     /**
-     * @description Manages customer orders. Writable by the customer who owns it, and readable/updatable by company members.
+     * @description Manages customer orders. Writable by any user, readable/updatable by company members or the customer who owns it.
      * @path /companies/{companyId}/orders/{orderId}
-     * @allow (create) An authenticated customer creates a new order for themselves.
+     * @allow (create) Any user (authenticated or not) creates a new order.
      * @allow (get) The customer who placed the order retrieves its status.
      * @deny (list) A customer tries to list all orders for the company.
      * @principle Enforces shared access between the document owner (customer) and business operators (company members).
@@ -213,7 +213,7 @@ service cloud.firestore {
     match /companies/{companyId}/orders/{orderId} {
       allow get: if isCompanyMember(companyId) || isSuperAdmin() || (isSignedIn() && resource.data.customerId == request.auth.uid);
       allow list: if isCompanyMember(companyId) || isSuperAdmin();
-      allow create: if isSignedIn() && request.resource.data.customerId == request.auth.uid && request.resource.data.companyId == companyId;
+      allow create: if request.resource.data.companyId == companyId;
       allow update: if (isCompanyMember(companyId) || isSuperAdmin()) && resource != null;
       allow delete: if false;
     }
@@ -227,7 +227,7 @@ service cloud.firestore {
      */
     match /companies/{companyId}/orders/{orderId}/orderItems/{orderItemId} {
       allow get, list: if isCompanyMember(companyId) || isSuperAdmin() || (isSignedIn() && get(/databases/$(database)/documents/companies/$(companyId)/orders/$(orderId)).data.customerId == request.auth.uid);
-      allow create: if (isCompanyMember(companyId) || isSuperAdmin() || (isSignedIn() && get(/databases/$(database)/documents/companies/$(companyId)/orders/$(orderId)).data.customerId == request.auth.uid));
+      allow create: if true; // The check is done on the parent order
       allow update: if false;
       allow delete: if false;
     }

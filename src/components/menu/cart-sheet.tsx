@@ -23,6 +23,7 @@ import {
   useDoc,
   useMemoFirebase,
   useCollection,
+  useUser,
 } from '@/firebase';
 import { collection, doc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -104,6 +105,7 @@ const CartItemCard = ({ item }: { item: CartItem }) => {
 export default function CartSheet({ companyId }: { companyId: string}) {
   const { cartItems, totalItems, totalPrice, clearCart } = useCart();
   const firestore = useFirestore();
+  const { user } = useUser();
   const { toast } = useToast();
   const [isOrderFinished, setIsOrderFinished] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
@@ -190,7 +192,7 @@ export default function CartSheet({ companyId }: { companyId: string}) {
 
     const orderData = {
         companyId: companyId,
-        customerId: customerPhone || 'anonymous',
+        customerId: user?.uid || 'anonymous',
         customerName: customerName || 'Anônimo',
         customerPhone: customerPhone,
         orderDate: serverTimestamp(),
