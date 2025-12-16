@@ -85,14 +85,51 @@ const statusMap: { [key: string]: Order['status'][] } = {
 
 function OrderPrintPreview({ order, company, onClose }: { order: Order; company?: Company; onClose: () => void; }) {
 
+    const printContentRef = useRef<HTMLDivElement>(null);
+    
     const handlePrint = () => {
-        window.print();
+        const content = printContentRef.current;
+        if (!content) return;
+
+        // Create a hidden iframe
+        const iframe = document.createElement('iframe');
+        iframe.style.position = 'absolute';
+        iframe.style.width = '0';
+        iframe.style.height = '0';
+        iframe.style.border = '0';
+        document.body.appendChild(iframe);
+
+        const iframeDoc = iframe.contentWindow?.document;
+        if (!iframeDoc) return;
+        
+        // Write the content to the iframe
+        iframeDoc.open();
+        iframeDoc.write('<html><head><title>Imprimir Pedido</title>');
+        // You can link external stylesheets or add style blocks here
+        const styles = Array.from(document.styleSheets)
+            .map(s => s.href ? `<link rel="stylesheet" href="${s.href}">` : '')
+            .join('');
+        iframeDoc.write(styles);
+        iframeDoc.write('<style>@media print { body * { visibility: visible; } .no-print { display: none; } } body { margin: 1.5rem; }</style>')
+        iframeDoc.write('</head><body>');
+        iframeDoc.write(content.innerHTML);
+        iframeDoc.write('</body></html>');
+        iframeDoc.close();
+
+        // Focus and print the iframe
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+
+        // Remove the iframe after printing (with a delay)
+        setTimeout(() => {
+            document.body.removeChild(iframe);
+        }, 500);
     };
 
     return (
         <Dialog open onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-lg print:shadow-none print:border-none">
-                <div id="print-content">
+            <DialogContent className="sm:max-w-lg">
+                <div id="print-content" ref={printContentRef}>
                     <DialogHeader className="text-center">
                         <DialogTitle className="text-2xl">{company?.name || 'Seu Restaurante'}</DialogTitle>
                         <p className="text-sm text-muted-foreground">Pedido: {order.id.substring(0, 6).toUpperCase()}</p>
@@ -146,7 +183,7 @@ function OrderPrintPreview({ order, company, onClose }: { order: Order; company?
                         </div>
                     </div>
                 </div>
-                <DialogFooter className="print:hidden mt-6">
+                <DialogFooter className="mt-6">
                     <Button variant="outline" onClick={onClose}>Fechar</Button>
                     <Button onClick={handlePrint}><Printer className="mr-2 h-4 w-4" />Imprimir</Button>
                 </DialogFooter>
