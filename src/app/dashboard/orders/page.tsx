@@ -37,7 +37,7 @@ import { useToast } from '@/hooks/use-toast';
 import ReactToPrint from 'react-to-print';
 
 // A valid, short beep sound in Base64 format.
-const notificationSound = "data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU=";
+const notificationSound = "data:audio/wav;base64,UklGRisAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAhAAAA9/8A/f8E/wMAAgAFAAMACQD0/wD9/w==";
 
 
 type Company = {
@@ -299,7 +299,12 @@ export default function OrdersPage() {
                                     </button>
                                   )}
                                   content={() => printRef.current}
-                                  onBeforeGetContent={() => setSelectedOrder(order)}
+                                  onBeforeGetContent={() => {
+                                    return new Promise<void>((resolve) => {
+                                        setSelectedOrder(order);
+                                        resolve();
+                                    });
+                                  }}
                                   onAfterPrint={() => setSelectedOrder(null)}
                                 />
                                 <DropdownMenuSeparator />
@@ -334,7 +339,7 @@ export default function OrdersPage() {
       </CardContent>
     </Card>
     {selectedOrder && (
-        <Dialog open={selectedOrder !== null} onOpenChange={() => setSelectedOrder(null)}>
+        <Dialog open={selectedOrder !== null} onOpenChange={(isOpen) => { if (!isOpen) setSelectedOrder(null) }}>
             <DialogContent>
                  <DialogHeader>
                     <DialogTitle>Detalhes do Pedido</DialogTitle>
