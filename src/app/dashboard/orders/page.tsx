@@ -84,69 +84,39 @@ const statusMap: { [key: string]: Order['status'][] } = {
 }
 
 function OrderPrintPreview({ order, company, onClose }: { order: Order; company?: Company; onClose: () => void; }) {
-
     const printContentRef = useRef<HTMLDivElement>(null);
-    
+
     const handlePrint = () => {
-        const content = printContentRef.current;
-        if (!content) return;
-
-        const iframe = document.createElement('iframe');
-        iframe.style.position = 'absolute';
-        iframe.style.width = '0';
-        iframe.style.height = '0';
-        iframe.style.border = 'none';
-        document.body.appendChild(iframe);
-
-        const iframeDoc = iframe.contentWindow?.document;
-        if (!iframeDoc) {
-             document.body.removeChild(iframe);
-             return;
-        }
-        
-        const styleSheets = Array.from(document.styleSheets)
-            .map(sheet => sheet.href ? `<link rel="stylesheet" href="${sheet.href}">` : '')
-            .join('');
-
-        iframeDoc.open();
-        iframeDoc.write(`
-            <html>
-            <head>
-                <title>Imprimir Pedido</title>
-                ${styleSheets}
-                <style>
-                    @media print {
-                        body, html {
-                           margin: 0;
-                           padding: 0;
-                        }
-                        .print-container {
-                            padding: 1.5rem;
-                            font-family: Arial, sans-serif;
-                        }
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="print-container">${content.innerHTML}</div>
-            </body>
-            </html>
-        `);
-        iframeDoc.close();
-
-        iframe.onload = function() {
-            setTimeout(() => {
-                iframe.contentWindow?.focus();
-                iframe.contentWindow?.print();
-                document.body.removeChild(iframe);
-            }, 500); // Small delay to ensure content and styles are loaded
-        };
+        window.print();
     };
 
     return (
         <Dialog open onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-lg">
-                <div id="print-content" ref={printContentRef}>
+            <DialogContent className="sm:max-w-lg print-content">
+                <style jsx global>{`
+                    @media print {
+                        body > *:not(.print-content) {
+                            display: none;
+                        }
+                        .print-content {
+                            position: absolute;
+                            top: 0;
+                            left: 0;
+                            width: 100%;
+                            height: 100%;
+                            padding: 1.5rem;
+                            margin: 0;
+                            border: none;
+                            box-shadow: none;
+                            border-radius: 0;
+                            max-width: 100%;
+                        }
+                        .no-print {
+                            display: none;
+                        }
+                    }
+                `}</style>
+                <div ref={printContentRef}>
                     <DialogHeader className="text-center">
                         <DialogTitle className="text-2xl">{company?.name || 'Seu Restaurante'}</DialogTitle>
                         <p className="text-sm text-muted-foreground">Pedido: {order.id.substring(0, 6).toUpperCase()}</p>
@@ -200,7 +170,7 @@ function OrderPrintPreview({ order, company, onClose }: { order: Order; company?
                         </div>
                     </div>
                 </div>
-                <DialogFooter className="mt-6">
+                <DialogFooter className="mt-6 no-print">
                     <Button variant="outline" onClick={onClose}>Fechar</Button>
                     <Button onClick={handlePrint}><Printer className="mr-2 h-4 w-4" />Imprimir</Button>
                 </DialogFooter>
@@ -429,9 +399,3 @@ export default function OrdersPage() {
     </>
   );
 }
-    
-
-    
-
-    
-
