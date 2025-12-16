@@ -71,24 +71,29 @@ const CartItemCard = ({ item }: { item: CartItem }) => {
         <div className="flex items-start gap-4">
             <div className="flex-grow">
                 <p className="font-semibold">{item.product.name}</p>
-                <p className="text-sm text-muted-foreground">R$ {item.product.price.toFixed(2)}</p>
+                <p className="text-sm text-muted-foreground">R$ {item.finalPrice.toFixed(2)}</p>
+                {item.selectedVariants && item.selectedVariants.length > 0 && (
+                    <div className="text-xs text-muted-foreground mt-1">
+                        {item.selectedVariants.map(v => v.itemName).join(', ')}
+                    </div>
+                )}
                 <Textarea 
                     placeholder='Observações (ex: sem cebola)'
                     value={item.notes}
-                    onChange={(e) => updateNotes(item.product.id, e.target.value)}
+                    onChange={(e) => updateNotes(item.id, e.target.value)}
                     className="mt-2 text-sm"
                     rows={1}
                 />
             </div>
             <div className="flex items-center gap-2">
-                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQuantity(item.product.id, item.quantity - 1)}>
+                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQuantity(item.id, item.quantity - 1)}>
                     <Minus className="h-4 w-4" />
                 </Button>
                 <span className="font-bold">{item.quantity}</span>
-                 <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQuantity(item.product.id, item.quantity + 1)}>
+                 <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQuantity(item.id, item.quantity + 1)}>
                     <Plus className="h-4 w-4" />
                 </Button>
-                 <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeFromCart(item.product.id)}>
+                 <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeFromCart(item.id)}>
                     <Trash2 className="h-4 w-4" />
                 </Button>
             </div>
@@ -198,7 +203,9 @@ export default function CartSheet({ companyId }: { companyId: string}) {
             productName: item.product.name,
             quantity: item.quantity,
             unitPrice: item.product.price,
+            finalPrice: item.finalPrice,
             notes: item.notes || '',
+            selectedVariants: item.selectedVariants || [],
         })),
         totalAmount: totalPrice,
     };
@@ -257,7 +264,7 @@ export default function CartSheet({ companyId }: { companyId: string}) {
           <ScrollArea className="flex-grow pr-4">
             <div className="space-y-4 py-4">
               {cartItems.map(item => (
-                <CartItemCard key={item.product.id} item={item} />
+                <CartItemCard key={item.id} item={item} />
               ))}
             </div>
           </ScrollArea>

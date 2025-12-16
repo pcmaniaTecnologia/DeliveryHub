@@ -131,9 +131,42 @@
         },
         "variants": {
           "type": "array",
-          "description": "Array of product variants (e.g., sizes, additions, combos).",
+          "description": "Array of product variants (e.g., sizes, additions, combos). Each variant is a group of options.",
           "items": {
-            "type": "string"
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Name of the variant group (e.g., 'Escolha o tamanho', 'Adicionais')."
+              },
+              "min": {
+                "type": "number",
+                "description": "Minimum number of options to select from this group."
+              },
+              "max": {
+                "type": "number",
+                "description": "Maximum number of options to select from this group."
+              },
+              "items": {
+                "type": "array",
+                "description": "The actual selectable items within the group.",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "Name of the variant item (e.g., 'Pequeno', 'Bacon extra')."
+                    },
+                    "price": {
+                      "type": "number",
+                      "description": "Additional price for this item. Can be 0."
+                    }
+                  },
+                  "required": ["name", "price"]
+                }
+              }
+            },
+            "required": ["name", "min", "max", "items"]
           }
         },
         "additionalNotes": {

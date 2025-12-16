@@ -3,8 +3,8 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { MoreHorizontal, PlusCircle } from 'lucide-react';
-import { useForm } from 'react-hook-form';
+import { MoreHorizontal, PlusCircle, Trash2 } from 'lucide-react';
+import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Badge } from '@/components/ui/badge';
@@ -54,7 +54,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { PlaceHolderImages, type ImagePlaceholder } from '@/lib/placeholder-images';
-import { useUser, useFirestore, useCollection, useMemoFirebase, addDocument, deleteDocument, setDocument, updateDocument } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase, addDocument, deleteDocument, updateDocument } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -67,7 +67,34 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
+} from "@/components/ui/alert-dialog";
+import { Separator } from '@/components/ui/separator';
+
+const variantItemSchema = z.object({
+  name: z.string().min(1, "O nome do item é obrigatório."),
+  price: z.coerce.number().min(0, "O preço não pode ser negativo.").default(0),
+});
+
+const variantGroupSchema = z.object({
+  name: z.string().min(1, "O nome do grupo é obrigatório."),
+  min: z.coerce.number().int().min(0).default(0),
+  max: z.coerce.number().int().min(1).default(1),
+  items: z.array(variantItemSchema).min(1, "Adicione pelo menos um item ao grupo."),
+});
+
+const productFormSchema = z.object({
+  name: z.string().min(3, { message: 'O nome deve ter pelo menos 3 caracteres.' }),
+  description: z.string().optional(),
+  price: z.coerce.number().positive({ message: 'O preço deve ser um número positivo.' }),
+  category: z.string().min(2, { message: 'A categoria é obrigatória.' }),
+  imageUrl: z.string().url({ message: 'Por favor, insira uma URL válida.' }).optional().or(z.literal('')),
+  isActive: z.boolean().default(true),
+  variants: z.array(variantGroupSchema).optional(),
+});
+
+
+type VariantItem = z.infer<typeof variantItemSchema>;
+type VariantGroup = z.infer<typeof variantGroupSchema>;
 
 type Product = {
     id: string;
@@ -80,16 +107,8 @@ type Product = {
     imageUrls: string[];
     companyId: string;
     imageUrl?: string;
+    variants?: VariantGroup[];
 }
-
-const productFormSchema = z.object({
-  name: z.string().min(3, { message: 'O nome deve ter pelo menos 3 caracteres.' }),
-  description: z.string().optional(),
-  price: z.coerce.number().positive({ message: 'O preço deve ser um número positivo.' }),
-  category: z.string().min(2, { message: 'A categoria é obrigatória.' }),
-  imageUrl: z.string().url({ message: 'Por favor, insira uma URL válida.' }).optional().or(z.literal('')),
-  isActive: z.boolean().default(true),
-});
 
 export default function ProductsPage() {
   const { user, isUserLoading } = useUser();
@@ -107,7 +126,13 @@ export default function ProductsPage() {
       category: '',
       imageUrl: '',
       isActive: true,
+      variants: [],
     },
+  });
+
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: "variants",
   });
 
   useEffect(() => {
@@ -119,6 +144,7 @@ export default function ProductsPage() {
         category: editingProduct.category,
         isActive: editingProduct.isActive,
         imageUrl: editingProduct.imageUrl || '',
+        variants: editingProduct.variants || [],
       });
     } else {
       form.reset({
@@ -128,6 +154,7 @@ export default function ProductsPage() {
         category: '',
         imageUrl: '',
         isActive: true,
+        variants: [],
       });
     }
   }, [editingProduct, form]);
@@ -143,22 +170,15 @@ export default function ProductsPage() {
     if (!user || !firestore) return;
 
     const productData = {
-      name: values.name,
-      description: values.description || '',
-      price: values.price,
-      category: values.category,
-      isActive: values.isActive,
-      imageUrl: values.imageUrl || '',
+      ...values,
       companyId: user.uid,
+      imageUrls: values.imageUrl ? [values.imageUrl] : [],
     };
     
     try {
       if (editingProduct) {
         const productDocRef = doc(firestore, `companies/${user.uid}/products/${editingProduct.id}`);
-        await updateDocument(productDocRef, {
-            ...productData,
-            imageUrls: values.imageUrl ? [values.imageUrl] : [],
-        });
+        await updateDocument(productDocRef, productData);
         toast({
           title: 'Produto Atualizado!',
           description: `${values.name} foi atualizado com sucesso.`,
@@ -167,8 +187,7 @@ export default function ProductsPage() {
          if (!productsRef) return;
         await addDocument(productsRef, { 
             ...productData, 
-            stock: 0,
-            imageUrls: values.imageUrl ? [values.imageUrl] : [],
+            stock: 0, // Default stock
         });
         toast({
           title: 'Produto Adicionado!',
@@ -256,7 +275,7 @@ export default function ProductsPage() {
           setIsDialogOpen(isOpen);
           if (!isOpen) setEditingProduct(null);
         }}>
-          <DialogContent className="sm:max-w-xl">
+          <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col">
             <DialogHeader>
               <DialogTitle>{editingProduct ? 'Editar Produto' : 'Adicionar Novo Produto'}</DialogTitle>
               <DialogDescription>
@@ -264,17 +283,17 @@ export default function ProductsPage() {
               </DialogDescription>
             </DialogHeader>
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
+              <form onSubmit={form.handleSubmit(onSubmit)} className="flex-grow overflow-y-auto pr-6 pl-1 space-y-4">
                 <FormField
                   control={form.control}
                   name="name"
                   render={({ field }) => (
-                    <FormItem className="grid grid-cols-4 items-center gap-4">
-                      <FormLabel className="text-right">Nome</FormLabel>
+                    <FormItem>
+                      <FormLabel>Nome</FormLabel>
                       <FormControl>
-                        <Input placeholder="Ex: Cheeseburger Duplo" className="col-span-3" {...field} />
+                        <Input placeholder="Ex: Cheeseburger Duplo" {...field} />
                       </FormControl>
-                      <FormMessage className="col-span-4 pl-[calc(25%+1rem)]" />
+                      <FormMessage />
                     </FormItem>
                   )}
                 />
@@ -282,51 +301,53 @@ export default function ProductsPage() {
                   control={form.control}
                   name="description"
                   render={({ field }) => (
-                    <FormItem className="grid grid-cols-4 items-center gap-4">
-                      <FormLabel className="text-right">Descrição</FormLabel>
+                    <FormItem>
+                      <FormLabel>Descrição</FormLabel>
                       <FormControl>
-                        <Textarea placeholder="Pão, duas carnes, queijo, salada..." className="col-span-3" {...field} />
+                        <Textarea placeholder="Pão, duas carnes, queijo, salada..." {...field} />
                       </FormControl>
-                        <FormMessage className="col-span-4 pl-[calc(25%+1rem)]" />
+                      <FormMessage />
                     </FormItem>
                   )}
                 />
-                <FormField
-                  control={form.control}
-                  name="price"
-                  render={({ field }) => (
-                    <FormItem className="grid grid-cols-4 items-center gap-4">
-                      <FormLabel className="text-right">Preço (R$)</FormLabel>
-                      <FormControl>
-                          <Input type="number" step="0.01" placeholder="29.90" className="col-span-3" {...field} />
-                      </FormControl>
-                        <FormMessage className="col-span-4 pl-[calc(25%+1rem)]" />
-                    </FormItem>
-                  )}
-                />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
-                  control={form.control}
-                  name="category"
-                  render={({ field }) => (
-                    <FormItem className="grid grid-cols-4 items-center gap-4">
-                      <FormLabel className="text-right">Categoria</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Ex: Hambúrgueres" className="col-span-3" {...field} />
-                      </FormControl>
-                        <FormMessage className="col-span-4 pl-[calc(25%+1rem)]" />
-                    </FormItem>
-                  )}
-                />
+                    control={form.control}
+                    name="price"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Preço Base (R$)</FormLabel>
+                        <FormControl>
+                            <Input type="number" step="0.01" placeholder="29.90" {...field} />
+                        </FormControl>
+                          <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                    <FormField
+                    control={form.control}
+                    name="category"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Categoria</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Ex: Hambúrgueres" {...field} />
+                        </FormControl>
+                          <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
                 <FormField
                   control={form.control}
                   name="imageUrl"
                   render={({ field }) => (
-                    <FormItem className="grid grid-cols-4 items-center gap-4">
-                      <FormLabel className="text-right">URL da Imagem</FormLabel>
+                    <FormItem>
+                      <FormLabel>URL da Imagem</FormLabel>
                       <FormControl>
-                        <Input placeholder="https://exemplo.com/imagem.png" className="col-span-3" {...field} />
+                        <Input placeholder="https://exemplo.com/imagem.png" {...field} />
                       </FormControl>
-                      <FormMessage className="col-span-4 pl-[calc(25%+1rem)]" />
+                      <FormMessage />
                     </FormItem>
                   )}
                 />
@@ -334,19 +355,84 @@ export default function ProductsPage() {
                   control={form.control}
                   name="isActive"
                   render={({ field }) => (
-                    <FormItem className="grid grid-cols-4 items-center gap-4">
-                      <FormLabel className="text-right">Produto Ativo</FormLabel>
-                        <FormControl>
-                          <Switch
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                              className="col-span-3"
-                          />
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                      <div className="space-y-0.5">
+                        <FormLabel>Produto Ativo</FormLabel>
+                        <DialogDescription>
+                           Desmarque para esconder o produto do cardápio.
+                        </DialogDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
                       </FormControl>
                     </FormItem>
                   )}
                 />
-                <DialogFooter>
+                <Separator />
+                <div>
+                  <h3 className="text-lg font-medium mb-2">Variantes (Opcionais)</h3>
+                  <div className="space-y-4">
+                    {fields.map((field, groupIndex) => (
+                      <Card key={field.id} className="p-4 bg-muted/50">
+                        <div className="flex justify-between items-start mb-2">
+                           <h4 className="font-semibold">Grupo de Opções</h4>
+                           <Button type="button" variant="ghost" size="icon" onClick={() => remove(groupIndex)}>
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                          <FormField
+                            control={form.control}
+                            name={`variants.${groupIndex}.name`}
+                            render={({ field }) => (
+                              <FormItem className="col-span-3">
+                                <FormLabel>Nome do Grupo</FormLabel>
+                                <FormControl><Input {...field} placeholder="Ex: Escolha sua bebida" /></FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                           <FormField
+                            control={form.control}
+                            name={`variants.${groupIndex}.min`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Mínimo</FormLabel>
+                                <FormControl><Input type="number" {...field} /></FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name={`variants.${groupIndex}.max`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Máximo</FormLabel>
+                                <FormControl><Input type="number" {...field} /></FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                        <VariantItemsArray groupIndex={groupIndex} control={form.control} />
+                      </Card>
+                    ))}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => append({ name: '', min: 1, max: 1, items: [{ name: '', price: 0 }] })}
+                    >
+                      Adicionar Grupo de Opções
+                    </Button>
+                  </div>
+                </div>
+
+                <DialogFooter className="sticky bottom-0 bg-background pt-4 z-10">
                   <DialogClose asChild>
                     <Button type="button" variant="outline">Cancelar</Button>
                   </DialogClose>
@@ -458,4 +544,55 @@ export default function ProductsPage() {
       </CardFooter>
     </Card>
   );
+}
+
+function VariantItemsArray({ groupIndex, control }: { groupIndex: number; control: any }) {
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: `variants.${groupIndex}.items`,
+  });
+
+  return (
+    <div className="pl-4 mt-3 space-y-2">
+       <h5 className="text-sm font-medium">Itens da Opção</h5>
+        {fields.map((item, itemIndex) => (
+            <div key={item.id} className="flex items-end gap-2">
+                <FormField
+                    control={control}
+                    name={`variants.${groupIndex}.items.${itemIndex}.name`}
+                    render={({ field }) => (
+                        <FormItem className="flex-grow">
+                            <FormLabel className="sr-only">Nome do Item</FormLabel>
+                            <FormControl><Input {...field} placeholder="Ex: Coca-Cola" /></FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+                <FormField
+                    control={control}
+                    name={`variants.${groupIndex}.items.${itemIndex}.price`}
+                    render={({ field }) => (
+                        <FormItem>
+                             <FormLabel className="sr-only">Preço Adicional</FormLabel>
+                            <FormControl><Input type="number" step="0.01" {...field} placeholder="Preço Adicional" /></FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+                 <Button type="button" variant="ghost" size="icon" onClick={() => remove(itemIndex)}>
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
+            </div>
+        ))}
+         <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-2"
+            onClick={() => append({ name: '', price: 0 })}
+        >
+            Adicionar Item
+        </Button>
+    </div>
+  )
 }

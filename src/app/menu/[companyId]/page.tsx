@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import Image from 'next/image';
 import { useCollection, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
@@ -10,7 +10,21 @@ import { PlaceHolderImages, type ImagePlaceholder } from '@/lib/placeholder-imag
 import { Button } from '@/components/ui/button';
 import { Clock } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useCart } from '@/context/cart-context';
+import { useCart, type SelectedVariant } from '@/context/cart-context';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { useToast } from '@/hooks/use-toast';
 
 type Company = {
     name: string;
@@ -19,7 +33,19 @@ type Company = {
     averagePrepTime?: number;
 };
 
-type Product = {
+type VariantItem = {
+  name: string;
+  price: number;
+};
+
+type VariantGroup = {
+  name: string;
+  min: number;
+  max: number;
+  items: VariantItem[];
+};
+
+export type Product = {
     id: string;
     name: string;
     description: string;
@@ -27,6 +53,7 @@ type Product = {
     category: string;
     isActive: boolean;
     imageUrl?: string;
+    variants?: VariantGroup[];
 };
 
 type Category = {
@@ -35,9 +62,137 @@ type Category = {
     companyId: string;
 };
 
+const OptionsDialog = ({ product, open, onOpenChange, onAddToCart }: { product: Product, open: boolean, onOpenChange: (open: boolean) => void, onAddToCart: (product: Product, quantity: number, notes?: string, variants?: SelectedVariant[]) => void }) => {
+    const [selectedVariants, setSelectedVariants] = useState<SelectedVariant[]>([]);
+    const [notes, setNotes] = useState('');
+    const { toast } = useToast();
+
+    const handleSelection = (groupName: string, itemName: string, price: number, isSingleChoice: boolean) => {
+        setSelectedVariants(prev => {
+            let newVariants = [...prev];
+            const group = product.variants?.find(v => v.name === groupName);
+            if (!group) return prev;
+
+            const existingGroupItems = newVariants.filter(v => v.groupName === groupName);
+
+            if (isSingleChoice) {
+                // Remove other items from the same group and add the new one
+                newVariants = newVariants.filter(v => v.groupName !== groupName);
+                newVariants.push({ groupName, itemName, price });
+            } else {
+                const existingItemIndex = existingGroupItems.findIndex(v => v.itemName === itemName);
+                if (existingItemIndex > -1) {
+                    // Item exists, so remove it (uncheck)
+                    newVariants = newVariants.filter(v => !(v.groupName === groupName && v.itemName === itemName));
+                } else {
+                    // Item doesn't exist, add it if not exceeding max
+                    if (existingGroupItems.length < group.max) {
+                        newVariants.push({ groupName, itemName, price });
+                    } else {
+                        toast({
+                            variant: "destructive",
+                            title: "Limite atingido",
+                            description: `Você só pode selecionar até ${group.max} ${group.max > 1 ? 'opções' : 'opção'} para "${groupName}".`,
+                        });
+                        return prev; // Do not update state
+                    }
+                }
+            }
+            return newVariants;
+        });
+    };
+
+    const isSelected = (groupName: string, itemName: string) => {
+        return selectedVariants.some(v => v.groupName === groupName && v.itemName === itemName);
+    };
+
+    const finalPrice = useMemo(() => {
+        const optionsPrice = selectedVariants.reduce((total, variant) => total + variant.price, 0);
+        return product.price + optionsPrice;
+    }, [product.price, selectedVariants]);
+
+    const handleConfirm = () => {
+        // Validate minimum requirements
+        for (const group of product.variants || []) {
+            const selectedCount = selectedVariants.filter(v => v.groupName === group.name).length;
+            if (selectedCount < group.min) {
+                toast({
+                    variant: "destructive",
+                    title: "Seleção Incompleta",
+                    description: `Por favor, selecione pelo menos ${group.min} ${group.min > 1 ? 'opções' : 'opção'} para "${group.name}".`,
+                });
+                return;
+            }
+        }
+        onAddToCart(product, 1, notes, selectedVariants);
+        onOpenChange(false);
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>{product.name}</DialogTitle>
+                    <DialogDescription>{product.description}</DialogDescription>
+                </DialogHeader>
+                <ScrollArea className="max-h-[60vh] pr-4">
+                    <div className="space-y-4">
+                        {product.variants?.map((group) => {
+                            const isSingleChoice = group.max === 1;
+                            return (
+                                <div key={group.name} className="space-y-2">
+                                    <Separator />
+                                    <h4 className="font-semibold">{group.name}</h4>
+                                    <p className="text-sm text-muted-foreground">Selecione {group.min > 0 && `no mínimo ${group.min} e `}no máximo {group.max}.</p>
+                                    
+                                    {isSingleChoice ? (
+                                        <RadioGroup onValueChange={(value) => handleSelection(group.name, value.split(';')[0], parseFloat(value.split(';')[1]), true)}>
+                                            {group.items.map(item => (
+                                                <div key={item.name} className="flex items-center space-x-2">
+                                                    <RadioGroupItem value={`${item.name};${item.price}`} id={`${group.name}-${item.name}`} />
+                                                    <Label htmlFor={`${group.name}-${item.name}`} className="flex-grow">{item.name}</Label>
+                                                    {item.price > 0 && <span className="text-sm text-muted-foreground">+ R$ {item.price.toFixed(2)}</span>}
+                                                </div>
+                                            ))}
+                                        </RadioGroup>
+                                    ) : (
+                                        group.items.map(item => (
+                                            <div key={item.name} className="flex items-center space-x-2">
+                                                <Checkbox
+                                                    id={`${group.name}-${item.name}`}
+                                                    checked={isSelected(group.name, item.name)}
+                                                    onCheckedChange={() => handleSelection(group.name, item.name, item.price, false)}
+                                                />
+                                                <Label htmlFor={`${group.name}-${item.name}`} className="flex-grow">{item.name}</Label>
+                                                {item.price > 0 && <span className="text-sm text-muted-foreground">+ R$ {item.price.toFixed(2)}</span>}
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            );
+                        })}
+                         <Separator />
+                         <div className="space-y-2">
+                            <Label htmlFor="notes">Observações</Label>
+                            <Textarea id="notes" placeholder="Ex: tirar a cebola, ponto da carne, etc." value={notes} onChange={(e) => setNotes(e.target.value)} />
+                         </div>
+                    </div>
+                </ScrollArea>
+                <DialogFooter>
+                    <div className="flex w-full justify-between items-center">
+                        <span className="text-lg font-bold">Total: R$ {finalPrice.toFixed(2)}</span>
+                        <Button onClick={handleConfirm}>Adicionar ao Carrinho</Button>
+                    </div>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+};
+
 
 const ProductCard = ({ product, index }: { product: Product, index: number }) => {
     const { addToCart } = useCart();
+    const [isOptionsDialogOpen, setIsOptionsDialogOpen] = useState(false);
     
    const imagePlaceholder: ImagePlaceholder = useMemo(() => {
     if (product.imageUrl) {
@@ -59,28 +214,46 @@ const ProductCard = ({ product, index }: { product: Product, index: number }) =>
     return placeholders[index % placeholders.length] ?? defaultPlaceholder;
   }, [product, index]);
 
+    const handleAddToCart = () => {
+        if (product.variants && product.variants.length > 0) {
+            setIsOptionsDialogOpen(true);
+        } else {
+            addToCart(product);
+        }
+    };
+
     return (
-        <Card className="flex flex-col overflow-hidden h-full">
-             <div className="relative w-full h-48">
-                <Image
-                    src={imagePlaceholder.imageUrl}
-                    alt={product.name}
-                    fill
-                    style={{objectFit:"cover"}}
-                    className="transition-transform duration-300 group-hover:scale-105"
-                    data-ai-hint={imagePlaceholder.imageHint}
-                    unoptimized
+        <>
+            <Card className="flex flex-col overflow-hidden h-full">
+                <div className="relative w-full h-48">
+                    <Image
+                        src={imagePlaceholder.imageUrl}
+                        alt={product.name}
+                        fill
+                        style={{objectFit:"cover"}}
+                        className="transition-transform duration-300 group-hover:scale-105"
+                        data-ai-hint={imagePlaceholder.imageHint}
+                        unoptimized
+                    />
+                </div>
+                <CardHeader className="flex-grow">
+                    <CardTitle>{product.name}</CardTitle>
+                    <CardDescription className="text-sm text-muted-foreground pt-1">{product.description}</CardDescription>
+                </CardHeader>
+                <CardFooter className="flex items-center justify-between">
+                    <p className="text-lg font-bold text-primary">A partir de R${product.price.toFixed(2)}</p>
+                    <Button onClick={handleAddToCart}>Adicionar</Button>
+                </CardFooter>
+            </Card>
+            {product.variants && product.variants.length > 0 && (
+                <OptionsDialog 
+                    product={product} 
+                    open={isOptionsDialogOpen} 
+                    onOpenChange={setIsOptionsDialogOpen}
+                    onAddToCart={addToCart}
                 />
-            </div>
-            <CardHeader className="flex-grow">
-                <CardTitle>{product.name}</CardTitle>
-                <CardDescription className="text-sm text-muted-foreground pt-1">{product.description}</CardDescription>
-            </CardHeader>
-            <CardFooter className="flex items-center justify-between">
-                <p className="text-lg font-bold text-primary">R${product.price.toFixed(2)}</p>
-                <Button onClick={() => addToCart(product)}>Adicionar</Button>
-            </CardFooter>
-        </Card>
+            )}
+        </>
     )
 };
 
