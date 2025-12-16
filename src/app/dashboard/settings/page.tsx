@@ -24,7 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { BellRing, Clock, DollarSign, PlusCircle, Trash2, Copy } from 'lucide-react';
+import { BellRing, Clock, DollarSign, PlusCircle, Trash2, Copy, Printer } from 'lucide-react';
 import { useFirestore, useDoc, setDocument, useMemoFirebase, useUser, useCollection, addDocument, deleteDocument } from '@/firebase';
 import { doc, collection } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -110,6 +110,7 @@ export default function SettingsPage() {
   const [primaryColor, setPrimaryColor] = useState('#29ABE2');
   const [accentColor, setAccentColor] = useState('#29E2D1');
   const [soundNotificationEnabled, setSoundNotificationEnabled] = useState(true);
+  const [autoPrintEnabled, setAutoPrintEnabled] = useState(false);
   const [closedMessage, setClosedMessage] = useState('');
   const [averagePrepTime, setAveragePrepTime] = useState(30);
   const [menuLink, setMenuLink] = useState('');
@@ -135,6 +136,7 @@ export default function SettingsPage() {
       setStoreName(companyData.name || '');
       setPhone(companyData.phone || '');
       setSoundNotificationEnabled(companyData.soundNotificationEnabled ?? true);
+      setAutoPrintEnabled(companyData.autoPrintEnabled ?? false);
       setClosedMessage(companyData.closedMessage || '');
       setAveragePrepTime(companyData.averagePrepTime || 30);
       if (companyData.themeColors) {
@@ -188,6 +190,7 @@ export default function SettingsPage() {
         themeColors: themeColors,
         ownerId: user.uid,
         soundNotificationEnabled: soundNotificationEnabled,
+        autoPrintEnabled: autoPrintEnabled,
         closedMessage: closedMessage,
         averagePrepTime: averagePrepTime,
     };
@@ -413,7 +416,7 @@ export default function SettingsPage() {
               </div>
               <Separator />
                <div className="space-y-4">
-                 <Label className="text-base">Notificações</Label>
+                 <Label className="text-base">Notificações e Impressão</Label>
                  <div className="flex flex-row items-center justify-between rounded-lg border p-4">
                     <div className="space-y-0.5">
                       <Label className="font-medium" htmlFor="sound-notification">Ativar notificação sonora para novos pedidos</Label>
@@ -425,6 +428,20 @@ export default function SettingsPage() {
                       id="sound-notification"
                       checked={soundNotificationEnabled}
                       onCheckedChange={setSoundNotificationEnabled}
+                      disabled={isLoading}
+                    />
+                  </div>
+                  <div className="flex flex-row items-center justify-between rounded-lg border p-4">
+                    <div className="space-y-0.5">
+                      <Label className="font-medium" htmlFor="auto-print">Impressão automática de pedidos</Label>
+                       <p className="text-[0.8rem] text-muted-foreground">
+                        Abre a janela de impressão automaticamente para novos pedidos.
+                      </p>
+                    </div>
+                    <Switch
+                      id="auto-print"
+                      checked={autoPrintEnabled}
+                      onCheckedChange={setAutoPrintEnabled}
                       disabled={isLoading}
                     />
                   </div>

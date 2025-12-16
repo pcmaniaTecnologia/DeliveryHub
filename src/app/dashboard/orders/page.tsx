@@ -36,12 +36,13 @@ import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 
 // Base64 encoded notification sound (simple beep)
-const notificationSound = "data:audio/mpeg;base64,SUQzBAAAAAAAI1RTSEUAAAAMAEdASAAABAAEAgAXTEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVTEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVmVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV-";
+const notificationSound = "data:audio/mpeg;base64,SUQzBAAAAAAAI1RTSEUAAAAMAEdASAAABAAEAgAXTEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVTEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVmVVVVVVVVVVVVVVVVVVVVVVVVVVV-";
 
 type Company = {
     id: string;
     name: string;
     soundNotificationEnabled: boolean;
+    autoPrintEnabled: boolean;
 };
 
 type OrderItem = {
@@ -158,6 +159,7 @@ export default function OrdersPage() {
     const audioRef = useRef<HTMLAudioElement | null>(null);
     
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+    const [lastSeenOrderIds, setLastSeenOrderIds] = useState<Set<string>>(new Set());
 
     const companyRef = useMemoFirebase(() => {
       if (!firestore || !user?.uid) return null;
@@ -173,50 +175,51 @@ export default function OrdersPage() {
 
     const { data: orders, isLoading: isLoadingOrders } = useCollection<Order>(ordersRef);
 
+    // Initialize the set of seen orders on first load
+    useEffect(() => {
+      if (orders) {
+        setLastSeenOrderIds(new Set(orders.map(o => o.id)));
+      }
+    }, [isLoadingOrders]); // Run only once after initial load
+
     // This effect handles the audio initialization
     useEffect(() => {
         audioRef.current = new Audio(notificationSound);
     }, []);
 
-    // This effect detects new orders and plays the sound
+    // This effect detects new orders and triggers sound/print
     useEffect(() => {
-        if (!orders || orders.length === 0 || isLoadingOrders || !companyData?.soundNotificationEnabled) {
+        if (!orders || orders.length === 0 || isLoadingOrders || !companyData) {
             return;
         }
 
-        const hasNewOrder = orders.some(order => order.status === 'Novo');
-        
-        const playSound = async () => {
-            if (audioRef.current && hasNewOrder) {
-                try {
-                    // Check if a user interaction has occurred.
-                    // Most modern browsers block autoplay until a user interacts with the page.
-                    if (document.visibilityState === 'visible') {
-                        await audioRef.current.play();
-                    }
-                } catch (error) {
-                    console.error("Audio playback failed:", error);
-                    toast({
-                      variant: 'destructive',
-                      title: 'Não foi possível tocar a notificação',
-                      description: 'Interaja com a página para habilitar o som.',
-                    });
-                }
+        const newOrders = orders.filter(order => !lastSeenOrderIds.has(order.id));
+
+        if (newOrders.length > 0) {
+            const latestNewOrder = newOrders.sort((a, b) => b.orderDate.toMillis() - a.orderDate.toMillis())[0];
+            
+            // Play sound if enabled
+            if (companyData.soundNotificationEnabled) {
+                audioRef.current?.play().catch(err => console.error("Audio playback failed:", err));
             }
-        };
 
-        // We use a state to track seen new orders to avoid playing the sound on every render
-        const newOrderIds = orders.filter(o => o.status === 'Novo').map(o => o.id).join(',');
-        const previousNewOrderIds = sessionStorage.getItem('newOrderIds');
+            // Trigger auto-print if enabled
+            if (companyData.autoPrintEnabled && latestNewOrder) {
+                setSelectedOrder(latestNewOrder);
+                setTimeout(() => {
+                  const printContent = document.getElementById('print-content');
+                  if (printContent) {
+                    window.print();
+                  }
+                }, 500); // Small delay to ensure dialog is rendered
+            }
 
-        if (newOrderIds && newOrderIds !== previousNewOrderIds) {
-            playSound();
-            sessionStorage.setItem('newOrderIds', newOrderIds);
-        } else if (!newOrderIds) {
-            sessionStorage.removeItem('newOrderIds');
+            // Update the set of seen orders
+            setLastSeenOrderIds(prev => new Set([...prev, ...newOrders.map(o => o.id)]));
         }
 
-    }, [orders, isLoadingOrders, toast, companyData]);
+    }, [orders, isLoadingOrders, companyData, lastSeenOrderIds]);
+
 
     const handleUpdateStatus = async (orderId: string, status: Order['status']) => {
         if (!firestore || !user) return;
