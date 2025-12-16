@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useCollection, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
@@ -71,38 +71,34 @@ const OptionsDialog = ({ product, open, onOpenChange, onAddToCart }: { product: 
     const { toast } = useToast();
 
     const handleSelection = (groupName: string, itemName: string, price: number, isSingleChoice: boolean) => {
-        setSelectedVariants(prev => {
-            let newVariants = [...prev];
-            const group = product.variants?.find(v => v.name === groupName);
-            if (!group) return prev;
+        const group = product.variants?.find(v => v.name === groupName);
+        if (!group) return;
 
-            const existingGroupItems = newVariants.filter(v => v.groupName === groupName);
+        const isCurrentlySelected = selectedVariants.some(v => v.groupName === groupName && v.itemName === itemName);
+        const groupItemsSelectedCount = selectedVariants.filter(v => v.groupName === groupName).length;
 
-            if (isSingleChoice) {
-                // Remove other items from the same group and add the new one
-                newVariants = newVariants.filter(v => v.groupName !== groupName);
-                newVariants.push({ groupName, itemName, price });
+        if (isSingleChoice) {
+             setSelectedVariants(prev => {
+                const otherGroups = prev.filter(v => v.groupName !== groupName);
+                return [...otherGroups, { groupName, itemName, price }];
+             });
+        } else {
+             if (isCurrentlySelected) {
+                // Uncheck: remove the item
+                setSelectedVariants(prev => prev.filter(v => !(v.groupName === groupName && v.itemName === itemName)));
             } else {
-                const existingItemIndex = existingGroupItems.findIndex(v => v.itemName === itemName);
-                if (existingItemIndex > -1) {
-                    // Item exists, so remove it (uncheck)
-                    newVariants = newVariants.filter(v => !(v.groupName === groupName && v.itemName === itemName));
+                // Check: add the item if not exceeding max
+                if (groupItemsSelectedCount >= group.max) {
+                    toast({
+                        variant: "destructive",
+                        title: "Limite atingido",
+                        description: `Você só pode selecionar até ${group.max} ${group.max > 1 ? 'opções' : 'opção'} para "${groupName}".`,
+                    });
                 } else {
-                    // Item doesn't exist, add it if not exceeding max
-                    if (existingGroupItems.length < group.max) {
-                        newVariants.push({ groupName, itemName, price });
-                    } else {
-                        toast({
-                            variant: "destructive",
-                            title: "Limite atingido",
-                            description: `Você só pode selecionar até ${group.max} ${group.max > 1 ? 'opções' : 'opção'} para "${groupName}".`,
-                        });
-                        return prev; // Do not update state
-                    }
+                    setSelectedVariants(prev => [...prev, { groupName, itemName, price }]);
                 }
             }
-            return newVariants;
-        });
+        }
     };
 
     const isSelected = (groupName: string, itemName: string) => {
@@ -130,6 +126,14 @@ const OptionsDialog = ({ product, open, onOpenChange, onAddToCart }: { product: 
         onAddToCart(product, 1, notes, selectedVariants);
         onOpenChange(false);
     };
+    
+    // Reset state when dialog opens or product changes
+    useEffect(() => {
+        if (open) {
+            setSelectedVariants([]);
+            setNotes('');
+        }
+    }, [open, product]);
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -141,12 +145,17 @@ const OptionsDialog = ({ product, open, onOpenChange, onAddToCart }: { product: 
                 <ScrollArea className="max-h-[60vh] pr-4">
                     <div className="space-y-4">
                         {product.variants?.map((group) => {
-                            const isSingleChoice = group.max === 1;
+                            const isSingleChoice = group.max === 1 && group.min === 1;
                             return (
                                 <div key={group.name} className="space-y-2">
                                     <Separator />
                                     <h4 className="font-semibold">{group.name}</h4>
-                                    <p className="text-sm text-muted-foreground">Selecione {group.min > 0 && `no mínimo ${group.min} e `}no máximo {group.max}.</p>
+                                    <p className="text-sm text-muted-foreground">
+                                       {group.min > 0 && group.max > group.min ? `Selecione de ${group.min} a ${group.max} opções.` :
+                                        group.min > 0 && group.max === group.min ? `Selecione ${group.min} ${group.min > 1 ? 'opções' : 'opção'}.` :
+                                        `Selecione até ${group.max} ${group.max > 1 ? 'opções' : 'opção'}.`
+                                       }
+                                    </p>
                                     
                                     {isSingleChoice ? (
                                         <RadioGroup onValueChange={(value) => handleSelection(group.name, value.split(';')[0], parseFloat(value.split(';')[1]), true)}>
