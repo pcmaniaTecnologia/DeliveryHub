@@ -26,6 +26,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useToast } from '@/hooks/use-toast';
 import { Textarea } from '@/components/ui/textarea';
+import { useParams } from 'next/navigation';
 
 
 type Company = {
@@ -259,8 +260,9 @@ const ProductCard = ({ product, index }: { product: Product, index: number }) =>
     )
 };
 
-export default function MenuPage({ params }: { params: { companyId: string } }) {
-  const { companyId } = params;
+export default function MenuPage() {
+  const params = useParams();
+  const companyId = params.companyId as string;
   const firestore = useFirestore();
 
   // Fetch company data
@@ -386,5 +388,3 @@ export default function MenuPage({ params }: { params: { companyId: string } }) 
     </div>
   );
 }
-
-    

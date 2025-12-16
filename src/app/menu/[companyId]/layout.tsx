@@ -9,6 +9,7 @@ import { Package2 } from 'lucide-react';
 import Link from 'next/link';
 import { CartProvider } from '@/context/cart-context';
 import CartSheet from '@/components/menu/cart-sheet';
+import { useParams } from 'next/navigation';
 
 
 type CompanyData = {
@@ -17,13 +18,12 @@ type CompanyData = {
 
 export default function MenuLayout({
   children,
-  params,
 }: {
   children: React.ReactNode;
-  params: { companyId: string };
 }) {
   const firestore = useFirestore();
-  const { companyId } = params;
+  const params = useParams();
+  const companyId = params.companyId as string;
 
   const companyRef = useMemoFirebase(() => {
     if (!firestore || !companyId) return null;
