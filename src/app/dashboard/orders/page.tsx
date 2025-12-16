@@ -144,6 +144,14 @@ const PrintableOrder = React.forwardRef<HTMLDivElement, { order: Order; company?
 });
 PrintableOrder.displayName = 'PrintableOrder';
 
+const PrintTrigger = React.forwardRef<HTMLButtonElement>((props, ref) => {
+    return (
+        <Button ref={ref}><Printer className="mr-2 h-4 w-4" />Imprimir</Button>
+    );
+});
+PrintTrigger.displayName = 'PrintTrigger';
+
+
 export default function OrdersPage() {
     const { user, isUserLoading } = useUser();
     const firestore = useFirestore();
@@ -293,10 +301,10 @@ export default function OrdersPage() {
                                 <DropdownMenuItem onClick={() => setSelectedOrder(order)}>Ver Detalhes</DropdownMenuItem>
                                 <ReactToPrint
                                   trigger={() => (
-                                    <button className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 w-full">
+                                    <div className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 w-full">
                                       <Printer className="mr-2 h-4 w-4" />
                                       Imprimir
-                                    </button>
+                                    </div>
                                   )}
                                   content={() => printRef.current}
                                   onBeforeGetContent={() => {
@@ -349,10 +357,10 @@ export default function OrdersPage() {
                  </div>
                  <DialogFooter>
                     <Button variant="outline" onClick={() => setSelectedOrder(null)}>Fechar</Button>
-                    <ReactToPrint
-                      trigger={() => <Button><Printer className="mr-2 h-4 w-4" />Imprimir</Button>}
-                      content={() => printRef.current}
-                    />
+                     <ReactToPrint
+                        content={() => printRef.current}
+                        trigger={() => <PrintTrigger />}
+                     />
                 </DialogFooter>
             </DialogContent>
         </Dialog>
