@@ -36,7 +36,7 @@ import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 
 // A valid, short beep sound in Base64 format.
-const notificationSound = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
+const notificationSound = "data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU'd+jj/3/fw/8/f4/w==";
 
 
 type Company = {
@@ -200,8 +200,11 @@ export default function OrdersPage() {
             const latestNewOrder = newOrders.sort((a, b) => b.orderDate.toMillis() - a.orderDate.toMillis())[0];
             
             // Play sound if enabled
-            if (companyData.soundNotificationEnabled) {
-                audioRef.current?.play().catch(err => console.error("Audio playback failed:", err));
+            if (companyData.soundNotificationEnabled && audioRef.current) {
+                // Check if audio is not already playing to avoid interruption errors.
+                if (audioRef.current.paused) {
+                    audioRef.current.play().catch(err => console.error("Audio playback failed:", err));
+                }
             }
 
             // Trigger auto-print if enabled
