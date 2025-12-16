@@ -36,7 +36,7 @@ import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 
 // A valid, short beep sound in Base64 format.
-const notificationSound = "data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU'd+jj/3/fw/8/f4/w==";
+const notificationSound = "data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU=";
 
 
 type Company = {
@@ -53,6 +53,7 @@ type OrderItem = {
   quantity: number;
   unitPrice: number;
   notes?: string;
+  productName?: string;
 };
 
 export type Order = {
@@ -82,17 +83,20 @@ const statusMap: { [key: string]: Order['status'][] } = {
   "Finalizados": ["Entregue", "Cancelado"],
 }
 
-function OrderPrintPreview({ order, onClose }: { order: Order; onClose: () => void }) {
-    const handlePrint = () => {
-        window.print();
-    };
+function OrderPrintPreview({ order, company, onClose, onPrint }: { order: Order; company?: Company; onClose: () => void; onPrint: () => void; }) {
+
+    useEffect(() => {
+        if (order) {
+            onPrint();
+        }
+    }, [order, onPrint]);
 
     return (
         <Dialog open onOpenChange={onClose}>
             <DialogContent className="sm:max-w-lg print:shadow-none print:border-none">
                 <div id="print-content">
                     <DialogHeader className="text-center">
-                        <DialogTitle className="text-2xl">The Burger Shop</DialogTitle>
+                        <DialogTitle className="text-2xl">{company?.name || 'Seu Restaurante'}</DialogTitle>
                         <p className="text-sm text-muted-foreground">Pedido: {order.id.substring(0, 6).toUpperCase()}</p>
                         <p className="text-sm text-muted-foreground">{order.orderDate.toDate().toLocaleString('pt-BR')}</p>
                     </DialogHeader>
@@ -117,7 +121,7 @@ function OrderPrintPreview({ order, onClose }: { order: Order; onClose: () => vo
                                 <TableBody>
                                     {order.orderItems.map((item, index) => (
                                         <TableRow key={index}>
-                                            <TableCell>{item.productId}</TableCell>
+                                            <TableCell>{item.productName || item.productId}</TableCell>
                                             <TableCell className="text-center">{item.quantity}</TableCell>
                                             <TableCell className="text-right">R${(item.unitPrice * item.quantity).toFixed(2)}</TableCell>
                                         </TableRow>
@@ -146,7 +150,7 @@ function OrderPrintPreview({ order, onClose }: { order: Order; onClose: () => vo
                 </div>
                 <DialogFooter className="print:hidden mt-6">
                     <Button variant="outline" onClick={onClose}>Fechar</Button>
-                    <Button onClick={handlePrint}><Printer className="mr-2 h-4 w-4" />Imprimir</Button>
+                    <Button onClick={onPrint}><Printer className="mr-2 h-4 w-4" />Imprimir</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
@@ -160,6 +164,7 @@ export default function OrdersPage() {
     const audioRef = useRef<HTMLAudioElement | null>(null);
     
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+    const [isPrinting, setIsPrinting] = useState(false);
     const [lastSeenOrderIds, setLastSeenOrderIds] = useState<Set<string>>(new Set());
 
     const companyRef = useMemoFirebase(() => {
@@ -176,32 +181,41 @@ export default function OrdersPage() {
 
     const { data: orders, isLoading: isLoadingOrders } = useCollection<Order>(ordersRef);
 
+    const handlePrint = () => {
+        window.print();
+    };
+
+    const openPrintDialog = (order: Order) => {
+        setSelectedOrder(order);
+        setIsPrinting(true);
+    };
+
     // Initialize the set of seen orders on first load
     useEffect(() => {
       if (orders) {
         setLastSeenOrderIds(new Set(orders.map(o => o.id)));
       }
-    }, [isLoadingOrders]); // Run only once after initial load
+    }, [!orders]); // Run only once after initial load
 
     // This effect handles the audio initialization
     useEffect(() => {
         audioRef.current = new Audio(notificationSound);
+        audioRef.current.load(); // Pre-load the audio
     }, []);
 
     // This effect detects new orders and triggers sound/print
     useEffect(() => {
-        if (!orders || orders.length === 0 || isLoadingOrders || !companyData) {
+        if (!orders || orders.length === 0 || isLoadingOrders || !companyData || !audioRef.current) {
             return;
         }
 
-        const newOrders = orders.filter(order => !lastSeenOrderIds.has(order.id));
+        const newOrders = orders.filter(order => order.status === 'Novo' && !lastSeenOrderIds.has(order.id));
 
         if (newOrders.length > 0) {
             const latestNewOrder = newOrders.sort((a, b) => b.orderDate.toMillis() - a.orderDate.toMillis())[0];
             
             // Play sound if enabled
-            if (companyData.soundNotificationEnabled && audioRef.current) {
-                // Check if audio is not already playing to avoid interruption errors.
+            if (companyData.soundNotificationEnabled) {
                 if (audioRef.current.paused) {
                     audioRef.current.play().catch(err => console.error("Audio playback failed:", err));
                 }
@@ -209,13 +223,7 @@ export default function OrdersPage() {
 
             // Trigger auto-print if enabled
             if (companyData.autoPrintEnabled && latestNewOrder) {
-                setSelectedOrder(latestNewOrder);
-                setTimeout(() => {
-                  const printContent = document.getElementById('print-content');
-                  if (printContent) {
-                    window.print();
-                  }
-                }, 500); // Small delay to ensure dialog is rendered
+                openPrintDialog(latestNewOrder);
             }
 
             // Update the set of seen orders
@@ -308,7 +316,7 @@ export default function OrdersPage() {
                               <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Ações</DropdownMenuLabel>
                                 <DropdownMenuItem onClick={() => setSelectedOrder(order)}>Ver Detalhes</DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => setSelectedOrder(order)}>
+                                <DropdownMenuItem onClick={() => openPrintDialog(order)}>
                                   <Printer className="mr-2 h-4 w-4" />
                                   Imprimir
                                 </DropdownMenuItem>
@@ -343,8 +351,35 @@ export default function OrdersPage() {
         </Tabs>
       </CardContent>
     </Card>
-    {selectedOrder && (
-        <OrderPrintPreview order={selectedOrder} onClose={() => setSelectedOrder(null)} />
+    {selectedOrder && !isPrinting && (
+        <Dialog open onOpenChange={() => setSelectedOrder(null)}>
+            <DialogContent>
+                 <DialogHeader>
+                    <DialogTitle>Detalhes do Pedido</DialogTitle>
+                </DialogHeader>
+                {/* Simplified view for details */}
+                 <div>
+                    <p><strong>Cliente:</strong> {selectedOrder.customerName}</p>
+                    <p><strong>Total:</strong> R${selectedOrder.totalAmount.toFixed(2)}</p>
+                    {/* Add more details as needed */}
+                </div>
+                 <DialogFooter>
+                    <Button variant="outline" onClick={() => setSelectedOrder(null)}>Fechar</Button>
+                    <Button onClick={() => openPrintDialog(selectedOrder)}>Imprimir</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )}
+    {selectedOrder && isPrinting && (
+        <OrderPrintPreview 
+            order={selectedOrder}
+            company={companyData || undefined}
+            onClose={() => {
+                setSelectedOrder(null);
+                setIsPrinting(false);
+            }} 
+            onPrint={handlePrint}
+        />
     )}
     </>
   );
