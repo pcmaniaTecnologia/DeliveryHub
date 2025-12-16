@@ -34,6 +34,7 @@ import { MoreHorizontal, Package, Printer, Truck } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
+import ReactToPrint from 'react-to-print';
 
 // A valid, short beep sound in Base64 format.
 const notificationSound = "data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU=";
@@ -83,110 +84,74 @@ const statusMap: { [key: string]: Order['status'][] } = {
   "Finalizados": ["Entregue", "Cancelado"],
 }
 
-function OrderPrintPreview({ order, company, onClose }: { order: Order; company?: Company; onClose: () => void; }) {
-    const printContentRef = useRef<HTMLDivElement>(null);
-
-    const handlePrint = () => {
-        window.print();
-    };
-
+const PrintableOrder = React.forwardRef<HTMLDivElement, { order: Order; company?: Company }>(({ order, company }, ref) => {
     return (
-        <Dialog open onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-lg print-content">
-                <style jsx global>{`
-                    @media print {
-                        body > *:not(.print-content) {
-                            display: none;
-                        }
-                        .print-content {
-                            position: absolute;
-                            top: 0;
-                            left: 0;
-                            width: 100%;
-                            height: 100%;
-                            padding: 1.5rem;
-                            margin: 0;
-                            border: none;
-                            box-shadow: none;
-                            border-radius: 0;
-                            max-width: 100%;
-                        }
-                        .no-print {
-                            display: none;
-                        }
-                    }
-                `}</style>
-                <div ref={printContentRef}>
-                    <DialogHeader className="text-center">
-                        <DialogTitle className="text-2xl">{company?.name || 'Seu Restaurante'}</DialogTitle>
-                        <p className="text-sm text-muted-foreground">Pedido: {order.id.substring(0, 6).toUpperCase()}</p>
-                        <p className="text-sm text-muted-foreground">{order.orderDate.toDate().toLocaleString('pt-BR')}</p>
-                    </DialogHeader>
-                    <Separator className="my-4" />
-                    <div className="space-y-4">
-                        <div className="space-y-1">
-                            <h3 className="font-semibold">Cliente</h3>
-                            <p>{order.customerName || 'Cliente anônimo'}</p>
-                            {order.deliveryType === 'Delivery' && <p className="text-muted-foreground">{order.deliveryAddress}</p>}
-                        </div>
-                        <Separator />
-                        <div>
-                            <h3 className="font-semibold mb-2">Itens do Pedido</h3>
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Produto</TableHead>
-                                        <TableHead className="text-center">Qtd.</TableHead>
-                                        <TableHead className="text-right">Preço</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {order.orderItems.map((item, index) => (
-                                        <TableRow key={index}>
-                                            <TableCell>{item.productName || item.productId}</TableCell>
-                                            <TableCell className="text-center">{item.quantity}</TableCell>
-                                            <TableCell className="text-right">R${(item.unitPrice * item.quantity).toFixed(2)}</TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </div>
-                        <Separator />
-                         <div className="space-y-2">
-                             <div className="flex justify-between">
-                                <span>Subtotal</span>
-                                <span>R${order.totalAmount.toFixed(2)}</span>
-                             </div>
-                             <div className="flex justify-between font-bold text-lg">
-                                <span>Total</span>
-                                <span>R${order.totalAmount.toFixed(2)}</span>
-                             </div>
-                        </div>
-                        <Separator />
-                        <div className="space-y-1">
-                            <h3 className="font-semibold">Pagamento</h3>
-                            <p>Forma de Pagamento: {order.paymentMethod}</p>
-                            <p>Tipo de Entrega: {order.deliveryType}</p>
-                        </div>
-                    </div>
+        <div ref={ref} className="p-6">
+            <div className="text-center">
+                <h2 className="text-2xl font-bold">{company?.name || 'Seu Restaurante'}</h2>
+                <p className="text-sm text-gray-500">Pedido: {order.id.substring(0, 6).toUpperCase()}</p>
+                <p className="text-sm text-gray-500">{order.orderDate.toDate().toLocaleString('pt-BR')}</p>
+            </div>
+            <Separator className="my-4" />
+            <div className="space-y-4">
+                <div className="space-y-1">
+                    <h3 className="font-semibold">Cliente</h3>
+                    <p>{order.customerName || 'Cliente anônimo'}</p>
+                    {order.deliveryType === 'Delivery' && <p className="text-gray-500">{order.deliveryAddress}</p>}
                 </div>
-                <DialogFooter className="mt-6 no-print">
-                    <Button variant="outline" onClick={onClose}>Fechar</Button>
-                    <Button onClick={handlePrint}><Printer className="mr-2 h-4 w-4" />Imprimir</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+                <Separator />
+                <div>
+                    <h3 className="font-semibold mb-2">Itens do Pedido</h3>
+                    <table className="w-full text-sm">
+                        <thead>
+                            <tr className="border-b">
+                                <th className="text-left py-2">Produto</th>
+                                <th className="text-center py-2">Qtd.</th>
+                                <th className="text-right py-2">Preço</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {order.orderItems.map((item, index) => (
+                                <tr key={index} className="border-b">
+                                    <td className="py-2">{item.productName || item.productId}</td>
+                                    <td className="text-center py-2">{item.quantity}</td>
+                                    <td className="text-right py-2">R${(item.unitPrice * item.quantity).toFixed(2)}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+                <Separator />
+                 <div className="space-y-2">
+                     <div className="flex justify-between">
+                        <span>Subtotal</span>
+                        <span>R${order.totalAmount.toFixed(2)}</span>
+                     </div>
+                     <div className="flex justify-between font-bold text-lg">
+                        <span>Total</span>
+                        <span>R${order.totalAmount.toFixed(2)}</span>
+                     </div>
+                </div>
+                <Separator />
+                <div className="space-y-1">
+                    <h3 className="font-semibold">Pagamento</h3>
+                    <p>Forma de Pagamento: {order.paymentMethod}</p>
+                    <p>Tipo de Entrega: {order.deliveryType}</p>
+                </div>
+            </div>
+        </div>
     );
-}
+});
+PrintableOrder.displayName = 'PrintableOrder';
 
 export default function OrdersPage() {
     const { user, isUserLoading } = useUser();
     const firestore = useFirestore();
     const { toast } = useToast();
     const audioRef = useRef<HTMLAudioElement | null>(null);
+    const printRef = useRef<HTMLDivElement>(null);
     
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-    const [printingOrder, setPrintingOrder] = useState<Order | null>(null);
     const lastSeenOrderIds = useRef(new Set<string>());
 
     const companyRef = useMemoFirebase(() => {
@@ -202,10 +167,6 @@ export default function OrdersPage() {
     }, [firestore, user?.uid]);
 
     const { data: orders, isLoading: isLoadingOrders } = useCollection<Order>(ordersRef);
-
-    const openPrintDialog = (order: Order) => {
-        setPrintingOrder(order);
-    };
 
     // Initialize the set of seen orders on first load
     useEffect(() => {
@@ -238,11 +199,6 @@ export default function OrdersPage() {
                 if (audioRef.current.paused) {
                     audioRef.current.play().catch(err => console.error("Audio playback failed:", err));
                 }
-            }
-
-            // Trigger auto-print if enabled
-            if (companyData.autoPrintEnabled && latestNewOrder) {
-                openPrintDialog(latestNewOrder);
             }
 
             // Update the set of seen orders
@@ -335,10 +291,17 @@ export default function OrdersPage() {
                               <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Ações</DropdownMenuLabel>
                                 <DropdownMenuItem onClick={() => setSelectedOrder(order)}>Ver Detalhes</DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => openPrintDialog(order)}>
-                                  <Printer className="mr-2 h-4 w-4" />
-                                  Imprimir
-                                </DropdownMenuItem>
+                                <ReactToPrint
+                                  trigger={() => (
+                                    <button className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 w-full">
+                                      <Printer className="mr-2 h-4 w-4" />
+                                      Imprimir
+                                    </button>
+                                  )}
+                                  content={() => printRef.current}
+                                  onBeforeGetContent={() => setSelectedOrder(order)}
+                                  onAfterPrint={() => setSelectedOrder(null)}
+                                />
                                 <DropdownMenuSeparator />
                                 <DropdownMenuLabel>Alterar Status</DropdownMenuLabel>
                                 <DropdownMenuItem onClick={() => handleUpdateStatus(order.id, 'Em preparo')}>Em preparo</DropdownMenuItem>
@@ -371,31 +334,28 @@ export default function OrdersPage() {
       </CardContent>
     </Card>
     {selectedOrder && (
-        <Dialog open onOpenChange={() => setSelectedOrder(null)}>
+        <Dialog open={selectedOrder !== null} onOpenChange={() => setSelectedOrder(null)}>
             <DialogContent>
                  <DialogHeader>
                     <DialogTitle>Detalhes do Pedido</DialogTitle>
                 </DialogHeader>
-                {/* Simplified view for details */}
-                 <div>
-                    <p><strong>Cliente:</strong> {selectedOrder.customerName}</p>
-                    <p><strong>Total:</strong> R${selectedOrder.totalAmount.toFixed(2)}</p>
-                    {/* Add more details as needed */}
-                </div>
+                 <div className='max-h-[60vh] overflow-y-auto -mx-6 px-6'>
+                    <PrintableOrder order={selectedOrder} company={companyData || undefined} ref={printRef} />
+                 </div>
                  <DialogFooter>
                     <Button variant="outline" onClick={() => setSelectedOrder(null)}>Fechar</Button>
-                    <Button onClick={() => openPrintDialog(selectedOrder)}>Imprimir</Button>
+                    <ReactToPrint
+                      trigger={() => <Button><Printer className="mr-2 h-4 w-4" />Imprimir</Button>}
+                      content={() => printRef.current}
+                    />
                 </DialogFooter>
             </DialogContent>
         </Dialog>
     )}
-    {printingOrder && (
-        <OrderPrintPreview 
-            order={printingOrder}
-            company={companyData || undefined}
-            onClose={() => setPrintingOrder(null)} 
-        />
-    )}
+    {/* Hidden component for printing from the dropdown */}
+    <div className="hidden">
+      {selectedOrder && <PrintableOrder order={selectedOrder} company={companyData || undefined} ref={printRef} />}
+    </div>
     </>
   );
 }
