@@ -281,7 +281,8 @@ service cloud.firestore {
      * @path /roles_admin/{userId}
      * @allow (get, create, update, delete) A super admin manages the roles of another user.
      * @deny (get, create, update, delete) Any user who is not a super admin tries to access this collection.
-     * @principle Secures the highest level of administrative access, ensuring only authorized personnel can manage roles.
+     * @principle Secures the highest level of administrative access,
+    ensuring only authorized personnel can manage roles.
      */
     match /roles_admin/{userId} {
       allow get, list: if isSuperAdmin();
@@ -291,3 +292,5 @@ service cloud.firestore {
     }
   }
 }
+
+    
