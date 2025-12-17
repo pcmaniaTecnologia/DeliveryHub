@@ -1,6 +1,6 @@
 
 'use client';
-import { Banknote, CreditCard, DollarSign, Package, PieChart, Landmark, ShoppingCart, Users, Calendar as CalendarIcon } from 'lucide-react';
+import { Banknote, CreditCard, DollarSign, Package, PieChart, Landmark, ShoppingCart, Users, Calendar as CalendarIcon, Printer } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -30,13 +30,15 @@ import { Button } from '@/components/ui/button';
 import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, type Timestamp } from 'firebase/firestore';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, forwardRef } from 'react';
 import { subDays, format, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { DateRange } from 'react-day-picker';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { Calendar } from '@/components/ui/calendar';
+import { useReactToPrint } from 'react-to-print';
+import { Separator } from '@/components/ui/separator';
 
 
 type Order = {
@@ -69,6 +71,55 @@ const chartConfig = {
     color: 'hsl(var(--primary))',
   },
 };
+
+const CashierClosingPrintable = forwardRef<HTMLDivElement, { 
+    salesByPaymentMethod: SalesByPaymentMethod, 
+    totalSales: number,
+    dateRangeLabel: string,
+}>(({ salesByPaymentMethod, totalSales, dateRangeLabel }, ref) => {
+    return (
+        <div ref={ref} className="p-6 font-sans">
+            <div className="text-center mb-6">
+                <h2 className="text-2xl font-bold">Fechamento de Caixa</h2>
+                <p className="text-sm text-gray-500">Período: {dateRangeLabel}</p>
+                 <p className="text-sm text-gray-500">Gerado em: {format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ptBR })}</p>
+            </div>
+             <div className="space-y-4 text-base">
+                    <div className="flex items-center">
+                        <Banknote className="h-5 w-5 mr-3 text-muted-foreground" />
+                        <span className="flex-1">Dinheiro</span>
+                        <span className="font-medium">R$ {salesByPaymentMethod.cash.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                    <Separator />
+                    <div className="flex items-center">
+                        <Landmark className="h-5 w-5 mr-3 text-muted-foreground" />
+                        <span className="flex-1">PIX</span>
+                        <span className="font-medium">R$ {salesByPaymentMethod.pix.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                     <Separator />
+                    <div className="flex items-center">
+                        <CreditCard className="h-5 w-5 mr-3 text-muted-foreground" />
+                        <span className="flex-1">Cartão de Crédito</span>
+                        <span className="font-medium">R$ {salesByPaymentMethod.credit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                     <Separator />
+                    <div className="flex items-center">
+                        <CreditCard className="h-5 w-5 mr-3 text-muted-foreground" />
+                        <span className="flex-1">Cartão de Débito</span>
+                        <span className="font-medium">R$ {salesByPaymentMethod.debit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                     <Separator className="my-6" />
+                     <div className="flex items-center text-xl">
+                        <DollarSign className="h-6 w-6 mr-3" />
+                        <span className="flex-1 font-bold">Total</span>
+                        <span className="font-bold">R$ {totalSales.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                </div>
+        </div>
+    );
+});
+CashierClosingPrintable.displayName = 'CashierClosingPrintable';
+
 
 function RecentOrdersTable({ orders }: { orders: Order[] }) {
     return (
@@ -114,6 +165,11 @@ export default function DashboardPage() {
         from: startOfDay(new Date()),
         to: endOfDay(new Date()),
       });
+      
+    const printRef = useRef<HTMLDivElement>(null);
+    const handlePrint = useReactToPrint({
+        content: () => printRef.current,
+    });
 
     const handlePresetChange = (preset: 'today' | 'week' | 'month') => {
         setActivePreset(preset);
@@ -251,21 +307,16 @@ export default function DashboardPage() {
     const isLoading = isUserLoading || isLoadingOrders;
     
     const dateRangeLabel = useMemo(() => {
-        if (activePreset) {
-            return {
-                today: '(hoje)',
-                week: '(semana)',
-                month: '(mês)',
-            }[activePreset];
+        if (!dateRange?.from) return '';
+
+        const from = format(dateRange.from, 'P', { locale: ptBR });
+        const to = dateRange.to ? format(dateRange.to, 'P', { locale: ptBR }) : from;
+
+        if (from === to) {
+            return `(${from})`;
         }
-        if (dateRange?.from && dateRange.to) {
-            if (format(dateRange.from, 'P') === format(dateRange.to, 'P')) {
-                return `(${format(dateRange.from, 'P', { locale: ptBR })})`;
-            }
-            return `(${format(dateRange.from, 'P', { locale: ptBR })} - ${format(dateRange.to, 'P', { locale: ptBR })})`;
-        }
-        return '';
-    }, [activePreset, dateRange]);
+        return `(${from} - ${to})`;
+    }, [dateRange]);
 
 
     if (isLoading) {
@@ -295,11 +346,11 @@ export default function DashboardPage() {
                   {dateRange?.from ? (
                     dateRange.to ? (
                       <>
-                        {format(dateRange.from, "LLL dd, y")} -{" "}
-                        {format(dateRange.to, "LLL dd, y")}
+                        {format(dateRange.from, "LLL dd, y", { locale: ptBR })} -{" "}
+                        {format(dateRange.to, "LLL dd, y", { locale: ptBR })}
                       </>
                     ) : (
-                      format(dateRange.from, "LLL dd, y")
+                      format(dateRange.from, "LLL dd, y", { locale: ptBR })
                     )
                   ) : (
                     <span>Selecione uma data</span>
@@ -385,13 +436,21 @@ export default function DashboardPage() {
 
         <Card className="col-span-4 lg:col-span-3">
             <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                    <PieChart className="h-5 w-5 text-muted-foreground" />
-                    Fechamento de Caixa {dateRangeLabel}
-                </CardTitle>
-                <CardDescription>
-                    Total de vendas do período detalhado por forma de pagamento.
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                    <div className="space-y-1.5">
+                        <CardTitle className="flex items-center gap-2">
+                            <PieChart className="h-5 w-5 text-muted-foreground" />
+                            Fechamento de Caixa {dateRangeLabel}
+                        </CardTitle>
+                        <CardDescription>
+                            Total de vendas do período detalhado por forma de pagamento.
+                        </CardDescription>
+                    </div>
+                    <Button variant="outline" size="icon" onClick={handlePrint}>
+                        <Printer className="h-4 w-4" />
+                        <span className="sr-only">Imprimir</span>
+                    </Button>
+                </div>
             </CardHeader>
             <CardContent>
                 <div className="space-y-4">
@@ -433,6 +492,17 @@ export default function DashboardPage() {
              <RecentOrdersTable orders={recentOrdersWithDetails} />
           </CardContent>
         </Card>
+        
+        <div className="hidden">
+            <CashierClosingPrintable 
+                ref={printRef} 
+                salesByPaymentMethod={salesByPaymentMethod} 
+                totalSales={totalSales} 
+                dateRangeLabel={dateRangeLabel.replace(/[()]/g, '')} // remove parentheses
+            />
+        </div>
     </>
   );
 }
+
+    
