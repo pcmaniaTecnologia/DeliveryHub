@@ -83,6 +83,12 @@ export default function DashboardLayout({
           return;
       }
       
+      // Don't play sound on initial load
+      if (previousOrdersRef.current.length === 0) {
+        previousOrdersRef.current = orders;
+        return;
+      }
+      
       // Get the list of order IDs from the previous state
       const previousOrderIds = new Set(previousOrdersRef.current.map(o => o.id));
 
