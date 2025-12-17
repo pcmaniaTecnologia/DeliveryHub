@@ -40,7 +40,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Checkbox } from '@/components/ui/checkbox';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -135,7 +135,7 @@ export default function CartSheet({ companyId }: { companyId: string}) {
   const [addressComplement, setAddressComplement] = useState('');
 
   // Payment State
-  const [selectedPayments, setSelectedPayments] = useState<{[key: string]: boolean}>({});
+  const [selectedPayment, setSelectedPayment] = useState<string>('');
   const [cashAmount, setCashAmount] = useState('');
 
   const changeFor = useMemo(() => {
@@ -149,23 +149,19 @@ export default function CartSheet({ companyId }: { companyId: string}) {
   const handlePlaceOrder = async () => {
     if (!firestore || !companyId) return;
 
-    const paymentMethodsList = Object.entries(selectedPayments)
-      .filter(([, isSelected]) => isSelected)
-      .map(([method]) => method);
-
-    if (paymentMethodsList.length === 0) {
+    if (!selectedPayment) {
       toast({
         variant: 'destructive',
         title: 'Forma de pagamento',
-        description: 'Por favor, selecione pelo menos uma forma de pagamento.',
+        description: 'Por favor, selecione uma forma de pagamento.',
       });
       return;
     }
 
-    let paymentMethodsStr = paymentMethodsList.join(', ');
+    let paymentMethodsStr = selectedPayment;
 
-    if (selectedPayments['Dinheiro'] && cashAmount) {
-        paymentMethodsStr = paymentMethodsStr.replace('Dinheiro', `Dinheiro (pagando com R$ ${cashAmount})`);
+    if (selectedPayment === 'Dinheiro' && cashAmount) {
+        paymentMethodsStr = `Dinheiro (troco para R$ ${parseFloat(cashAmount).toFixed(2)})`;
     }
 
     let isFormValid = customerName && customerPhone;
@@ -221,7 +217,7 @@ export default function CartSheet({ companyId }: { companyId: string}) {
         setAddressNumber('');
         setAddressNeighborhood('');
         setAddressComplement('');
-        setSelectedPayments({});
+        setSelectedPayment('');
         setCashAmount('');
         setIsCheckoutOpen(false);
     } catch (error) {
@@ -356,27 +352,21 @@ export default function CartSheet({ companyId }: { companyId: string}) {
                             <Skeleton className="h-6 w-1/2" />
                         </div>
                     ) : (
-                        <div className="space-y-4">
+                      <RadioGroup value={selectedPayment} onValueChange={setSelectedPayment} className="space-y-4">
                           {enabledPaymentMethods.map(({ id, label, icon: Icon }) => (
                             <div key={id}>
-                              <div className="flex items-center space-x-2">
-                                <Checkbox
-                                  id={`payment-${id}`}
-                                  checked={!!selectedPayments[id]}
-                                  onCheckedChange={(checked) => {
-                                    setSelectedPayments(prev => ({...prev, [id]: !!checked}));
-                                  }}
-                                />
-                                <Label htmlFor={`payment-${id}`} className="flex items-center gap-2 font-normal">
+                              <div className="flex items-center space-x-3">
+                                <RadioGroupItem value={id} id={`payment-${id}`} />
+                                <Label htmlFor={`payment-${id}`} className="flex items-center gap-2 font-normal flex-grow cursor-pointer">
                                   <Icon className="h-5 w-5 text-muted-foreground" />
                                   {label}
                                 </Label>
                               </div>
                             </div>
                           ))}
-                          {selectedPayments['Dinheiro'] && companyData?.paymentMethods?.cashAskForChange && (
-                            <div className="grid gap-2 pl-7 pt-2">
-                                <Label htmlFor="cash-amount">Precisa de troco para quanto?</Label>
+                          {selectedPayment === 'Dinheiro' && companyData?.paymentMethods?.cashAskForChange && (
+                            <div className="grid gap-2 pl-9 pt-2">
+                                <Label htmlFor="cash-amount">Precisa de troco para quanto? (Opcional)</Label>
                                 <Input id="cash-amount" type="number" value={cashAmount} onChange={e => setCashAmount(e.target.value)} placeholder="Ex: 50.00" />
                                 {changeFor > 0 && (
                                     <p className="text-sm text-green-600 font-medium">Seu troco será de R$ {changeFor.toFixed(2)}</p>
@@ -384,7 +374,7 @@ export default function CartSheet({ companyId }: { companyId: string}) {
                             </div>
                           )}
                           {enabledPaymentMethods.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma forma de pagamento configurada pela loja.</p>}
-                        </div>
+                      </RadioGroup>
                     )}
                 </div>
                  <Separator className="my-4" />
@@ -448,5 +438,3 @@ export default function CartSheet({ companyId }: { companyId: string}) {
     </>
   );
 }
-
-    
