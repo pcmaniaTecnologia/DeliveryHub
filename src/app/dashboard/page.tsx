@@ -120,16 +120,6 @@ const CashierClosingPrintable = forwardRef<HTMLDivElement, {
 });
 CashierClosingPrintable.displayName = 'CashierClosingPrintable';
 
-const PrintTrigger = forwardRef<HTMLButtonElement, React.ComponentProps<typeof Button>>((props, ref) => {
-    return (
-        <Button ref={ref} variant="outline" size="icon" {...props}>
-            <Printer className="h-4 w-4" />
-            <span className="sr-only">Imprimir</span>
-        </Button>
-    );
-});
-PrintTrigger.displayName = 'PrintTrigger';
-
 
 function RecentOrdersTable({ orders }: { orders: Order[] }) {
     return (
@@ -456,10 +446,10 @@ export default function DashboardPage() {
                             Total de vendas do período detalhado por forma de pagamento.
                         </CardDescription>
                     </div>
-                     <ReactToPrint
-                        content={() => printRef.current}
-                        trigger={() => <PrintTrigger />}
-                     />
+                     <Button onClick={handlePrint} variant="outline" size="icon">
+                        <Printer className="h-4 w-4" />
+                        <span className="sr-only">Imprimir</span>
+                    </Button>
                 </div>
             </CardHeader>
             <CardContent>
