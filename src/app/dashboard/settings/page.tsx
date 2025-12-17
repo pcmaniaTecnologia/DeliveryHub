@@ -24,9 +24,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { BellRing, Clock, DollarSign, PlusCircle, Trash2, Copy, Printer } from 'lucide-react';
+import { BellRing, Clock, DollarSign, PlusCircle, Trash2, Copy, Printer, Crown, AlertTriangle } from 'lucide-react';
 import { useFirestore, useDoc, setDocument, useMemoFirebase, useUser, useCollection, addDocument, deleteDocument } from '@/firebase';
-import { doc, collection } from 'firebase/firestore';
+import { doc, collection, Timestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -43,6 +43,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Separator } from '@/components/ui/separator';
 import { useRouter } from 'next/navigation';
+import { format } from 'date-fns';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+
 
 type PaymentMethods = {
   cash: boolean;
@@ -76,6 +79,13 @@ type DeliveryZone = {
   isActive: boolean;
 };
 
+type Plan = {
+    id: string;
+    name: string;
+    price: number;
+    productLimit: number;
+    orderLimit: number;
+}
 
 export default function SettingsPage() {
   const firestore = useFirestore();
@@ -103,6 +113,13 @@ export default function SettingsPage() {
   }, [firestore, user]);
 
   const { data: deliveryZones, isLoading: isLoadingZones } = useCollection<DeliveryZone>(deliveryZonesRef);
+  
+  const planRef = useMemoFirebase(() => {
+    if (!firestore || !companyData?.planId) return null;
+    return doc(firestore, 'plans', companyData.planId);
+  }, [firestore, companyData?.planId]);
+
+  const { data: planData, isLoading: isLoadingPlan } = useDoc<Plan>(planRef);
 
 
   const [storeName, setStoreName] = useState('');
@@ -344,7 +361,7 @@ export default function SettingsPage() {
     }
 };
 
-  const isLoading = isUserLoadingAuth || isLoadingCompany || isLoadingZones;
+  const isLoading = isUserLoadingAuth || isLoadingCompany || isLoadingZones || isLoadingPlan;
 
   const weekDays: { key: keyof BusinessHours; label: string }[] = [
     { key: 'sunday', label: 'Domingo' },
@@ -358,6 +375,15 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
+      {companyData?.isActive === false && (
+          <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Acesso Bloqueado</AlertTitle>
+              <AlertDescription>
+                  Sua assinatura expirou ou há um problema com seu pagamento. Por favor, regularize sua situação para reativar o acesso ao painel.
+              </AlertDescription>
+          </Alert>
+      )}
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Configurações</h2>
         <p className="text-muted-foreground">
@@ -366,8 +392,9 @@ export default function SettingsPage() {
       </div>
 
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-5">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-6">
           <TabsTrigger value="profile">Empresa</TabsTrigger>
+          <TabsTrigger value="plan">Plano</TabsTrigger>
           <TabsTrigger value="hours">Horários</TabsTrigger>
           <TabsTrigger value="delivery">Entrega</TabsTrigger>
           <TabsTrigger value="payments">Pagamentos</TabsTrigger>
@@ -462,7 +489,7 @@ export default function SettingsPage() {
               </div>
             </CardContent>
             <CardFooter>
-              <Button onClick={handleSaveChanges} disabled={isLoading}>
+              <Button onClick={handleSaveChanges} disabled={isLoading || companyData?.isActive === false}>
                 {isLoading ? 'Carregando...' : 'Salvar Alterações'}
               </Button>
             </CardFooter>
@@ -502,6 +529,57 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
+        <TabsContent value="plan">
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <Crown className="h-6 w-6" />
+                        Plano e Assinatura
+                    </CardTitle>
+                    <CardDescription>
+                        Visualize os detalhes do seu plano atual e gerencie sua assinatura.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    {isLoading ? (
+                        <p>Carregando informações do plano...</p>
+                    ) : planData && companyData ? (
+                        <div className="space-y-4">
+                            <div className="rounded-lg border bg-primary/10 p-6 text-center">
+                                <h3 className="text-lg font-semibold">Seu Plano Atual</h3>
+                                <p className="text-4xl font-bold text-primary">{planData.name}</p>
+                            </div>
+                            <div className="space-y-2">
+                                <div className="flex justify-between">
+                                    <span className="text-muted-foreground">Status</span>
+                                    <span className={`font-semibold ${companyData.isActive ? 'text-green-600' : 'text-destructive'}`}>
+                                        {companyData.isActive ? 'Ativo' : 'Inativo/Vencido'}
+                                    </span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-muted-foreground">Valor</span>
+                                    <span className="font-semibold">R$ {planData.price.toFixed(2)} / mês</span>
+                                </div>
+                                {companyData.subscriptionEndDate && (
+                                <div className="flex justify-between">
+                                    <span className="text-muted-foreground">Válido até</span>
+                                    <span className="font-semibold">
+                                        {format(new Date((companyData.subscriptionEndDate as Timestamp).toDate()), 'dd/MM/yyyy')}
+                                    </span>
+                                </div>
+                                )}
+                            </div>
+                        </div>
+                    ) : (
+                        <p>Não foi possível carregar as informações do seu plano.</p>
+                    )}
+                </CardContent>
+                <CardFooter className="border-t pt-6">
+                    <Button disabled={isLoading}>Gerenciar Assinatura</Button>
+                </CardFooter>
+            </Card>
+        </TabsContent>
+
         <TabsContent value="hours">
           <Card>
             <CardHeader>
@@ -518,7 +596,7 @@ export default function SettingsPage() {
                       checked={businessHours[key]?.isOpen}
                       onCheckedChange={(checked) => handleHoursChange(key, 'isOpen', checked)}
                       id={`switch-${key}`}
-                      disabled={isLoading}
+                      disabled={isLoading || companyData?.isActive === false}
                     />
                     <Label htmlFor={`switch-${key}`} className="w-24">{label}</Label>
                   </div>
@@ -527,7 +605,7 @@ export default function SettingsPage() {
                       type="time"
                       value={businessHours[key]?.openTime}
                       onChange={(e) => handleHoursChange(key, 'openTime', e.target.value)}
-                      disabled={!businessHours[key]?.isOpen || isLoading}
+                      disabled={!businessHours[key]?.isOpen || isLoading || companyData?.isActive === false}
                       className="w-32"
                     />
                     <span>às</span>
@@ -535,7 +613,7 @@ export default function SettingsPage() {
                       type="time"
                       value={businessHours[key]?.closeTime}
                       onChange={(e) => handleHoursChange(key, 'closeTime', e.target.value)}
-                      disabled={!businessHours[key]?.isOpen || isLoading}
+                      disabled={!businessHours[key]?.isOpen || isLoading || companyData?.isActive === false}
                       className="w-32"
                     />
                   </div>
@@ -543,7 +621,7 @@ export default function SettingsPage() {
               ))}
             </CardContent>
             <CardFooter>
-              <Button onClick={handleSaveHours} disabled={isLoading}>
+              <Button onClick={handleSaveHours} disabled={isLoading || companyData?.isActive === false}>
                 {isLoading ? 'Carregando...' : 'Salvar Horários'}
               </Button>
             </CardFooter>
@@ -563,7 +641,7 @@ export default function SettingsPage() {
                     </CardDescription>
                   </div>
                   <DialogTrigger asChild>
-                    <Button size="sm" className="gap-1">
+                    <Button size="sm" className="gap-1" disabled={isLoading || companyData?.isActive === false}>
                       <PlusCircle className="h-4 w-4" />
                       Adicionar Bairro
                     </Button>
@@ -602,15 +680,17 @@ export default function SettingsPage() {
                           <Switch 
                             checked={zone.isActive}
                             onCheckedChange={(checked) => handleZoneIsActiveChange(zone, checked)}
+                            disabled={isLoading || companyData?.isActive === false}
                           />
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button variant="ghost" size="icon" onClick={() => handleDeleteZone(zone.id)}>
+                          <Button variant="ghost" size="icon" onClick={() => handleDeleteZone(zone.id)} disabled={isLoading || companyData?.isActive === false}>
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
                         </TableCell>
                       </TableRow>
                     ))}
+                     {!isLoading && deliveryZones?.length === 0 && <TableRow><TableCell colSpan={5} className="text-center">Nenhum bairro adicionado.</TableCell></TableRow>}
                   </TableBody>
                 </Table>
               </CardContent>
@@ -685,6 +765,7 @@ export default function SettingsPage() {
                 <Textarea
                   id="msg-received"
                   defaultValue="Olá {cliente}, seu pedido nº {pedido_id} foi recebido e já estamos preparando tudo! 🍔"
+                  disabled={isLoading || companyData?.isActive === false}
                 />
               </div>
               <div className="space-y-2">
@@ -692,6 +773,7 @@ export default function SettingsPage() {
                 <Textarea
                   id="msg-delivery"
                   defaultValue="Boas notícias, {cliente}! Seu pedido nº {pedido_id} acabou de sair para entrega e logo chegará até você! 🛵"
+                  disabled={isLoading || companyData?.isActive === false}
                 />
               </div>
               <div className="space-y-2">
@@ -699,11 +781,12 @@ export default function SettingsPage() {
                 <Textarea
                   id="msg-ready"
                   defaultValue="Ei, {cliente}! Seu pedido nº {pedido_id} está prontinho te esperando para retirada. 😊"
+                  disabled={isLoading || companyData?.isActive === false}
                 />
               </div>
             </CardContent>
             <CardFooter>
-              <Button>Salvar Mensagens</Button>
+              <Button disabled={isLoading || companyData?.isActive === false}>Salvar Mensagens</Button>
             </CardFooter>
           </Card>
         </TabsContent>
@@ -726,7 +809,7 @@ export default function SettingsPage() {
                     id="payment-cash" 
                     checked={paymentMethods.cash} 
                     onCheckedChange={(c) => handlePaymentMethodChange('cash', c)}
-                    disabled={isLoading}
+                    disabled={isLoading || companyData?.isActive === false}
                   />
                 </div>
                 {paymentMethods.cash && (
@@ -735,7 +818,7 @@ export default function SettingsPage() {
                       id="ask-for-change" 
                       checked={paymentMethods.cashAskForChange}
                       onCheckedChange={(c) => handleCashAskForChange(c as boolean)}
-                      disabled={isLoading}
+                      disabled={isLoading || companyData?.isActive === false}
                     />
                     <Label htmlFor="ask-for-change" className="text-sm font-normal">
                       Perguntar se o cliente precisa de troco
@@ -751,7 +834,7 @@ export default function SettingsPage() {
                   id="payment-pix" 
                   checked={paymentMethods.pix} 
                   onCheckedChange={(c) => handlePaymentMethodChange('pix', c)}
-                  disabled={isLoading}
+                  disabled={isLoading || companyData?.isActive === false}
                 />
               </div>
               <div className="flex items-center justify-between rounded-lg border p-4">
@@ -762,7 +845,7 @@ export default function SettingsPage() {
                   id="payment-credit" 
                   checked={paymentMethods.credit} 
                   onCheckedChange={(c) => handlePaymentMethodChange('credit', c)}
-                  disabled={isLoading}
+                  disabled={isLoading || companyData?.isActive === false}
                 />
               </div>
               <div className="flex items-center justify-between rounded-lg border p-4">
@@ -773,12 +856,12 @@ export default function SettingsPage() {
                   id="payment-debit"
                   checked={paymentMethods.debit} 
                   onCheckedChange={(c) => handlePaymentMethodChange('debit', c)}
-                  disabled={isLoading}
+                  disabled={isLoading || companyData?.isActive === false}
                 />
               </div>
             </CardContent>
              <CardFooter>
-              <Button onClick={handleSavePayments} disabled={isLoading}>
+              <Button onClick={handleSavePayments} disabled={isLoading || companyData?.isActive === false}>
                  {isLoading ? 'Carregando...' : 'Salvar Pagamentos'}
               </Button>
             </CardFooter>

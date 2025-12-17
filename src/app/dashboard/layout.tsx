@@ -3,7 +3,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   Menu,
   Package2,
@@ -22,6 +22,9 @@ import type { Order } from './orders/page';
 type CompanyData = {
     themeColors?: string;
     soundNotificationEnabled?: boolean;
+    isActive?: boolean;
+    planId?: string;
+    subscriptionEndDate?: any;
 };
 
 // A valid, short beep sound in Base64 format.
@@ -34,6 +37,7 @@ export default function DashboardLayout({
 }) {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
+  const pathname = usePathname();
   const firestore = useFirestore();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [hasInteracted, setHasInteracted] = useState(false);
@@ -45,7 +49,7 @@ export default function DashboardLayout({
     return doc(firestore, 'companies', user.uid);
   }, [firestore, user?.uid]);
 
-  const { data: companyData } = useDoc<CompanyData>(companyRef);
+  const { data: companyData, isLoading: isLoadingCompany } = useDoc<CompanyData>(companyRef);
 
   const ordersRef = useMemoFirebase(() => {
     if (!firestore || !user?.uid) return null;
@@ -88,11 +92,11 @@ export default function DashboardLayout({
         previousOrdersRef.current = orders;
         return;
       }
-      
+
       // Get the list of order IDs from the previous state
       const previousOrderIds = new Set(previousOrdersRef.current.map(o => o.id));
 
-      // Find orders that are new and have the 'Novo' status
+      // Find orders that are new (not in the previous list) and have the 'Novo' status
       const newOrders = orders.filter(order => 
           !previousOrderIds.has(order.id) && order.status === 'Novo'
       );
@@ -115,6 +119,16 @@ export default function DashboardLayout({
       router.push('/');
     }
   }, [user, isUserLoading, router]);
+
+   useEffect(() => {
+    // Check if company data is loaded and if the company is inactive
+    if (!isLoadingCompany && companyData && companyData.isActive === false) {
+        // If the user is not already on the settings page, redirect them.
+        if (pathname !== '/dashboard/settings') {
+            router.push('/dashboard/settings');
+        }
+    }
+  }, [companyData, isLoadingCompany, router, pathname]);
   
   useEffect(() => {
     if (companyData?.themeColors) {
@@ -140,12 +154,21 @@ export default function DashboardLayout({
 }, [companyData]);
 
 
-  if (isUserLoading || !user) {
+  if (isUserLoading || isLoadingCompany || !user) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <p>Carregando...</p>
       </div>
     );
+  }
+
+  // If company is inactive and we're not on the settings page, show loading while redirecting.
+  if (companyData?.isActive === false && pathname !== '/dashboard/settings') {
+     return (
+        <div className="flex min-h-screen items-center justify-center">
+            <p>Verificando sua assinatura...</p>
+        </div>
+     )
   }
 
 

@@ -77,6 +77,11 @@
         "soundNotificationEnabled": {
           "type": "boolean",
           "description": "Whether sound notifications for new orders are enabled."
+        },
+        "subscriptionEndDate": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date when the company's current subscription plan expires."
         }
       },
       "required": [
