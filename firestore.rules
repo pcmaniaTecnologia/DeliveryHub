@@ -207,12 +207,12 @@ service cloud.firestore {
      * @path /companies/{companyId}/orders/{orderId}
      * @allow (create) Any user (authenticated or not) creates a new order.
      * @allow (get) The customer who placed the order retrieves its status.
-     * @deny (list) A customer tries to list all orders for the company.
+     * @deny (list) A customer tries to list all orders for the company without filtering.
      * @principle Enforces shared access between the document owner (customer) and business operators (company members).
      */
     match /companies/{companyId}/orders/{orderId} {
       allow get: if isCompanyMember(companyId) || isSuperAdmin() || (isSignedIn() && resource.data.customerId == request.auth.uid);
-      allow list: if isCompanyMember(companyId) || isSuperAdmin();
+      allow list: if isCompanyMember(companyId) || isSuperAdmin() || request.query.where.size() > 0 && 'customerName' in request.query.where[0][0];
       allow create: if request.resource.data.companyId == companyId;
       allow update: if (isCompanyMember(companyId) || isSuperAdmin()) && resource != null;
       allow delete: if false;
@@ -292,5 +292,3 @@ service cloud.firestore {
     }
   }
 }
-
-    
