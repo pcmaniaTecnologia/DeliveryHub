@@ -1,3 +1,4 @@
+
 'use client';
 import { Banknote, CreditCard, DollarSign, Package, PieChart, Landmark, ShoppingCart, Users } from 'lucide-react';
 import {
@@ -164,7 +165,9 @@ export default function DashboardPage() {
             const methodsWithValues = methods.map(m => {
                 const match = m.match(/(.+) \(R\$\s*([\d,.]+)\)/);
                 if (match) {
-                    return { method: match[1].trim(), amount: parseFloat(match[2].replace('.', '').replace(',', '.')) };
+                     // Correctly parse Brazilian currency format
+                    const amount = parseFloat(match[2].replace('.', '').replace(',', '.'));
+                    return { method: match[1].trim(), amount };
                 }
                 return { method: m.trim(), amount: null };
             });
@@ -173,17 +176,17 @@ export default function DashboardPage() {
             if (methodsWithValues.length === 1 && methodsWithValues[0].amount === null) {
                  const singleMethod = methodsWithValues[0].method.toLowerCase();
                  if (singleMethod.includes('dinheiro')) acc.cash += orderTotal;
-                 if (singleMethod.includes('pix')) acc.pix += orderTotal;
-                 if (singleMethod.includes('crédito')) acc.credit += orderTotal;
-                 if (singleMethod.includes('débito')) acc.debit += orderTotal;
+                 else if (singleMethod.includes('pix')) acc.pix += orderTotal;
+                 else if (singleMethod.includes('crédito')) acc.credit += orderTotal;
+                 else if (singleMethod.includes('débito')) acc.debit += orderTotal;
             } else { // Distribute based on values
                  methodsWithValues.forEach(({ method, amount }) => {
                     const methodLc = method.toLowerCase();
                     const value = amount || 0;
                     if (methodLc.includes('dinheiro')) acc.cash += value;
-                    if (methodLc.includes('pix')) acc.pix += value;
-                    if (methodLc.includes('crédito')) acc.credit += value;
-                    if (methodLc.includes('débito')) acc.debit += value;
+                    else if (methodLc.includes('pix')) acc.pix += value;
+                    else if (methodLc.includes('crédito')) acc.credit += value;
+                    else if (methodLc.includes('débito')) acc.debit += value;
                 });
             }
 
