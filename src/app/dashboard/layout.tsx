@@ -1,15 +1,15 @@
 
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   Menu,
   Package2,
 } from 'lucide-react';
-import { useDoc, useFirestore, useMemoFirebase } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { useCollection, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection, doc } from 'firebase/firestore';
 
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -17,11 +17,15 @@ import { UserNav } from '@/components/user-nav';
 import { DashboardNav } from '@/components/dashboard-nav';
 import { useUser } from '@/firebase';
 import { hexToHsl } from '@/lib/utils';
+import type { Order } from './orders/page';
 
 type CompanyData = {
     themeColors?: string;
+    soundNotificationEnabled?: boolean;
 };
 
+// A valid, short beep sound in Base64 format.
+const notificationSound = "data:audio/wav;base64,UklGRisAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAhAAAA9/8A/f8E/wMAAgAFAAMACQD0/wD9/w==";
 
 export default function DashboardLayout({
   children,
@@ -31,6 +35,10 @@ export default function DashboardLayout({
   const { user, isUserLoading } = useUser();
   const router = useRouter();
   const firestore = useFirestore();
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [hasInteracted, setHasInteracted] = useState(false);
+  const previousOrdersRef = useRef<Order[]>([]);
+
 
   const companyRef = useMemoFirebase(() => {
     if (!firestore || !user?.uid) return null;
@@ -38,6 +46,63 @@ export default function DashboardLayout({
   }, [firestore, user?.uid]);
 
   const { data: companyData } = useDoc<CompanyData>(companyRef);
+
+  const ordersRef = useMemoFirebase(() => {
+    if (!firestore || !user?.uid) return null;
+    return collection(firestore, `companies/${user.uid}/orders`);
+  }, [firestore, user?.uid]);
+
+  const { data: orders, isLoading: isLoadingOrders } = useCollection<Order>(ordersRef);
+
+  useEffect(() => {
+    // This effect handles the audio initialization and user interaction detection
+    const handleFirstInteraction = () => {
+        if (!hasInteracted) {
+            setHasInteracted(true);
+            if (audioRef.current) {
+                audioRef.current.load(); // Pre-load the audio on first interaction
+            }
+        }
+        window.removeEventListener('click', handleFirstInteraction);
+        window.removeEventListener('keydown', handleFirstInteraction);
+    };
+
+    audioRef.current = new Audio(notificationSound);
+    window.addEventListener('click', handleFirstInteraction);
+    window.addEventListener('keydown', handleFirstInteraction);
+
+    return () => {
+        window.removeEventListener('click', handleFirstInteraction);
+        window.removeEventListener('keydown', handleFirstInteraction);
+    };
+}, [hasInteracted]);
+
+  // This effect detects new orders and triggers sound
+  useEffect(() => {
+      if (!orders || isLoadingOrders || !companyData?.soundNotificationEnabled || !hasInteracted || !audioRef.current) {
+          return;
+      }
+      
+      // Get the list of order IDs from the previous state
+      const previousOrderIds = new Set(previousOrdersRef.current.map(o => o.id));
+
+      // Find orders that are new and have the 'Novo' status
+      const newOrders = orders.filter(order => 
+          !previousOrderIds.has(order.id) && order.status === 'Novo'
+      );
+
+      if (newOrders.length > 0) {
+          // Play sound
+          if (audioRef.current.paused) {
+              audioRef.current.play().catch(err => console.error("Audio playback failed:", err));
+          }
+      }
+
+      // Update the previous orders ref for the next render
+      previousOrdersRef.current = orders;
+
+  }, [orders, isLoadingOrders, companyData, hasInteracted]);
+
 
   useEffect(() => {
     if (!isUserLoading && !user) {

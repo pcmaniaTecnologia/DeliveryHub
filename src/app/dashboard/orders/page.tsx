@@ -34,11 +34,7 @@ import { MoreHorizontal, Package, Printer, Truck } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import ReactToPrint from 'react-to-print';
-
-// A valid, short beep sound in Base64 format.
-const notificationSound = "data:audio/wav;base64,UklGRisAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAhAAAA9/8A/f8E/wMAAgAFAAMACQD0/wD9/w==";
-
+import ReactToPrint, { useReactToPrint } from 'react-to-print';
 
 type Company = {
     id: string;
@@ -144,11 +140,13 @@ const PrintableOrder = React.forwardRef<HTMLDivElement, { order: Order; company?
 });
 PrintableOrder.displayName = 'PrintableOrder';
 
-const PrintTrigger = React.forwardRef<HTMLButtonElement>((props, ref) => {
+const PrintTrigger = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>((props, ref) => {
     return (
-        <Button ref={ref}><Printer className="mr-2 h-4 w-4" />Imprimir</Button>
+      <div ref={ref} {...props}>
+        <Button><Printer className="mr-2 h-4 w-4" />Imprimir</Button>
+      </div>
     );
-});
+  });
 PrintTrigger.displayName = 'PrintTrigger';
 
 
@@ -156,11 +154,8 @@ export default function OrdersPage() {
     const { user, isUserLoading } = useUser();
     const firestore = useFirestore();
     const { toast } = useToast();
-    const audioRef = useRef<HTMLAudioElement | null>(null);
     const printRef = useRef<HTMLDivElement>(null);
-    
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-    const lastSeenOrderIds = useRef(new Set<string>());
 
     const companyRef = useMemoFirebase(() => {
       if (!firestore || !user?.uid) return null;
@@ -176,45 +171,9 @@ export default function OrdersPage() {
 
     const { data: orders, isLoading: isLoadingOrders } = useCollection<Order>(ordersRef);
 
-    // Initialize the set of seen orders on first load
-    useEffect(() => {
-      if (orders && !isLoadingOrders) {
-        if (lastSeenOrderIds.current.size === 0) {
-            lastSeenOrderIds.current = new Set(orders.map(o => o.id));
-        }
-      }
-    }, [orders, isLoadingOrders]);
-
-    // This effect handles the audio initialization
-    useEffect(() => {
-        audioRef.current = new Audio(notificationSound);
-        audioRef.current.load(); // Pre-load the audio
-    }, []);
-
-    // This effect detects new orders and triggers sound/print
-    useEffect(() => {
-        if (!orders || orders.length === 0 || isLoadingOrders || !companyData || !audioRef.current) {
-            return;
-        }
-
-        const newOrders = orders.filter(order => order.status === 'Novo' && !lastSeenOrderIds.current.has(order.id));
-
-        if (newOrders.length > 0) {
-            const latestNewOrder = newOrders.sort((a, b) => b.orderDate.toMillis() - a.orderDate.toMillis())[0];
-            
-            // Play sound if enabled
-            if (companyData.soundNotificationEnabled) {
-                if (audioRef.current.paused) {
-                    audioRef.current.play().catch(err => console.error("Audio playback failed:", err));
-                }
-            }
-
-            // Update the set of seen orders
-            newOrders.forEach(o => lastSeenOrderIds.current.add(o.id));
-        }
-
-    }, [orders, isLoadingOrders, companyData]);
-
+    const handlePrint = useReactToPrint({
+        content: () => printRef.current,
+      });
 
     const handleUpdateStatus = async (orderId: string, status: Order['status']) => {
         if (!firestore || !user) return;
@@ -299,22 +258,17 @@ export default function OrdersPage() {
                               <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Ações</DropdownMenuLabel>
                                 <DropdownMenuItem onClick={() => setSelectedOrder(order)}>Ver Detalhes</DropdownMenuItem>
-                                <ReactToPrint
-                                  trigger={() => (
-                                    <div className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 w-full">
-                                      <Printer className="mr-2 h-4 w-4" />
-                                      Imprimir
-                                    </div>
-                                  )}
-                                  content={() => printRef.current}
-                                  onBeforeGetContent={() => {
-                                    return new Promise<void>((resolve) => {
-                                        setSelectedOrder(order);
-                                        resolve();
-                                    });
+                                <DropdownMenuItem
+                                  onSelect={() => {
+                                    setSelectedOrder(order);
+                                    setTimeout(() => {
+                                        handlePrint();
+                                    }, 100);
                                   }}
-                                  onAfterPrint={() => setSelectedOrder(null)}
-                                />
+                                >
+                                  <Printer className="mr-2 h-4 w-4" />
+                                  Imprimir
+                                </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuLabel>Alterar Status</DropdownMenuLabel>
                                 <DropdownMenuItem onClick={() => handleUpdateStatus(order.id, 'Em preparo')}>Em preparo</DropdownMenuItem>
@@ -359,7 +313,7 @@ export default function OrdersPage() {
                     <Button variant="outline" onClick={() => setSelectedOrder(null)}>Fechar</Button>
                      <ReactToPrint
                         content={() => printRef.current}
-                        trigger={() => <PrintTrigger />}
+                        trigger={() => <PrintTrigger ref={undefined} />}
                      />
                 </DialogFooter>
             </DialogContent>
