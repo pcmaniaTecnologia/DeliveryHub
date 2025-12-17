@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useFirestore } from '@/firebase';
-import { collectionGroup, getDocs, query, where, Timestamp } from 'firebase/firestore';
+import { collectionGroup, getDocs, query, where, Timestamp, orderBy, limit } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -19,6 +19,7 @@ type Order = {
   status: OrderStatus;
   orderDate: Timestamp;
   deliveryType: 'Delivery' | 'Retirada';
+  totalAmount: number;
 };
 
 const statusSteps: { status: OrderStatus, label: string, icon: React.ElementType }[] = [
@@ -32,8 +33,9 @@ const statusSteps: { status: OrderStatus, label: string, icon: React.ElementType
 
 
 export default function TrackOrderPage() {
-  const [orderId, setOrderId] = useState('');
-  const [order, setOrder] = useState<Order | null>(null);
+  const [customerName, setCustomerName] = useState('');
+  const [foundOrders, setFoundOrders] = useState<Order[]>([]);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
@@ -41,52 +43,48 @@ export default function TrackOrderPage() {
   
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!orderId.trim()) {
-      setError('Por favor, insira o ID do pedido.');
+    if (!customerName.trim()) {
+      setError('Por favor, insira o seu nome.');
       return;
     }
     setIsLoading(true);
     setError(null);
-    setOrder(null);
+    setFoundOrders([]);
+    setSelectedOrder(null);
     setSearched(true);
 
     try {
       const ordersRef = collectionGroup(firestore, 'orders');
-      const q = query(ordersRef, where('__name__', '==', orderId.trim()));
+      const q = query(
+        ordersRef, 
+        where('customerName', '==', customerName.trim()),
+        orderBy('orderDate', 'desc'),
+        limit(10) // Limit to last 10 orders for performance
+      );
       
       const querySnapshot = await getDocs(q);
 
       if (querySnapshot.empty) {
-        setError('Pedido não encontrado. Verifique o ID e tente novamente.');
+        setError('Nenhum pedido encontrado para este nome. Verifique se o nome está correto.');
       } else {
-        const orderDoc = querySnapshot.docs[0];
-        const orderData = { id: orderDoc.id, ...orderDoc.data() } as Order;
-
-        // Adjust steps for pickup orders
-        if (orderData.deliveryType === 'Retirada') {
-            const deliveryStepIndex = statusSteps.findIndex(step => step.status === 'Saiu para entrega');
-            if (deliveryStepIndex > -1) {
-                statusSteps.splice(deliveryStepIndex, 1);
-            }
-        }
-        
-        setOrder(orderData);
+        const orders = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
+        setFoundOrders(orders);
       }
     } catch (err) {
       console.error(err);
-      setError('Ocorreu um erro ao buscar seu pedido. Tente novamente mais tarde.');
+      setError('Ocorreu um erro ao buscar seus pedidos. Tente novamente mais tarde.');
     } finally {
       setIsLoading(false);
     }
   };
 
   const getStatusConfig = () => {
-    if (!order) return { currentStep: -1, isCancelled: false };
+    if (!selectedOrder) return { currentStep: -1, isCancelled: false, activeSteps: [] };
     
-    const isCancelled = order.status === 'Cancelado';
+    const isCancelled = selectedOrder.status === 'Cancelado';
     
     let activeSteps = statusSteps;
-    if (order.deliveryType === 'Retirada') {
+    if (selectedOrder.deliveryType === 'Retirada') {
         activeSteps = statusSteps.filter(s => s.status !== 'Saiu para entrega');
     } else {
         activeSteps = statusSteps.filter(s => s.status !== 'Pronto para retirada');
@@ -96,14 +94,14 @@ export default function TrackOrderPage() {
         'Novo', 
         'Aguardando pagamento', 
         'Em preparo', 
-        order.deliveryType === 'Delivery' ? 'Saiu para entrega' : 'Pronto para retirada',
+        selectedOrder.deliveryType === 'Delivery' ? 'Saiu para entrega' : 'Pronto para retirada',
         'Entregue'
     ];
     
-    let currentStep = statusMap.indexOf(order.status);
+    let currentStep = statusMap.indexOf(selectedOrder.status);
 
-    if (order.status === 'Aguardando pagamento') currentStep = 0;
-    if (order.status === 'Pronto para retirada' && order.deliveryType === 'Delivery') currentStep = 2; // Should not happen but as fallback
+    if (selectedOrder.status === 'Aguardando pagamento') currentStep = 0;
+    if (selectedOrder.status === 'Pronto para retirada' && selectedOrder.deliveryType === 'Delivery') currentStep = 2; // Fallback
 
     return { currentStep, isCancelled, activeSteps };
   };
@@ -121,38 +119,62 @@ export default function TrackOrderPage() {
               </div>
               <CardTitle className="mt-4">Acompanhe seu Pedido</CardTitle>
               <CardDescription>
-                Digite o ID do seu pedido para ver o status atual.
+                Digite seu nome para ver o status dos seus pedidos recentes.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSearch} className="flex flex-col gap-4 sm:flex-row">
                 <div className="flex-grow grid gap-2">
-                  <Label htmlFor="order-id" className="sr-only">ID do Pedido</Label>
+                  <Label htmlFor="customer-name" className="sr-only">Seu Nome</Label>
                   <Input
-                    id="order-id"
-                    placeholder="Cole o ID do pedido aqui"
-                    value={orderId}
-                    onChange={(e) => setOrderId(e.target.value)}
+                    id="customer-name"
+                    placeholder="Digite seu nome"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
                     required
                   />
                 </div>
                 <Button type="submit" disabled={isLoading}>
-                  {isLoading ? 'Buscando...' : 'Buscar Pedido'}
+                  {isLoading ? 'Buscando...' : 'Buscar Pedidos'}
                 </Button>
               </form>
             </CardContent>
          </Card>
 
         {searched && !isLoading && (
-            <div className="mt-8">
-              {order && (
+            <div className="mt-8 space-y-4">
+              {foundOrders.length > 0 && !selectedOrder && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Pedidos Encontrados</CardTitle>
+                        <CardDescription>Selecione um pedido para ver os detalhes.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="space-y-3">
+                            {foundOrders.map(order => (
+                                <button key={order.id} onClick={() => setSelectedOrder(order)} className="w-full text-left">
+                                    <div className="border p-4 rounded-lg hover:bg-muted transition-colors">
+                                        <div className="flex justify-between items-center">
+                                            <div className="font-semibold">Pedido de {order.orderDate.toDate().toLocaleDateString('pt-BR')}</div>
+                                            <div className="text-sm">R$ {order.totalAmount.toFixed(2)}</div>
+                                        </div>
+                                        <div className="text-xs text-muted-foreground mt-1">Status: {order.status}</div>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    </CardContent>
+                </Card>
+              )}
+
+              {selectedOrder && (
                 <Card>
                   <CardHeader>
-                    <CardTitle>Status do Pedido #{order.id.substring(0, 6).toUpperCase()}</CardTitle>
+                    <CardTitle>Status do Pedido #{selectedOrder.id.substring(0, 6).toUpperCase()}</CardTitle>
                      <CardDescription>
                         {isCancelled 
                             ? "Este pedido foi cancelado."
-                            : `Seu pedido está ${order.status.toLowerCase()}.`
+                            : `Seu pedido está ${selectedOrder.status.toLowerCase()}.`
                         }
                     </CardDescription>
                   </CardHeader>
@@ -186,6 +208,9 @@ export default function TrackOrderPage() {
                       </div>
                     )}
                   </CardContent>
+                   <CardFooter>
+                      <Button variant="outline" onClick={() => setSelectedOrder(null)}>Voltar para a lista</Button>
+                  </CardFooter>
                 </Card>
               )}
               {error && (
