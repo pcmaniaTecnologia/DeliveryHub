@@ -85,7 +85,7 @@ function RecentOrdersTable({ orders }: { orders: Order[] }) {
                         <TableCell>
                              <Badge variant={order.status === 'Cancelado' ? 'destructive' : 'default'} className="whitespace-nowrap">{order.status}</Badge>
                         </TableCell>
-                        <TableCell className="text-right">R${order.totalAmount.toFixed(2)}</TableCell>
+                        <TableCell className="text-right">R${order.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                     </TableRow>
                 ))}
             </TableBody>
@@ -165,21 +165,19 @@ export default function DashboardPage() {
             const methodsWithValues = methods.map(m => {
                 const match = m.match(/(.+) \(R\$\s*([\d,.]+)\)/);
                 if (match) {
-                     // Correctly parse Brazilian currency format
                     const amount = parseFloat(match[2].replace('.', '').replace(',', '.'));
                     return { method: match[1].trim(), amount };
                 }
                 return { method: m.trim(), amount: null };
             });
 
-            // If only one method and no value, attribute full amount
             if (methodsWithValues.length === 1 && methodsWithValues[0].amount === null) {
                  const singleMethod = methodsWithValues[0].method.toLowerCase();
                  if (singleMethod.includes('dinheiro')) acc.cash += orderTotal;
                  else if (singleMethod.includes('pix')) acc.pix += orderTotal;
                  else if (singleMethod.includes('crédito')) acc.credit += orderTotal;
                  else if (singleMethod.includes('débito')) acc.debit += orderTotal;
-            } else { // Distribute based on values
+            } else { 
                  methodsWithValues.forEach(({ method, amount }) => {
                     const methodLc = method.toLowerCase();
                     const value = amount || 0;
@@ -255,7 +253,7 @@ export default function DashboardPage() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">R${totalSales.toFixed(2)}</div>
+            <div className="text-2xl font-bold">R${totalSales.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
           </CardContent>
         </Card>
         <Card>
@@ -273,7 +271,7 @@ export default function DashboardPage() {
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">R${avgTicket.toFixed(2)}</div>
+            <div className="text-2xl font-bold">R${avgTicket.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
           </CardContent>
         </Card>
         <Card>
@@ -322,27 +320,27 @@ export default function DashboardPage() {
                     <div className="flex items-center">
                         <Banknote className="h-5 w-5 mr-3 text-muted-foreground" />
                         <span className="flex-1">Dinheiro</span>
-                        <span className="font-medium">R$ {salesByPaymentMethod.cash.toFixed(2)}</span>
+                        <span className="font-medium">R$ {salesByPaymentMethod.cash.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
                     <div className="flex items-center">
                         <Landmark className="h-5 w-5 mr-3 text-muted-foreground" />
                         <span className="flex-1">PIX</span>
-                        <span className="font-medium">R$ {salesByPaymentMethod.pix.toFixed(2)}</span>
+                        <span className="font-medium">R$ {salesByPaymentMethod.pix.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
                     <div className="flex items-center">
                         <CreditCard className="h-5 w-5 mr-3 text-muted-foreground" />
                         <span className="flex-1">Cartão de Crédito</span>
-                        <span className="font-medium">R$ {salesByPaymentMethod.credit.toFixed(2)}</span>
+                        <span className="font-medium">R$ {salesByPaymentMethod.credit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
                     <div className="flex items-center">
                         <CreditCard className="h-5 w-5 mr-3 text-muted-foreground" />
                         <span className="flex-1">Cartão de Débito</span>
-                        <span className="font-medium">R$ {salesByPaymentMethod.debit.toFixed(2)}</span>
+                        <span className="font-medium">R$ {salesByPaymentMethod.debit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
                      <div className="flex items-center border-t pt-4 mt-4">
                         <DollarSign className="h-5 w-5 mr-3 text-muted-foreground" />
                         <span className="flex-1 font-bold">Total</span>
-                        <span className="font-bold text-lg">R$ {totalSales.toFixed(2)}</span>
+                        <span className="font-bold text-lg">R$ {totalSales.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
                 </div>
             </CardContent>
