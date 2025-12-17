@@ -50,6 +50,7 @@ type PaymentMethods = {
   pix: boolean;
   credit: boolean;
   debit: boolean;
+  cashAskForChange?: boolean;
 };
 
 type CompanyData = {
@@ -135,33 +136,39 @@ export default function CartSheet({ companyId }: { companyId: string}) {
 
   // Payment State
   const [selectedPayments, setSelectedPayments] = useState<{[key: string]: boolean}>({});
-  const [paymentAmounts, setPaymentAmounts] = useState<{[key: string]: string}>({});
-  
-  const { totalPaid, remainingAmount, change } = useMemo(() => {
-    const total = totalPrice;
-    const paid = Object.values(paymentAmounts).reduce(
-      (sum, amount) => sum + (parseFloat(amount) || 0),
-      0
-    );
-    const difference = paid - total;
-    return {
-      totalPaid: paid,
-      remainingAmount: difference < 0 ? -difference : 0,
-      change: difference > 0 ? difference : 0,
-    };
-  }, [paymentAmounts, totalPrice]);
+  const [cashAmount, setCashAmount] = useState('');
+
+  const changeFor = useMemo(() => {
+    const amount = parseFloat(cashAmount);
+    if (!isNaN(amount) && amount > totalPrice) {
+        return amount - totalPrice;
+    }
+    return 0;
+  }, [cashAmount, totalPrice]);
 
   const handlePlaceOrder = async () => {
     if (!firestore || !companyId) return;
 
-    const paymentMethodsStr = Object.entries(selectedPayments)
-        .filter(([, isSelected]) => isSelected)
-        .map(([method]) => {
-            const amount = paymentAmounts[method] ? ` (R$ ${paymentAmounts[method]})` : '';
-            return `${method}${amount}`;
-        }).join(', ');
+    const paymentMethodsList = Object.entries(selectedPayments)
+      .filter(([, isSelected]) => isSelected)
+      .map(([method]) => method);
 
-    let isFormValid = customerName && customerPhone && paymentMethodsStr;
+    if (paymentMethodsList.length === 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Forma de pagamento',
+        description: 'Por favor, selecione pelo menos uma forma de pagamento.',
+      });
+      return;
+    }
+
+    let paymentMethodsStr = paymentMethodsList.join(', ');
+
+    if (selectedPayments['Dinheiro'] && cashAmount) {
+        paymentMethodsStr = paymentMethodsStr.replace('Dinheiro', `Dinheiro (pagando com R$ ${cashAmount})`);
+    }
+
+    let isFormValid = customerName && customerPhone;
     if (deliveryType === 'Delivery' && (!addressStreet || !addressNumber || !addressNeighborhood)) {
       isFormValid = false;
     }
@@ -170,20 +177,11 @@ export default function CartSheet({ companyId }: { companyId: string}) {
         toast({
             variant: 'destructive',
             title: 'Campos obrigatórios',
-            description: 'Por favor, preencha nome, telefone, endereço (se delivery) e forma de pagamento.',
+            description: 'Por favor, preencha nome, telefone e endereço (se delivery).',
         });
         return;
     }
     
-    if (remainingAmount > 0) {
-        toast({
-            variant: 'destructive',
-            title: 'Pagamento incompleto',
-            description: `Ainda falta R$ ${remainingAmount.toFixed(2)} para completar o pagamento.`,
-        });
-        return;
-    }
-
     const ordersRef = collection(firestore, 'companies', companyId, 'orders');
 
     const fullAddress = deliveryType === 'Delivery'
@@ -224,7 +222,7 @@ export default function CartSheet({ companyId }: { companyId: string}) {
         setAddressNeighborhood('');
         setAddressComplement('');
         setSelectedPayments({});
-        setPaymentAmounts({});
+        setCashAmount('');
         setIsCheckoutOpen(false);
     } catch (error) {
         console.error("Error placing order:", error);
@@ -366,13 +364,7 @@ export default function CartSheet({ companyId }: { companyId: string}) {
                                   id={`payment-${id}`}
                                   checked={!!selectedPayments[id]}
                                   onCheckedChange={(checked) => {
-                                    const newSelected = { ...selectedPayments, [id]: !!checked };
-                                    if (!checked) {
-                                      const newAmounts = { ...paymentAmounts };
-                                      delete newAmounts[id];
-                                      setPaymentAmounts(newAmounts);
-                                    }
-                                    setSelectedPayments(newSelected);
+                                    setSelectedPayments(prev => ({...prev, [id]: !!checked}));
                                   }}
                                 />
                                 <Label htmlFor={`payment-${id}`} className="flex items-center gap-2 font-normal">
@@ -380,47 +372,32 @@ export default function CartSheet({ companyId }: { companyId: string}) {
                                   {label}
                                 </Label>
                               </div>
-                              {selectedPayments[id] && (
-                                <Input
-                                  type="number"
-                                  placeholder={`Valor em ${label}`}
-                                  value={paymentAmounts[id] || ''}
-                                  onChange={(e) => setPaymentAmounts(prev => ({ ...prev, [id]: e.target.value }))}
-                                  className="mt-2 ml-7 w-auto"
-                                />
-                              )}
                             </div>
                           ))}
+                          {selectedPayments['Dinheiro'] && companyData?.paymentMethods?.cashAskForChange && (
+                            <div className="grid gap-2 pl-7 pt-2">
+                                <Label htmlFor="cash-amount">Precisa de troco para quanto?</Label>
+                                <Input id="cash-amount" type="number" value={cashAmount} onChange={e => setCashAmount(e.target.value)} placeholder="Ex: 50.00" />
+                                {changeFor > 0 && (
+                                    <p className="text-sm text-green-600 font-medium">Seu troco será de R$ {changeFor.toFixed(2)}</p>
+                                )}
+                            </div>
+                          )}
                           {enabledPaymentMethods.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma forma de pagamento configurada pela loja.</p>}
                         </div>
                     )}
                 </div>
                  <Separator className="my-4" />
                  <div className="space-y-2 rounded-lg border bg-muted/50 p-4">
-                    <div className="flex justify-between">
+                    <div className="flex justify-between font-bold text-lg">
                         <span>Total do Pedido</span>
-                        <span className="font-semibold">R$ {totalPrice.toFixed(2)}</span>
+                        <span>R$ {totalPrice.toFixed(2)}</span>
                     </div>
-                     <div className="flex justify-between">
-                        <span>Valor Pago</span>
-                        <span className="font-semibold">R$ {totalPaid.toFixed(2)}</span>
-                    </div>
-                    {remainingAmount > 0 ? (
-                        <div className="flex justify-between text-destructive font-bold">
-                            <span>Restante a Pagar</span>
-                            <span>R$ {remainingAmount.toFixed(2)}</span>
-                        </div>
-                    ) : (
-                         <div className="flex justify-between text-green-600 font-bold">
-                            <span>Troco</span>
-                            <span>R$ {change.toFixed(2)}</span>
-                        </div>
-                    )}
                  </div>
             </div>
         </ScrollArea>
         <SheetFooter className="flex-col space-y-4 !space-x-0 pt-4 border-t">
-            <Button size="lg" className="w-full" onClick={handlePlaceOrder} disabled={remainingAmount > 0}>
+            <Button size="lg" className="w-full" onClick={handlePlaceOrder}>
                 Enviar Pedido
             </Button>
             <Button variant="outline" className="w-full" onClick={() => setIsCheckoutOpen(false)}>
@@ -471,3 +448,5 @@ export default function CartSheet({ companyId }: { companyId: string}) {
     </>
   );
 }
+
+    
