@@ -60,3 +60,21 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .printable-content, .printable-content * {
+    visibility: visible;
+  }
+  .printable-content {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+  .non-printable-content {
+    display: none;
+  }
+}
