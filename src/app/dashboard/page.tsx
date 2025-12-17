@@ -1,6 +1,6 @@
 
 'use client';
-import { Banknote, CreditCard, DollarSign, Package, PieChart, Landmark, ShoppingCart, Users } from 'lucide-react';
+import { Banknote, CreditCard, DollarSign, Package, PieChart, Landmark, ShoppingCart, Users, Calendar as CalendarIcon } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -33,6 +33,11 @@ import { collection, type Timestamp } from 'firebase/firestore';
 import { useState, useMemo } from 'react';
 import { subDays, format, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { DateRange } from 'react-day-picker';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
+import { Calendar } from '@/components/ui/calendar';
+
 
 type Order = {
   id: string;
@@ -104,7 +109,41 @@ export default function DashboardPage() {
     
     const { data: orders, isLoading: isLoadingOrders } = useCollection<Order>(ordersRef);
 
-    const [dateRange, setDateRange] = useState<'today' | 'week' | 'month'>('today');
+    const [activePreset, setActivePreset] = useState<'today' | 'week' | 'month' | null>('today');
+    const [dateRange, setDateRange] = useState<DateRange | undefined>({
+        from: startOfDay(new Date()),
+        to: endOfDay(new Date()),
+      });
+
+    const handlePresetChange = (preset: 'today' | 'week' | 'month') => {
+        setActivePreset(preset);
+        const now = new Date();
+        let fromDate: Date;
+        switch(preset) {
+            case 'week':
+                fromDate = startOfDay(subDays(now, 6));
+                break;
+            case 'month':
+                fromDate = startOfDay(subDays(now, 29));
+                break;
+            case 'today':
+            default:
+                fromDate = startOfDay(now);
+                break;
+        }
+        setDateRange({ from: fromDate, to: endOfDay(now) });
+    };
+
+    const handleDateRangeChange = (range: DateRange | undefined) => {
+        if (range) {
+            setDateRange({
+                from: range.from ? startOfDay(range.from) : undefined,
+                to: range.to ? endOfDay(range.to) : range.from ? endOfDay(range.from) : undefined,
+              });
+            setActivePreset(null); // Deselect preset when custom range is chosen
+        }
+    }
+
 
     const { 
         totalSales, 
@@ -128,27 +167,11 @@ export default function DashboardPage() {
             };
         }
 
-        const now = new Date();
-        let startDate: Date;
-
-        switch(dateRange) {
-            case 'week':
-                startDate = startOfDay(subDays(now, 6));
-                break;
-            case 'month':
-                startDate = startOfDay(subDays(now, 29));
-                break;
-            case 'today':
-            default:
-                startDate = startOfDay(now);
-                break;
-        }
-
-        const endDate = endOfDay(now);
-
         const filteredOrders = orders.filter(order => {
+            if (!dateRange?.from) return false;
             const orderDate = order.orderDate.toDate();
-            return isWithinInterval(orderDate, { start: startDate, end: endDate });
+            const toDate = dateRange.to || dateRange.from;
+            return isWithinInterval(orderDate, { start: dateRange.from, end: toDate });
         });
 
         const successfulOrders = filteredOrders.filter(order => order.status !== 'Cancelado');
@@ -157,16 +180,21 @@ export default function DashboardPage() {
         const totalOrders = successfulOrders.length;
         const avgTicket = totalOrders > 0 ? totalSales / totalOrders : 0;
         
+        // Pending orders should probably not be filtered by date range, but all pending orders ever
         const pendingOrders = orders.filter(order => ['Novo', 'Aguardando pagamento', 'Em preparo'].includes(order.status)).length;
         
         const salesByPaymentMethod = successfulOrders.reduce<SalesByPaymentMethod>((acc, order) => {
             const methods = order.paymentMethod.split(', ');
             const orderTotal = order.totalAmount;
             const methodsWithValues = methods.map(m => {
-                const match = m.match(/(.+) \(R\$\s*([\d,.]+)\)/);
+                const match = m.match(/(.+) \(troco para R\$\s*([\d,.]+)\)/);
                 if (match) {
-                    const amount = parseFloat(match[2].replace(',', '.'));
-                    return { method: match[1].trim(), amount };
+                    return { method: match[1].trim(), amount: orderTotal }; // The whole order was paid this way
+                }
+                const matchWithValue = m.match(/(.+) \(R\$\s*([\d,.]+)\)/);
+                 if (matchWithValue) {
+                    const amount = parseFloat(matchWithValue[2].replace(',', '.'));
+                    return { method: matchWithValue[1].trim(), amount };
                 }
                 return { method: m.trim(), amount: null };
             });
@@ -191,8 +219,9 @@ export default function DashboardPage() {
             return acc;
         }, { cash: 0, pix: 0, credit: 0, debit: 0 });
 
+        // Sales chart always shows last 7 days regardless of filter
         const salesChartData = Array.from({ length: 7 }).map((_, i) => {
-            const date = subDays(now, i);
+            const date = subDays(new Date(), i);
             const dayStart = startOfDay(date);
             const dayEnd = endOfDay(date);
             
@@ -221,11 +250,23 @@ export default function DashboardPage() {
     
     const isLoading = isUserLoading || isLoadingOrders;
     
-    const dateRangeLabel = {
-        today: '(dia)',
-        week: '(semana)',
-        month: '(mês)',
-    }[dateRange];
+    const dateRangeLabel = useMemo(() => {
+        if (activePreset) {
+            return {
+                today: '(hoje)',
+                week: '(semana)',
+                month: '(mês)',
+            }[activePreset];
+        }
+        if (dateRange?.from && dateRange.to) {
+            if (format(dateRange.from, 'P') === format(dateRange.to, 'P')) {
+                return `(${format(dateRange.from, 'P', { locale: ptBR })})`;
+            }
+            return `(${format(dateRange.from, 'P', { locale: ptBR })} - ${format(dateRange.to, 'P', { locale: ptBR })})`;
+        }
+        return '';
+    }, [activePreset, dateRange]);
+
 
     if (isLoading) {
         return (
@@ -240,9 +281,46 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between space-y-2">
         <h2 className="text-3xl font-bold tracking-tight">Painel</h2>
         <div className="flex items-center space-x-2">
-            <Button onClick={() => setDateRange('today')} variant={dateRange === 'today' ? 'default' : 'outline'}>Hoje</Button>
-            <Button onClick={() => setDateRange('week')} variant={dateRange === 'week' ? 'default' : 'outline'}>Semana</Button>
-            <Button onClick={() => setDateRange('month')} variant={dateRange === 'month' ? 'default' : 'outline'}>Mês</Button>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  id="date"
+                  variant={"outline"}
+                  className={cn(
+                    "w-[240px] justify-start text-left font-normal",
+                    !dateRange && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dateRange?.from ? (
+                    dateRange.to ? (
+                      <>
+                        {format(dateRange.from, "LLL dd, y")} -{" "}
+                        {format(dateRange.to, "LLL dd, y")}
+                      </>
+                    ) : (
+                      format(dateRange.from, "LLL dd, y")
+                    )
+                  ) : (
+                    <span>Selecione uma data</span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="end">
+                <Calendar
+                  initialFocus
+                  mode="range"
+                  defaultMonth={dateRange?.from}
+                  selected={dateRange}
+                  onSelect={handleDateRangeChange}
+                  numberOfMonths={2}
+                  locale={ptBR}
+                />
+              </PopoverContent>
+            </Popover>
+            <Button onClick={() => handlePresetChange('today')} variant={activePreset === 'today' ? 'default' : 'outline'}>Hoje</Button>
+            <Button onClick={() => handlePresetChange('week')} variant={activePreset === 'week' ? 'default' : 'outline'}>Semana</Button>
+            <Button onClick={() => handlePresetChange('month')} variant={activePreset === 'month' ? 'default' : 'outline'}>Mês</Button>
         </div>
       </div>
 
