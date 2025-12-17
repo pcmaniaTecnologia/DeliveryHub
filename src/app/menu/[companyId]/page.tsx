@@ -8,7 +8,7 @@ import { collection, doc } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { PlaceHolderImages, type ImagePlaceholder } from '@/lib/placeholder-images';
 import { Button } from '@/components/ui/button';
-import { Clock } from 'lucide-react';
+import { Clock, Plus } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCart, type SelectedVariant } from '@/context/cart-context';
 import {
@@ -236,27 +236,33 @@ const ProductCard = ({ product, index }: { product: Product, index: number }) =>
 
     return (
         <>
-            <Card className="flex flex-col overflow-hidden h-full">
-                <div className="relative w-full h-48">
+            <div
+                className="group relative flex cursor-pointer flex-col overflow-hidden rounded-xl border bg-card shadow-sm transition-all duration-300 hover:border-primary hover:shadow-lg"
+                onClick={handleAddToCart}
+            >
+                <div className="relative h-48 w-full overflow-hidden">
                     <Image
                         src={imagePlaceholder.imageUrl}
                         alt={product.name}
                         fill
-                        style={{objectFit:"cover"}}
-                        className="transition-transform duration-300 group-hover:scale-105"
+                        style={{ objectFit: "cover" }}
+                        className="transition-transform duration-500 group-hover:scale-105"
                         data-ai-hint={imagePlaceholder.imageHint}
                         unoptimized
                     />
                 </div>
-                <CardHeader className="flex-grow">
-                    <CardTitle>{product.name}</CardTitle>
-                    <CardDescription className="text-sm text-muted-foreground pt-1">{product.description}</CardDescription>
-                </CardHeader>
-                <CardFooter className="flex items-center justify-between">
-                    <p className="text-lg font-bold text-primary">A partir de R${product.price.toFixed(2)}</p>
-                    <Button onClick={handleAddToCart}>Adicionar</Button>
-                </CardFooter>
-            </Card>
+                <div className="flex flex-1 flex-col p-4">
+                    <h3 className="text-lg font-semibold text-foreground">{product.name}</h3>
+                    <p className="mt-1 flex-grow text-sm text-muted-foreground">{product.description}</p>
+                    <div className="mt-4 flex items-end justify-between">
+                        <span className="text-xl font-bold text-primary">R${product.price.toFixed(2)}</span>
+                         <Button size="icon" className="h-9 w-9 rounded-full">
+                            <Plus className="h-5 w-5" />
+                            <span className="sr-only">Adicionar</span>
+                        </Button>
+                    </div>
+                </div>
+            </div>
             {product.variants && product.variants.length > 0 && (
                 <OptionsDialog 
                     product={product} 
