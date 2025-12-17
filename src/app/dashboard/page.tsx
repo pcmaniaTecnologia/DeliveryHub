@@ -446,10 +446,12 @@ export default function DashboardPage() {
                             Total de vendas do período detalhado por forma de pagamento.
                         </CardDescription>
                     </div>
-                    <Button variant="outline" size="icon" onClick={handlePrint}>
-                        <Printer className="h-4 w-4" />
-                        <span className="sr-only">Imprimir</span>
-                    </Button>
+                    <div onClick={handlePrint} className="cursor-pointer">
+                      <Button variant="outline" size="icon">
+                          <Printer className="h-4 w-4" />
+                          <span className="sr-only">Imprimir</span>
+                      </Button>
+                    </div>
                 </div>
             </CardHeader>
             <CardContent>
