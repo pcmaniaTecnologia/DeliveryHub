@@ -30,14 +30,14 @@ import { Button } from '@/components/ui/button';
 import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, type Timestamp } from 'firebase/firestore';
-import { useState, useMemo, useRef, forwardRef } from 'react';
+import { useState, useMemo, useRef, forwardRef, type Ref } from 'react';
 import { subDays, format, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { DateRange } from 'react-day-picker';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { Calendar } from '@/components/ui/calendar';
-import { useReactToPrint } from 'react-to-print';
+import ReactToPrint, { useReactToPrint } from 'react-to-print';
 import { Separator } from '@/components/ui/separator';
 
 
@@ -119,6 +119,16 @@ const CashierClosingPrintable = forwardRef<HTMLDivElement, {
     );
 });
 CashierClosingPrintable.displayName = 'CashierClosingPrintable';
+
+const PrintTrigger = forwardRef<HTMLButtonElement, React.ComponentProps<typeof Button>>((props, ref) => {
+    return (
+        <Button ref={ref} variant="outline" size="icon" {...props}>
+            <Printer className="h-4 w-4" />
+            <span className="sr-only">Imprimir</span>
+        </Button>
+    );
+});
+PrintTrigger.displayName = 'PrintTrigger';
 
 
 function RecentOrdersTable({ orders }: { orders: Order[] }) {
@@ -446,12 +456,10 @@ export default function DashboardPage() {
                             Total de vendas do período detalhado por forma de pagamento.
                         </CardDescription>
                     </div>
-                    <div onClick={handlePrint} className="cursor-pointer">
-                      <Button variant="outline" size="icon">
-                          <Printer className="h-4 w-4" />
-                          <span className="sr-only">Imprimir</span>
-                      </Button>
-                    </div>
+                     <ReactToPrint
+                        content={() => printRef.current}
+                        trigger={() => <PrintTrigger />}
+                     />
                 </div>
             </CardHeader>
             <CardContent>
@@ -506,5 +514,3 @@ export default function DashboardPage() {
     </>
   );
 }
-
-    
