@@ -37,7 +37,7 @@ import { DateRange } from 'react-day-picker';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { Calendar } from '@/components/ui/calendar';
-import ReactToPrint, { useReactToPrint } from 'react-to-print';
+import { useReactToPrint } from 'react-to-print';
 import { Separator } from '@/components/ui/separator';
 
 
@@ -504,3 +504,7 @@ export default function DashboardPage() {
     </>
   );
 }
+
+    
+
+    
