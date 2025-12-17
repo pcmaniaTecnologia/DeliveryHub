@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -31,6 +32,10 @@ const statusSteps: { status: OrderStatus, label: string, icon: React.ElementType
     { status: 'Entregue', label: 'Entregue', icon: PackageCheck },
 ];
 
+const capitalizeName = (name: string): string => {
+    return name.trim().toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+};
+
 
 export default function TrackOrderPage() {
   const [customerName, setCustomerName] = useState('');
@@ -55,9 +60,10 @@ export default function TrackOrderPage() {
 
     try {
       const ordersRef = collectionGroup(firestore, 'orders');
+      const formattedName = capitalizeName(customerName);
       const q = query(
         ordersRef, 
-        where('customerName', '==', customerName.trim()),
+        where('customerName', '==', formattedName),
         orderBy('orderDate', 'desc'),
         limit(10) // Limit to last 10 orders for performance
       );
