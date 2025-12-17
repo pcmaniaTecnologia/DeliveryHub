@@ -165,7 +165,7 @@ export default function DashboardPage() {
             const methodsWithValues = methods.map(m => {
                 const match = m.match(/(.+) \(R\$\s*([\d,.]+)\)/);
                 if (match) {
-                    const amount = parseFloat(match[2].replace('.', '').replace(',', '.'));
+                    const amount = parseFloat(match[2].replace(',', '.'));
                     return { method: match[1].trim(), amount };
                 }
                 return { method: m.trim(), amount: null };
