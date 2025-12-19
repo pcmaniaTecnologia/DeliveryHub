@@ -117,7 +117,7 @@ export default function AdminLayout({
             </SheetContent>
           </Sheet>
           <div className="w-full flex-1" />
-          <UserNav isAdmin={!!adminData} />
+          <UserNav isAdmin={true} />
         </header>
         <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8 bg-muted/20">
           {children}
