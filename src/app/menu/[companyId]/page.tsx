@@ -53,7 +53,8 @@ export type Product = {
     name: string;
     description: string;
     price: number;
-    category: string;
+    categoryId: string;
+    category?: string; // This might be present from older logic
     isActive: boolean;
     imageUrl?: string;
     variants?: VariantGroup[];
@@ -306,24 +307,27 @@ export default function MenuPage() {
 
     const activeProducts = products.filter(p => p.isActive);
 
-    // First, group by category ID from product
+    const categoriesById = new Map(categories.map(c => [c.id, c.name]));
+
     const grouped = activeProducts.reduce((acc, product) => {
-      const categoryName = product.category || 'Outros';
-      if (!acc[categoryName]) {
-        acc[categoryName] = [];
-      }
-      acc[categoryName].push(product);
-      return acc;
+        const categoryName = categoriesById.get(product.categoryId) || 'Outros';
+        if (!acc[categoryName]) {
+            acc[categoryName] = [];
+        }
+        acc[categoryName].push(product);
+        return acc;
     }, {} as { [key: string]: Product[] });
     
-    // Sort categories based on the categories collection if available, otherwise alphabetically
-     const sortedCategoryNames = Object.keys(grouped).sort((a, b) => {
-        const catA = categories.find(c => c.name === a);
-        const catB = categories.find(c => c.name === b);
-        // Simple sort for now, can be extended with an order field
-        if (catA && catB) return a.localeCompare(b);
-        if (catA) return -1;
-        if (catB) return 1;
+    const categoryOrder = categories.map(c => c.name);
+
+    const sortedCategoryNames = Object.keys(grouped).sort((a, b) => {
+        const indexA = categoryOrder.indexOf(a);
+        const indexB = categoryOrder.indexOf(b);
+        if (a === 'Outros') return 1;
+        if (b === 'Outros') return -1;
+        if (indexA > -1 && indexB > -1) return indexA - indexB;
+        if (indexA > -1) return -1;
+        if (indexB > -1) return 1;
         return a.localeCompare(b);
     });
 

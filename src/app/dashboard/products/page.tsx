@@ -69,6 +69,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Separator } from '@/components/ui/separator';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const variantItemSchema = z.object({
   name: z.string().min(1, "O nome do item é obrigatório."),
@@ -86,7 +87,7 @@ const productFormSchema = z.object({
   name: z.string().min(3, { message: 'O nome deve ter pelo menos 3 caracteres.' }),
   description: z.string().optional(),
   price: z.coerce.number().positive({ message: 'O preço deve ser um número positivo.' }),
-  category: z.string().min(2, { message: 'A categoria é obrigatória.' }),
+  categoryId: z.string().min(1, { message: 'A categoria é obrigatória.' }),
   imageUrl: z.string().url({ message: 'Por favor, insira uma URL válida.' }).optional().or(z.literal('')),
   isActive: z.boolean().default(true),
   variants: z.array(variantGroupSchema).optional(),
@@ -101,7 +102,7 @@ type Product = {
     name: string;
     description: string;
     price: number;
-    category: string;
+    categoryId: string;
     isActive: boolean;
     stock: number;
     imageUrls: string[];
@@ -110,12 +111,20 @@ type Product = {
     variants?: VariantGroup[];
 }
 
+type Category = {
+    id: string;
+    name: string;
+    companyId: string;
+}
+
 export default function ProductsPage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [newCategoryName, setNewCategoryName] = useState('');
   
   const form = useForm<z.infer<typeof productFormSchema>>({
     resolver: zodResolver(productFormSchema),
@@ -123,7 +132,7 @@ export default function ProductsPage() {
       name: '',
       description: '',
       price: 0,
-      category: '',
+      categoryId: '',
       imageUrl: '',
       isActive: true,
       variants: [],
@@ -141,7 +150,7 @@ export default function ProductsPage() {
         name: editingProduct.name,
         description: editingProduct.description || '',
         price: editingProduct.price,
-        category: editingProduct.category,
+        categoryId: editingProduct.categoryId,
         isActive: editingProduct.isActive,
         imageUrl: editingProduct.imageUrl || '',
         variants: editingProduct.variants || [],
@@ -151,7 +160,7 @@ export default function ProductsPage() {
         name: '',
         description: '',
         price: 0,
-        category: '',
+        categoryId: '',
         imageUrl: '',
         isActive: true,
         variants: [],
@@ -165,6 +174,13 @@ export default function ProductsPage() {
   }, [firestore, user]);
 
   const { data: products, isLoading: isLoadingProducts } = useCollection<Product>(productsRef);
+
+  const categoriesRef = useMemoFirebase(() => {
+      if (!firestore || !user) return null;
+      return collection(firestore, `companies/${user.uid}/categories`);
+  }, [firestore, user]);
+
+  const { data: categories, isLoading: isLoadingCategories } = useCollection<Category>(categoriesRef);
 
   const onSubmit = async (values: z.infer<typeof productFormSchema>) => {
     if (!user || !firestore) return;
@@ -233,7 +249,23 @@ export default function ProductsPage() {
     }
   }
 
-  const isLoading = isUserLoading || isLoadingProducts;
+  const handleAddCategory = async () => {
+    if (!newCategoryName.trim()) {
+        toast({ variant: "destructive", title: "Nome da categoria é obrigatório." });
+        return;
+    }
+    if (!categoriesRef) return;
+    try {
+        await addDocument(categoriesRef, { name: newCategoryName, companyId: user?.uid });
+        toast({ title: "Categoria adicionada!" });
+        setNewCategoryName('');
+        setIsCategoryDialogOpen(false);
+    } catch (error) {
+        toast({ variant: "destructive", title: "Erro ao adicionar categoria." });
+    }
+  };
+
+  const isLoading = isUserLoading || isLoadingProducts || isLoadingCategories;
 
   const getProductImage = (product: Product, index: number): ImagePlaceholder => {
     const imageUrl = product.imageUrl || (product.imageUrls && product.imageUrls.length > 0 ? product.imageUrls[0] : '');
@@ -255,6 +287,11 @@ export default function ProductsPage() {
     if (placeholders.length === 0) return defaultPlaceholder;
     return placeholders[index % placeholders.length] ?? defaultPlaceholder;
   };
+  
+  const categoryMap = useMemo(() => {
+    if (!categories) return new Map();
+    return new Map(categories.map(cat => [cat.id, cat.name]));
+  }, [categories]);
 
   return (
     <Card>
@@ -264,10 +301,41 @@ export default function ProductsPage() {
             <CardTitle>Produtos</CardTitle>
             <CardDescription>Gerencie seus produtos, variantes e categorias.</CardDescription>
           </div>
+          <div className="flex gap-2">
+            <Dialog open={isCategoryDialogOpen} onOpenChange={setIsCategoryDialogOpen}>
+                <DialogTrigger asChild>
+                    <Button size="sm" variant="outline">Gerenciar Categorias</Button>
+                </DialogTrigger>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Gerenciar Categorias</DialogTitle>
+                        <DialogDescription>Adicione ou remova categorias de produtos.</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        <div className="flex gap-2">
+                            <Input value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} placeholder="Nome da nova categoria" />
+                            <Button onClick={handleAddCategory}>Adicionar</Button>
+                        </div>
+                        <Separator />
+                        <h4 className="font-medium">Categorias existentes</h4>
+                        <div className="space-y-2">
+                            {categories?.map(cat => (
+                                <div key={cat.id} className="flex items-center justify-between p-2 border rounded-md">
+                                    <span>{cat.name}</span>
+                                    <Button variant="ghost" size="icon" disabled>
+                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                    </Button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
            <Button size="sm" className="gap-1" onClick={() => handleOpenDialog()}>
               <PlusCircle className="h-4 w-4" />
               Adicionar Produto
            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -325,18 +393,27 @@ export default function ProductsPage() {
                     )}
                   />
                     <FormField
-                    control={form.control}
-                    name="category"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Categoria</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Ex: Hambúrgueres" {...field} />
-                        </FormControl>
+                      control={form.control}
+                      name="categoryId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Categoria</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione uma categoria" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                                {categories?.map(cat => (
+                                    <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
                           <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                        </FormItem>
+                      )}
+                    />
                 </div>
                 <FormField
                   control={form.control}
@@ -487,7 +564,7 @@ export default function ProductsPage() {
                   </TableCell>
                   <TableCell>R${product.price.toFixed(2)}</TableCell>
                   <TableCell className="hidden md:table-cell">{product.stock ?? 0}</TableCell>
-                  <TableCell className="hidden md:table-cell">{product.category}</TableCell>
+                  <TableCell className="hidden md:table-cell">{categoryMap.get(product.categoryId) || 'Sem categoria'}</TableCell>
                   <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
