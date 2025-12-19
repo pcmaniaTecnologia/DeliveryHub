@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Package2 } from 'lucide-react';
-import { useUser, useAuth, initiateEmailSignUp, setDocument } from '@/firebase';
+import { useUser, useAuth, initiateEmailSignUp, setDocument, initializeFirebase } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -53,6 +53,7 @@ async function createInitialDocuments(firestore: any, user: User, firstName: str
         role: 'admin',
     };
     
+    // This is the critical part for making the first user a super admin.
     const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
     const adminRoleData = {
         email: user.email,
@@ -72,8 +73,17 @@ export default function SignupPage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
   const auth = useAuth();
-  const firestore = getFirestore();
   const { toast } = useToast();
+  
+  // Lazily get firestore instance only when needed
+  const firestoreInstanceRef = useRef<any | null>(null);
+  if (!firestoreInstanceRef.current) {
+    // This check is to avoid calling initializeFirebase on every render
+    const { firestore } = initializeFirebase(); 
+    firestoreInstanceRef.current = firestore;
+  }
+  const firestore = firestoreInstanceRef.current;
+
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -91,7 +101,15 @@ export default function SignupPage() {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password !== confirmPassword) {
+    if (!auth) {
+        toast({
+            variant: 'destructive',
+            title: 'Erro de sistema',
+            description: 'Serviço de autenticação não está disponível.',
+        });
+        return;
+    }
+     if (password !== confirmPassword) {
       toast({
         variant: 'destructive',
         title: 'Erro de cadastro',
@@ -112,14 +130,19 @@ export default function SignupPage() {
     try {
       const userCredential = await initiateEmailSignUp(auth, email, password);
       
-      await createInitialDocuments(firestore, userCredential.user, firstName, lastName);
+      // Ensure firestore instance is available before proceeding
+      if (firestore && userCredential.user) {
+         await createInitialDocuments(firestore, userCredential.user, firstName, lastName);
+      } else {
+         throw new Error("Não foi possível inicializar o banco de dados para criar os documentos iniciais.");
+      }
        
       toast({
         title: 'Conta criada com sucesso!',
         description: 'Bem-vindo ao DeliveryHub! Sua conta de administrador foi ativada.',
       });
 
-      // Redirect happens via useEffect after user state is confirmed
+      // The redirect is handled by the useEffect hook watching the user state.
       
     } catch (error: any) {
       if (error instanceof FirebaseError && error.code === 'auth/email-already-in-use') {
