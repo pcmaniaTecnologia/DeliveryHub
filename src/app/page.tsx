@@ -16,6 +16,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { FirebaseError } from 'firebase/app';
 
 export default function LoginPage() {
   const { user, isUserLoading } = useUser();
@@ -34,6 +35,7 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!auth) return;
     if (!email || !password) {
       toast({
         variant: 'destructive',
@@ -44,17 +46,25 @@ export default function LoginPage() {
     }
     setIsLoading(true);
     try {
-      initiateEmailSignIn(auth, email, password);
+      await initiateEmailSignIn(auth, email, password);
+      // The redirect is handled by the useEffect hook watching the user state.
     } catch (error: any) {
-      console.error('Falha no login:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Erro de login',
-        description: error.message || 'Ocorreu um erro ao tentar fazer login.',
-      });
+      if (error instanceof FirebaseError && (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found')) {
+         toast({
+            variant: 'destructive',
+            title: 'Credenciais inválidas',
+            description: 'Verifique seu e-mail e senha.',
+         });
+      } else {
+        console.error('Falha no login:', error);
+        toast({
+          variant: 'destructive',
+          title: 'Erro de login',
+          description: error.message || 'Ocorreu um erro ao tentar fazer login.',
+        });
+      }
       setIsLoading(false);
     }
-    // O estado de loading será controlado pelo `onAuthStateChanged` e `isUserLoading`
   };
 
   if (isUserLoading || user) {
