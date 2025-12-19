@@ -17,7 +17,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { doc, getFirestore } from 'firebase/firestore';
+import { doc } from 'firebase/firestore';
 import { FirebaseError } from 'firebase/app';
 import type { User } from 'firebase/auth';
 
@@ -25,21 +25,21 @@ import type { User } from 'firebase/auth';
 async function createInitialDocuments(firestore: any, user: User, firstName: string, lastName: string) {
     if (!user || !firestore || !firstName || !lastName) return;
     
-    const customerRef = doc(firestore, 'customers', user.uid);
-    const customerData = {
-        id: user.uid,
-        firstName,
-        lastName,
+    // This is the critical part for making the first user a super admin.
+    // The path MUST be 'roles_admin' to match firestore.rules
+    const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
+    const adminRoleData = {
         email: user.email,
-        phone: user.phoneNumber || '',
-        address: ''
+        grantedAt: new Date(),
+        name: `${firstName} ${lastName}`,
     };
-
+    
     const companyRef = doc(firestore, 'companies', user.uid);
     const companyData = {
         id: user.uid,
         ownerId: user.uid,
         name: `${firstName}'s Store`,
+        email: user.email,
         isActive: true, // Set to true on creation
     };
 
@@ -50,21 +50,13 @@ async function createInitialDocuments(firestore: any, user: User, firstName: str
         firstName,
         lastName,
         email: user.email,
-        role: 'admin',
+        role: 'admin', // The user is an admin of their own company
     };
     
-    // This is the critical part for making the first user a super admin.
-    const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
-    const adminRoleData = {
-        email: user.email,
-        grantedAt: new Date(),
-    };
-
     await Promise.all([
-        setDocument(customerRef, customerData, { merge: true }),
+        setDocument(adminRoleRef, adminRoleData), // Add user to super admins
         setDocument(companyRef, companyData, { merge: true }),
         setDocument(companyUserRef, companyUserData, { merge: true }),
-        setDocument(adminRoleRef, adminRoleData), // Add user to super admins
     ]);
 }
 
