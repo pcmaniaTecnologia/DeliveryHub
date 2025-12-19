@@ -285,10 +285,13 @@ service cloud.firestore {
     ensuring only authorized personnel can manage roles.
      */
     match /roles_admin/{userId} {
-      allow get, list: if isSuperAdmin();
+      allow get: if isOwner(userId) || isSuperAdmin();
+      allow list: if isSuperAdmin();
       allow create: if isSuperAdmin();
       allow update: if isSuperAdmin() && resource != null;
       allow delete: if isSuperAdmin() && resource != null;
     }
   }
 }
+
+    
