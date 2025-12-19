@@ -17,7 +17,7 @@ import {
   Legend,
 } from 'recharts';
 import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart';
-import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { collection, collectionGroup, getDocs, query, where, Timestamp } from 'firebase/firestore';
 import { useMemo, useState, useEffect } from 'react';
 
@@ -68,21 +68,30 @@ export default function AdminDashboardPage() {
 
             setIsLoadingSales(true);
             
-            const ordersQuery = query(collectionGroup(firestore, 'orders'), where('status', '!=', 'Cancelado'));
-            const ordersSnapshot = await getDocs(ordersQuery);
-            const allOrders = ordersSnapshot.docs.map(doc => doc.data() as Order);
+            try {
+                const ordersQuery = query(collectionGroup(firestore, 'orders'), where('status', '!=', 'Cancelado'));
+                const ordersSnapshot = await getDocs(ordersQuery);
+                const allOrders = ordersSnapshot.docs.map(doc => doc.data() as Order);
 
-            const salesByCompany = companies.map(company => {
-                const companyOrders = allOrders.filter(order => order.companyId === company.id);
-                const totalSales = companyOrders.reduce((sum, order) => sum + order.totalAmount, 0);
-                return {
-                    name: company.name,
-                    Vendas: totalSales,
-                };
-            });
-            
-            setSalesData(salesByCompany);
-            setIsLoadingSales(false);
+                const salesByCompany = companies.map(company => {
+                    const companyOrders = allOrders.filter(order => order.companyId === company.id);
+                    const totalSales = companyOrders.reduce((sum, order) => sum + order.totalAmount, 0);
+                    return {
+                        name: company.name,
+                        Vendas: totalSales,
+                    };
+                });
+                
+                setSalesData(salesByCompany);
+            } catch (error) {
+                 const contextualError = new FirestorePermissionError({
+                    operation: 'list',
+                    path: 'orders (collectionGroup)',
+                });
+                errorEmitter.emit('permission-error', contextualError);
+            } finally {
+                setIsLoadingSales(false);
+            }
         };
 
         fetchSales();
