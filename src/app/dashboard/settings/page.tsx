@@ -392,9 +392,8 @@ export default function SettingsPage() {
       </div>
 
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-6">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-5">
           <TabsTrigger value="profile">Empresa</TabsTrigger>
-          <TabsTrigger value="plan">Plano</TabsTrigger>
           <TabsTrigger value="hours">Horários</TabsTrigger>
           <TabsTrigger value="delivery">Entrega</TabsTrigger>
           <TabsTrigger value="payments">Pagamentos</TabsTrigger>
@@ -527,57 +526,6 @@ export default function SettingsPage() {
               </AlertDialog>
             </CardContent>
           </Card>
-        </TabsContent>
-
-        <TabsContent value="plan">
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <Crown className="h-6 w-6" />
-                        Plano e Assinatura
-                    </CardTitle>
-                    <CardDescription>
-                        Visualize os detalhes do seu plano atual e gerencie sua assinatura.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    {isLoading ? (
-                        <p>Carregando informações do plano...</p>
-                    ) : planData && companyData ? (
-                        <div className="space-y-4">
-                            <div className="rounded-lg border bg-primary/10 p-6 text-center">
-                                <h3 className="text-lg font-semibold">Seu Plano Atual</h3>
-                                <p className="text-4xl font-bold text-primary">{planData.name}</p>
-                            </div>
-                            <div className="space-y-2">
-                                <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Status</span>
-                                    <span className={`font-semibold ${companyData.isActive ? 'text-green-600' : 'text-destructive'}`}>
-                                        {companyData.isActive ? 'Ativo' : 'Inativo/Vencido'}
-                                    </span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Valor</span>
-                                    <span className="font-semibold">R$ {planData.price.toFixed(2)} / mês</span>
-                                </div>
-                                {companyData.subscriptionEndDate && (
-                                <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Válido até</span>
-                                    <span className="font-semibold">
-                                        {format(new Date((companyData.subscriptionEndDate as Timestamp).toDate()), 'dd/MM/yyyy')}
-                                    </span>
-                                </div>
-                                )}
-                            </div>
-                        </div>
-                    ) : (
-                        <p>Não foi possível carregar as informações do seu plano.</p>
-                    )}
-                </CardContent>
-                <CardFooter className="border-t pt-6">
-                    <Button disabled={isLoading}>Gerenciar Assinatura</Button>
-                </CardFooter>
-            </Card>
         </TabsContent>
 
         <TabsContent value="hours">
@@ -871,3 +819,5 @@ export default function SettingsPage() {
     </div>
   );
 }
+
+    
