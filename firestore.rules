@@ -119,7 +119,7 @@ service cloud.firestore {
      */
     match /companies/{companyId} {
       allow get: if true;
-      allow list: if false;
+      allow list: if isSuperAdmin();
       allow create: if isCreatingOwnCompany(companyId);
       allow update: if isCompanyOwner(companyId) || isSuperAdmin();
       allow delete: if isSuperAdmin() && resource != null;
