@@ -5,13 +5,14 @@ import { useState } from 'react';
 import { useFirestore } from '@/firebase';
 import { collectionGroup, getDocs, query, where, Timestamp, orderBy, limit } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { PackageSearch, Package, ChefHat, Bike, PackageCheck, AlertCircle } from 'lucide-react';
+import { PackageSearch, Package, ChefHat, Bike, PackageCheck, AlertCircle, ArrowLeft } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 
 type OrderStatus = 'Novo' | 'Aguardando pagamento' | 'Em preparo' | 'Pronto para retirada' | 'Saiu para entrega' | 'Entregue' | 'Cancelado';
 
@@ -40,6 +41,8 @@ export default function TrackOrderPage() {
   const [error, setError] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
   const firestore = useFirestore();
+  const searchParams = useSearchParams();
+  const companyId = searchParams.get('companyId');
   
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -226,6 +229,16 @@ export default function TrackOrderPage() {
        </div>
         <footer className="mt-12 border-t py-6">
             <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
+                 {companyId && (
+                  <div className="mb-4">
+                    <Link href={`/menu/${companyId}`}>
+                      <Button variant="ghost">
+                        <ArrowLeft className="mr-2 h-4 w-4" />
+                        Voltar ao Cardápio
+                      </Button>
+                    </Link>
+                  </div>
+                )}
                 <p>&copy; {new Date().getFullYear()} DeliveryHub. Todos os direitos reservados.</p>
                 <p className="mt-1">
                     Desenvolvido por <a href="#" className="underline">PC MANIA</a>
