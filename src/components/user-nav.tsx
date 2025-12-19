@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -11,12 +12,21 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useAuth, useUser } from '@/firebase';
+import { useAuth, useDoc, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import Link from 'next/link';
+import { doc } from 'firebase/firestore';
 
 export function UserNav() {
   const { user } = useUser();
   const auth = useAuth();
+  const firestore = useFirestore();
+
+  const adminRef = useMemoFirebase(() => {
+    if (!firestore || !user?.uid) return null;
+    return doc(firestore, 'roles_admin', user.uid);
+  }, [firestore, user?.uid]);
+
+  const { data: adminData } = useDoc(adminRef);
 
   const handleSignOut = () => {
     auth.signOut();
@@ -44,11 +54,13 @@ export function UserNav() {
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
           <DropdownMenuItem asChild>
-            <Link href="/dashboard/settings">Perfil</Link>
+            <Link href="/dashboard">Painel da Loja</Link>
           </DropdownMenuItem>
-          <DropdownMenuItem disabled>
-            Faturamento
-          </DropdownMenuItem>
+          {adminData && (
+             <DropdownMenuItem asChild>
+                <Link href="/admin">Painel do Admin</Link>
+             </DropdownMenuItem>
+          )}
           <DropdownMenuItem asChild>
             <Link href="/dashboard/settings">Configurações</Link>
           </DropdownMenuItem>
