@@ -196,7 +196,7 @@ export default function DashboardLayout({
             </Link>
           </div>
           <div className="flex-1">
-            <DashboardNav newOrdersCount={newOrdersCount} />
+            <DashboardNav newOrdersCount={newOrdersCount} isAdmin={!!adminData} />
           </div>
         </div>
       </div>
@@ -221,7 +221,7 @@ export default function DashboardLayout({
                  </Link>
               </div>
               <div className="mt-5 flex-1">
-                <DashboardNav newOrdersCount={newOrdersCount} />
+                <DashboardNav newOrdersCount={newOrdersCount} isAdmin={!!adminData} />
               </div>
             </SheetContent>
           </Sheet>
