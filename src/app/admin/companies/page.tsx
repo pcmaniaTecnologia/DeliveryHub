@@ -68,45 +68,31 @@ export default function ManageCompaniesPage() {
 
   const { data: companies, isLoading: isLoadingCompanies } = useCollection<Company>(companiesRef);
 
-  const handleToggleActive = async (companyId: string, currentStatus: boolean) => {
+  const handleToggleActive = (companyId: string, currentStatus: boolean) => {
     if (!firestore) return;
     const companyDocRef = doc(firestore, 'companies', companyId);
-    try {
-      await updateDocument(companyDocRef, { isActive: !currentStatus });
-      toast({
+    
+    updateDocument(companyDocRef, { isActive: !currentStatus });
+    
+    toast({
         title: 'Status da Empresa Atualizado!',
         description: `A empresa foi ${!currentStatus ? 'ativada' : 'desativada'}.`,
-      });
-    } catch (error) {
-      console.error("Failed to toggle company status:", error);
-      toast({
-        variant: 'destructive',
-        title: 'Erro ao atualizar',
-        description: 'Não foi possível alterar o status da empresa.',
-      });
-    }
+    });
   };
 
-  const handleDeleteCompany = async (companyId: string) => {
+  const handleDeleteCompany = (companyId: string) => {
     if (!firestore) return;
     // Note: This only deletes the company document. Deleting all sub-collections (products, orders, etc.)
     // should ideally be handled by a Firebase Cloud Function for atomicity and completeness.
     const companyDocRef = doc(firestore, 'companies', companyId);
-    try {
-      await deleteDocument(companyDocRef);
-      toast({
-        title: 'Empresa Excluída',
-        description: 'A empresa foi removida com sucesso. Sub-coleções podem precisar de exclusão manual ou via script.',
-        variant: 'destructive'
-      });
-    } catch (error) {
-      console.error("Failed to delete company:", error);
-       toast({
-        variant: 'destructive',
-        title: 'Erro ao excluir',
-        description: 'Não foi possível remover a empresa.',
-      });
-    }
+    
+    deleteDocument(companyDocRef);
+
+    toast({
+      title: 'Empresa Excluída',
+      description: 'A empresa foi removida com sucesso. Sub-coleções podem precisar de exclusão manual ou via script.',
+      variant: 'destructive'
+    });
   };
   
   const isLoading = isUserLoading || isLoadingCompanies;
@@ -150,7 +136,7 @@ export default function ManageCompaniesPage() {
                     <div className="flex items-center justify-center gap-2">
                          <Switch
                             checked={company.isActive}
-                            onCheckedChange={(checked) => handleToggleActive(company.id, !checked)}
+                            onCheckedChange={() => handleToggleActive(company.id, !!company.isActive)}
                             aria-label={`Ativar ou desativar ${company.name}`}
                         />
                         <AlertDialog>
