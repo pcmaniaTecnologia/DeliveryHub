@@ -107,6 +107,21 @@ service cloud.firestore {
     }
 
     // ------------------------------------------------------------------------
+    // Collection Group Rules
+    // ------------------------------------------------------------------------
+
+    /**
+     * @description Collection group rule for orders. Allows super admins to list all orders across all companies.
+     * @path /companies/{companyId}/orders/{orderId}
+     * @allow (list) A super admin lists all orders for the dashboard analytics.
+     * @principle Grants wide-ranging read access on a specific collection group only to the highest privilege level.
+     */
+    match /{path=**}/orders/{orderId} {
+      allow list: if isSuperAdmin();
+      // get, create, update, delete are not needed here as they are handled by the more specific path rule below.
+    }
+
+    // ------------------------------------------------------------------------
     // Collection Rules
     // ------------------------------------------------------------------------
 
@@ -228,19 +243,7 @@ service cloud.firestore {
       allow update: if false;
       allow delete: if false;
     }
-
-    /**
-     * @description Collection group rule for orders. Allows super admins to list all orders across all companies.
-     * @path /companies/{companyId}/orders/{orderId}
-     * @allow (list) A super admin lists all orders for the dashboard analytics.
-     * @principle Grants wide-ranging read access on a specific collection group only to the highest privilege level.
-     */
-    match /{path=**}/orders/{orderId} {
-      allow list: if isSuperAdmin();
-      // get, create, update, delete are not needed here as they are handled by the more specific path rule above.
-    }
-
-
+    
     /**
      * @description Manages delivery zones for a company. Public to read, writable by company members.
      * @path /companies/{companyId}/deliveryZones/{deliveryZoneId}
@@ -302,3 +305,5 @@ service cloud.firestore {
     }
   }
 }
+
+    
