@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
 import { MoreHorizontal, PlusCircle, Trash2 } from 'lucide-react';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
