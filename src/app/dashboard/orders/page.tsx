@@ -34,7 +34,7 @@ import { MoreHorizontal, Package, Printer, Truck } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import ReactToPrint, { useReactToPrint } from 'react-to-print';
+import { useReactToPrint } from 'react-to-print';
 
 type Company = {
     id: string;
@@ -139,16 +139,6 @@ const PrintableOrder = React.forwardRef<HTMLDivElement, { order: Order; company?
     );
 });
 PrintableOrder.displayName = 'PrintableOrder';
-
-const PrintTrigger = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>((props, ref) => {
-    return (
-      <div ref={ref} {...props}>
-        <Button><Printer className="mr-2 h-4 w-4" />Imprimir</Button>
-      </div>
-    );
-  });
-PrintTrigger.displayName = 'PrintTrigger';
-
 
 export default function OrdersPage() {
     const { user, isUserLoading } = useUser();
@@ -258,17 +248,6 @@ export default function OrdersPage() {
                               <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Ações</DropdownMenuLabel>
                                 <DropdownMenuItem onClick={() => setSelectedOrder(order)}>Ver Detalhes</DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onSelect={() => {
-                                    setSelectedOrder(order);
-                                    setTimeout(() => {
-                                        handlePrint();
-                                    }, 100);
-                                  }}
-                                >
-                                  <Printer className="mr-2 h-4 w-4" />
-                                  Imprimir
-                                </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuLabel>Alterar Status</DropdownMenuLabel>
                                 <DropdownMenuItem onClick={() => handleUpdateStatus(order.id, 'Em preparo')}>Em preparo</DropdownMenuItem>
@@ -302,7 +281,7 @@ export default function OrdersPage() {
     </Card>
     {selectedOrder && (
         <Dialog open={selectedOrder !== null} onOpenChange={(isOpen) => { if (!isOpen) setSelectedOrder(null) }}>
-            <DialogContent>
+            <DialogContent className="sm:max-w-md">
                  <DialogHeader>
                     <DialogTitle>Detalhes do Pedido</DialogTitle>
                 </DialogHeader>
@@ -311,18 +290,11 @@ export default function OrdersPage() {
                  </div>
                  <DialogFooter>
                     <Button variant="outline" onClick={() => setSelectedOrder(null)}>Fechar</Button>
-                     <ReactToPrint
-                        content={() => printRef.current}
-                        trigger={() => <PrintTrigger ref={undefined} />}
-                     />
+                    <Button onClick={handlePrint}><Printer className="mr-2 h-4 w-4" />Imprimir</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
     )}
-    {/* Hidden component for printing from the dropdown */}
-    <div className="hidden">
-      {selectedOrder && <PrintableOrder order={selectedOrder} company={companyData || undefined} ref={printRef} />}
-    </div>
     </>
   );
 }
