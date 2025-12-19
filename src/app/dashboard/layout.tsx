@@ -41,7 +41,7 @@ export default function DashboardLayout({
   const firestore = useFirestore();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [hasInteracted, setHasInteracted] = useState(false);
-  const previousOrdersRef = useRef<Order[]>([]);
+  const previousNewOrdersCountRef = useRef<number>(0);
 
 
   const companyRef = useMemoFirebase(() => {
@@ -96,35 +96,21 @@ export default function DashboardLayout({
 
   // This effect detects new orders and triggers sound
   useEffect(() => {
-      if (!orders || isLoadingOrders || !companyData?.soundNotificationEnabled || !hasInteracted || !audioRef.current) {
+      if (isLoadingOrders || !companyData?.soundNotificationEnabled || !hasInteracted || !audioRef.current) {
           return;
       }
       
-      // Don't play sound on initial load
-      if (previousOrdersRef.current.length === 0 && orders.length > 0) {
-        previousOrdersRef.current = orders;
-        return;
-      }
-
-      // Get the list of order IDs from the previous state
-      const previousOrderIds = new Set(previousOrdersRef.current.map(o => o.id));
-
-      // Find orders that are new (not in the previous list) and have the 'Novo' status
-      const newOrders = orders.filter(order => 
-          !previousOrderIds.has(order.id) && (order.status === 'Novo' || order.status === 'Aguardando pagamento')
-      );
-
-      if (newOrders.length > 0) {
-          // Play sound
+      // Play sound only if the number of new orders has increased since the last check.
+      if (newOrdersCount > previousNewOrdersCountRef.current) {
           if (audioRef.current.paused) {
               audioRef.current.play().catch(err => console.error("Audio playback failed:", err));
           }
       }
 
-      // Update the previous orders ref for the next render
-      previousOrdersRef.current = orders;
+      // Update the previous count ref for the next render.
+      previousNewOrdersCountRef.current = newOrdersCount;
 
-  }, [orders, isLoadingOrders, companyData, hasInteracted]);
+  }, [newOrdersCount, isLoadingOrders, companyData, hasInteracted]);
 
 
   useEffect(() => {
