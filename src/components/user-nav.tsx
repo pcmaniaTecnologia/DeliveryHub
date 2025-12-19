@@ -16,10 +16,21 @@ import { useAuth, useDoc, useFirestore, useMemoFirebase, useUser } from '@/fireb
 import Link from 'next/link';
 import { doc } from 'firebase/firestore';
 
+type Company = {
+  name: string;
+};
+
 export function UserNav() {
   const { user } = useUser();
   const auth = useAuth();
   const firestore = useFirestore();
+
+  const companyRef = useMemoFirebase(() => {
+    if (!firestore || !user?.uid) return null;
+    return doc(firestore, 'companies', user.uid);
+  }, [firestore, user?.uid]);
+
+  const { data: companyData } = useDoc<Company>(companyRef);
 
   const adminRef = useMemoFirebase(() => {
     if (!firestore || !user?.uid) return null;
@@ -29,25 +40,31 @@ export function UserNav() {
   const { data: adminData } = useDoc(adminRef);
 
   const handleSignOut = () => {
-    auth.signOut();
+    if (auth) {
+      auth.signOut();
+    }
   };
+
+  const displayName = companyData?.name || user?.displayName || 'Minha Loja';
+  const displayEmail = user?.email || 'email@exemplo.com';
+
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-8 w-8 rounded-full">
           <Avatar className="h-9 w-9 border">
-            {user?.photoURL && <AvatarImage src={user.photoURL} alt={user.displayName ?? 'User avatar'} />}
-            <AvatarFallback>{user?.displayName?.[0] ?? 'D'}</AvatarFallback>
+            {user?.photoURL && <AvatarImage src={user.photoURL} alt={displayName} />}
+            <AvatarFallback>{displayName?.[0] ?? 'D'}</AvatarFallback>
           </Avatar>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">{user?.displayName ?? 'The Burger Shop'}</p>
+            <p className="text-sm font-medium leading-none">{displayName}</p>
             <p className="text-xs leading-none text-muted-foreground">
-              {user?.email ?? 'contact@burgershop.com'}
+              {displayEmail}
             </p>
           </div>
         </DropdownMenuLabel>
