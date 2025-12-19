@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -111,17 +112,25 @@ export default function SignupPage() {
               email: user.email,
               role: 'admin',
           };
+          
+          // Create the super admin role document
+          const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
+          const adminRoleData = {
+              email: user.email,
+              grantedAt: new Date(),
+          };
 
           // Wait for all documents to be created before proceeding.
           await Promise.all([
             setDocument(customerRef, customerData, { merge: true }),
             setDocument(companyRef, companyData, { merge: true }),
             setDocument(companyUserRef, companyUserData, { merge: true }),
+            setDocument(adminRoleRef, adminRoleData), // Add user to super admins
           ]);
           
           toast({
             title: 'Conta criada com sucesso!',
-            description: 'Bem-vindo ao DeliveryHub!',
+            description: 'Bem-vindo ao DeliveryHub! Sua conta de administrador foi ativada.',
           });
 
           // All documents are created, now we can safely redirect.
@@ -156,7 +165,7 @@ export default function SignupPage() {
     if (isLoading || isCreatingDocs) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center">
-        <p>Configurando sua conta...</p>
+        <p>Configurando sua conta de administrador...</p>
       </div>
     );
   }
