@@ -65,12 +65,6 @@ type DeliveryZone = {
   isActive: boolean;
 };
 
-const capitalizeName = (name: string): string => {
-    if (!name) return '';
-    return name.trim().toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-};
-
-
 const CartItemCard = ({ item }: { item: CartItem }) => {
     const { updateQuantity, removeFromCart, updateNotes } = useCart();
     
@@ -192,7 +186,7 @@ export default function CartSheet({ companyId }: { companyId: string}) {
     const orderData = {
         companyId: companyId,
         customerId: user?.uid || 'anonymous',
-        customerName: capitalizeName(customerName) || 'Anônimo',
+        customerName: customerName.trim(),
         customerPhone: customerPhone,
         orderDate: serverTimestamp(),
         status: 'Novo',
