@@ -42,8 +42,8 @@ export function DashboardNav({ newOrdersCount = 0, isAdmin = false }: { newOrder
             <Link
                 href={adminNavItem.href}
                 className={cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary text-destructive-foreground/70 hover:text-destructive',
-                     { 'bg-destructive/10 text-destructive': pathname.startsWith(adminNavItem.href) }
+                    'flex items-center gap-3 rounded-lg px-3 py-2 text-destructive transition-all hover:bg-destructive/10',
+                     { 'bg-destructive/10': pathname.startsWith(adminNavItem.href) }
                 )}
             >
                 <adminNavItem.icon className="h-4 w-4" />
