@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -57,6 +57,12 @@ export default function DashboardLayout({
   }, [firestore, user?.uid]);
 
   const { data: orders, isLoading: isLoadingOrders } = useCollection<Order>(ordersRef);
+  
+  const newOrdersCount = useMemo(() => {
+    if (!orders) return 0;
+    return orders.filter(order => order.status === 'Novo' || order.status === 'Aguardando pagamento').length;
+  }, [orders]);
+
 
   useEffect(() => {
     // This effect handles the audio initialization and user interaction detection
@@ -88,7 +94,7 @@ export default function DashboardLayout({
       }
       
       // Don't play sound on initial load
-      if (previousOrdersRef.current.length === 0) {
+      if (previousOrdersRef.current.length === 0 && orders.length > 0) {
         previousOrdersRef.current = orders;
         return;
       }
@@ -98,7 +104,7 @@ export default function DashboardLayout({
 
       // Find orders that are new (not in the previous list) and have the 'Novo' status
       const newOrders = orders.filter(order => 
-          !previousOrderIds.has(order.id) && order.status === 'Novo'
+          !previousOrderIds.has(order.id) && (order.status === 'Novo' || order.status === 'Aguardando pagamento')
       );
 
       if (newOrders.length > 0) {
@@ -154,7 +160,7 @@ export default function DashboardLayout({
 }, [companyData]);
 
 
-  if (isUserLoading || isLoadingCompany || !user) {
+  if (isUserLoading || isLoadingCompany || !user || isLoadingOrders) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <p>Carregando...</p>
@@ -183,7 +189,7 @@ export default function DashboardLayout({
             </Link>
           </div>
           <div className="flex-1">
-            <DashboardNav />
+            <DashboardNav newOrdersCount={newOrdersCount} />
           </div>
         </div>
       </div>
@@ -208,7 +214,7 @@ export default function DashboardLayout({
                  </Link>
               </div>
               <div className="mt-5 flex-1">
-                <DashboardNav />
+                <DashboardNav newOrdersCount={newOrdersCount} />
               </div>
             </SheetContent>
           </Sheet>
