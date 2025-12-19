@@ -8,10 +8,6 @@ import {
   Home,
   ShieldCheck,
   Building,
-  BarChart,
-  Package2,
-  Menu,
-  Settings,
 } from 'lucide-react';
 import { useDoc, useFirestore, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
@@ -20,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { UserNav } from '@/components/user-nav';
 import { useUser } from '@/firebase';
+import { Menu } from 'lucide-react';
 
 function AdminNav() {
     const pathname = usePathname();
@@ -120,7 +117,7 @@ export default function AdminLayout({
             </SheetContent>
           </Sheet>
           <div className="w-full flex-1" />
-          <UserNav />
+          <UserNav isAdmin={!!adminData} />
         </header>
         <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8 bg-muted/20">
           {children}

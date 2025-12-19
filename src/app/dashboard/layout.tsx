@@ -51,6 +51,13 @@ export default function DashboardLayout({
 
   const { data: companyData, isLoading: isLoadingCompany } = useDoc<CompanyData>(companyRef);
 
+  const adminRef = useMemoFirebase(() => {
+    if (!firestore || !user?.uid) return null;
+    return doc(firestore, 'roles_admin', user.uid);
+  }, [firestore, user?.uid]);
+
+  const { data: adminData, isLoading: isLoadingAdmin } = useDoc(adminRef);
+
   const ordersRef = useMemoFirebase(() => {
     if (!firestore || !user?.uid) return null;
     return collection(firestore, `companies/${user.uid}/orders`);
@@ -160,7 +167,7 @@ export default function DashboardLayout({
 }, [companyData]);
 
 
-  if (isUserLoading || isLoadingCompany || !user || isLoadingOrders) {
+  if (isUserLoading || isLoadingCompany || !user || isLoadingOrders || isLoadingAdmin) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <p>Carregando...</p>
@@ -219,7 +226,7 @@ export default function DashboardLayout({
             </SheetContent>
           </Sheet>
           <div className="w-full flex-1" />
-          <UserNav />
+          <UserNav isAdmin={!!adminData} />
         </header>
         <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8 bg-muted/20">
           {children}

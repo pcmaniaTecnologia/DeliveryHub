@@ -20,7 +20,7 @@ type Company = {
   name: string;
 };
 
-export function UserNav() {
+export function UserNav({ isAdmin = false }: { isAdmin?: boolean }) {
   const { user } = useUser();
   const auth = useAuth();
   const firestore = useFirestore();
@@ -31,13 +31,6 @@ export function UserNav() {
   }, [firestore, user?.uid]);
 
   const { data: companyData } = useDoc<Company>(companyRef);
-
-  const adminRef = useMemoFirebase(() => {
-    if (!firestore || !user?.uid) return null;
-    return doc(firestore, 'roles_admin', user.uid);
-  }, [firestore, user?.uid]);
-
-  const { data: adminData } = useDoc(adminRef);
 
   const handleSignOut = () => {
     if (auth) {
@@ -55,7 +48,7 @@ export function UserNav() {
         <Button variant="ghost" className="relative h-8 w-8 rounded-full">
           <Avatar className="h-9 w-9 border">
             {user?.photoURL && <AvatarImage src={user.photoURL} alt={displayName} />}
-            <AvatarFallback>{displayName?.[0] ?? 'D'}</AvatarFallback>
+            <AvatarFallback>{displayName?.[0]?.toUpperCase() ?? 'D'}</AvatarFallback>
           </Avatar>
         </Button>
       </DropdownMenuTrigger>
@@ -73,7 +66,7 @@ export function UserNav() {
           <DropdownMenuItem asChild>
             <Link href="/dashboard">Painel da Loja</Link>
           </DropdownMenuItem>
-          {adminData && (
+          {isAdmin && (
              <DropdownMenuItem asChild>
                 <Link href="/admin">Painel do Admin</Link>
              </DropdownMenuItem>
