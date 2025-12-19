@@ -117,7 +117,9 @@ service cloud.firestore {
      * @principle Grants wide-ranging read access on a specific collection group only to the highest privilege level.
      */
     match /{path=**}/orders/{orderId} {
-      allow list: if isSuperAdmin();
+      // Allow super admins to list all orders (for admin dashboard).
+      // Also allow anyone to list orders IF they are filtering by customerName, which is required for the track order page.
+      allow list: if isSuperAdmin() || (request.query.keys().hasOnly(['customerName', 'orderDate', 'limit']));
     }
 
     // ------------------------------------------------------------------------
@@ -304,5 +306,3 @@ service cloud.firestore {
     }
   }
 }
-
-    

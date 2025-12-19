@@ -32,11 +32,6 @@ const statusSteps: { status: OrderStatus, label: string, icon: React.ElementType
     { status: 'Entregue', label: 'Entregue', icon: PackageCheck },
 ];
 
-const capitalizeName = (name: string): string => {
-    return name.trim().toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-};
-
-
 export default function TrackOrderPage() {
   const [customerName, setCustomerName] = useState('');
   const [foundOrders, setFoundOrders] = useState<Order[]>([]);
@@ -60,10 +55,9 @@ export default function TrackOrderPage() {
 
     try {
       const ordersRef = collectionGroup(firestore, 'orders');
-      const formattedName = capitalizeName(customerName);
       const q = query(
         ordersRef, 
-        where('customerName', '==', formattedName),
+        where('customerName', '==', customerName.trim()),
         orderBy('orderDate', 'desc'),
         limit(10) // Limit to last 10 orders for performance
       );
@@ -134,7 +128,7 @@ export default function TrackOrderPage() {
                   <Label htmlFor="customer-name" className="sr-only">Seu Nome</Label>
                   <Input
                     id="customer-name"
-                    placeholder="Digite seu nome"
+                    placeholder="Digite seu nome completo"
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
                     required
