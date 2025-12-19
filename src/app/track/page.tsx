@@ -227,18 +227,18 @@ export default function TrackOrderPage() {
             </div>
         )}
        </div>
+       <div className="mt-8 text-center">
+         {companyId && (
+            <Link href={`/menu/${companyId}`}>
+              <Button variant="outline">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Voltar ao Cardápio
+              </Button>
+            </Link>
+        )}
+       </div>
         <footer className="mt-12 border-t py-6">
             <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-                 {companyId && (
-                  <div className="mb-4">
-                    <Link href={`/menu/${companyId}`}>
-                      <Button variant="ghost">
-                        <ArrowLeft className="mr-2 h-4 w-4" />
-                        Voltar ao Cardápio
-                      </Button>
-                    </Link>
-                  </div>
-                )}
                 <p>&copy; {new Date().getFullYear()} DeliveryHub. Todos os direitos reservados.</p>
                 <p className="mt-1">
                     Desenvolvido por <a href="#" className="underline">PC MANIA</a>
