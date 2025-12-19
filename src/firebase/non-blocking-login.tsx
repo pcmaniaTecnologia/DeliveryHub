@@ -8,16 +8,16 @@ import {
 } from 'firebase/auth';
 
 /** Initiate anonymous sign-in (non-blocking). */
-export function initiateAnonymousSignIn(authInstance: Auth): void {
+export function initiateAnonymousSignIn(authInstance: Auth): Promise<void> {
   // CRITICAL: Call signInAnonymously directly. Do NOT use 'await signInAnonymously(...)'.
-  signInAnonymously(authInstance);
+  return signInAnonymously(authInstance).then(() => {});
   // Code continues immediately. Auth state change is handled by onAuthStateChanged listener.
 }
 
 /** Initiate email/password sign-up (non-blocking). */
-export function initiateEmailSignUp(authInstance: Auth, email: string, password: string): void {
+export function initiateEmailSignUp(authInstance: Auth, email: string, password: string): Promise<void> {
   // CRITICAL: Call createUserWithEmailAndPassword directly. Do NOT use 'await createUserWithEmailAndPassword(...)'.
-  createUserWithEmailAndPassword(authInstance, email, password);
+  return createUserWithEmailAndPassword(authInstance, email, password).then(() => {});
   // Code continues immediately. Auth state change is handled by onAuthStateChanged listener.
 }
 

@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { doc, getFirestore } from 'firebase/firestore';
+import { FirebaseError } from 'firebase/app';
 
 export default function SignupPage() {
   const { user, isUserLoading } = useUser();
@@ -65,15 +66,24 @@ export default function SignupPage() {
     setIsLoading(true);
     try {
       // initiateEmailSignUp is non-blocking. It triggers onAuthStateChanged.
-      initiateEmailSignUp(auth, email, password);
+      // We need to await it here to catch the auth/email-already-in-use error
+      await initiateEmailSignUp(auth, email, password);
     } catch (error: any) {
-      console.error('Falha no cadastro:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Erro de cadastro',
-        description: error.message || 'Ocorreu um erro ao tentar criar a conta.',
-      });
       setIsLoading(false);
+      if (error instanceof FirebaseError && error.code === 'auth/email-already-in-use') {
+        toast({
+          variant: 'destructive',
+          title: 'E-mail já cadastrado',
+          description: 'Este e-mail já está em uso. Tente fazer login ou use um e-mail diferente.',
+        });
+      } else {
+        console.error('Falha no cadastro:', error);
+        toast({
+          variant: 'destructive',
+          title: 'Erro de cadastro',
+          description: error.message || 'Ocorreu um erro ao tentar criar a conta.',
+        });
+      }
     }
   };
 
@@ -101,6 +111,7 @@ export default function SignupPage() {
               id: user.uid,
               ownerId: user.uid,
               name: `${firstName}'s Store`,
+              isActive: true, // Set to true on creation
           };
 
           const companyUserRef = doc(firestore, 'companies', user.uid, 'users', user.uid);
