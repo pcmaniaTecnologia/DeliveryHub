@@ -85,10 +85,10 @@ service cloud.firestore {
     }
     
     /**
-     * Ensures the incoming document has an `ownerId` field matching the user.
+     * Ensures the incoming document on company creation has an ownerId and id matching the user's UID.
      */
-    function isCreatingOwnCompany() {
-      return request.auth.uid == request.resource.data.ownerId;
+    function isCreatingOwnCompany(companyId) {
+      return isOwner(companyId) && request.resource.data.ownerId == request.auth.uid;
     }
 
     /**
@@ -120,7 +120,7 @@ service cloud.firestore {
     match /companies/{companyId} {
       allow get: if true;
       allow list: if false;
-      allow create: if isCreatingOwnCompany();
+      allow create: if isCreatingOwnCompany(companyId);
       allow update: if isCompanyOwner(companyId) || isSuperAdmin();
       allow delete: if isSuperAdmin() && resource != null;
     }
@@ -136,12 +136,9 @@ service cloud.firestore {
     match /companies/{companyId}/users/{userId} {
       allow get: if isOwner(userId) || isCompanyAdmin(companyId) || isSuperAdmin();
       allow list: if isCompanyAdmin(companyId) || isSuperAdmin();
-      // Allow a user to create their own user document in their own company subcollection, but only with the 'admin' role.
-      // Also allow existing company admins or super admins to create users.
-      allow create: if (
-        (isOwner(userId) && companyId == userId && request.resource.data.role == 'admin') || 
-        (isCompanyAdmin(companyId) || isSuperAdmin())
-      ) && request.resource.data.companyId == companyId && request.resource.data.id == userId;
+      // Allow user to create their own doc if they are the owner and companyId matches their UID (initial signup)
+      // OR allow a company admin/super admin to create users.
+      allow create: if (isOwner(userId) && companyId == request.auth.uid) || isCompanyAdmin(companyId) || isSuperAdmin();
       allow update: if resource != null && (isCompanyAdmin(companyId) || isSuperAdmin() || (isOwner(userId) && request.resource.data.role == resource.data.role));
       allow delete: if (isCompanyAdmin(companyId) || isSuperAdmin()) && resource != null;
     }
@@ -287,7 +284,7 @@ service cloud.firestore {
     match /roles_admin/{userId} {
       allow get: if isOwner(userId) || isSuperAdmin();
       allow list: if isSuperAdmin();
-      allow create: if isSuperAdmin();
+      allow create: if isOwner(userId) || isSuperAdmin();
       allow update: if isSuperAdmin() && resource != null;
       allow delete: if isSuperAdmin() && resource != null;
     }
