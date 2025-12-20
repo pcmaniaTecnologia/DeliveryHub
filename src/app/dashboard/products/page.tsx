@@ -108,7 +108,6 @@ type Product = {
     stock: number;
     imageUrls: string[];
     companyId: string;
-    imageUrl?: string;
     variants?: VariantGroup[];
 }
 
@@ -153,7 +152,7 @@ export default function ProductsPage() {
         price: editingProduct.price,
         categoryId: editingProduct.categoryId,
         isActive: editingProduct.isActive,
-        imageUrl: editingProduct.imageUrl || '',
+        imageUrl: editingProduct.imageUrls?.[0] || '',
         variants: editingProduct.variants || [],
       });
     } else {
@@ -269,7 +268,7 @@ export default function ProductsPage() {
   const isLoading = isUserLoading || isLoadingProducts || isLoadingCategories;
 
   const getProductImage = (product: Product, index: number): ImagePlaceholder => {
-    const imageUrl = product.imageUrl || (product.imageUrls && product.imageUrls.length > 0 ? product.imageUrls[0] : '');
+    const imageUrl = product.imageUrls && product.imageUrls.length > 0 ? product.imageUrls[0] : '';
     if (imageUrl) {
       return {
         id: product.id,
