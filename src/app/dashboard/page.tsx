@@ -72,13 +72,13 @@ const chartConfig = {
   },
 };
 
-const CashierClosingPrintable = forwardRef<HTMLDivElement, { 
+const CashierClosingPrintable = ({ salesByPaymentMethod, totalSales, dateRangeLabel }: { 
     salesByPaymentMethod: SalesByPaymentMethod, 
     totalSales: number,
     dateRangeLabel: string,
-}>(({ salesByPaymentMethod, totalSales, dateRangeLabel }, ref) => {
+}) => {
     return (
-        <div ref={ref} className="p-6 font-sans">
+        <div className="p-6 font-sans">
             <div className="text-center mb-6">
                 <h2 className="text-2xl font-bold">Fechamento de Caixa</h2>
                 <p className="text-sm text-gray-500">Período: {dateRangeLabel}</p>
@@ -117,7 +117,7 @@ const CashierClosingPrintable = forwardRef<HTMLDivElement, {
                 </div>
         </div>
     );
-});
+};
 CashierClosingPrintable.displayName = 'CashierClosingPrintable';
 
 
@@ -166,9 +166,9 @@ export default function DashboardPage() {
         to: endOfDay(new Date()),
       });
       
-    const printRef = useRef<HTMLDivElement>(null);
+    const componentRef = useRef<HTMLDivElement>(null);
     const handlePrint = useReactToPrint({
-      content: () => printRef.current,
+      content: () => componentRef.current,
     });
 
     const handlePresetChange = (preset: 'today' | 'week' | 'month') => {
@@ -437,12 +437,13 @@ export default function DashboardPage() {
 
             <div className="col-span-4 lg:col-span-3">
              <div style={{ display: "none" }}>
-                <CashierClosingPrintable 
-                    ref={printRef} 
-                    salesByPaymentMethod={salesByPaymentMethod} 
-                    totalSales={totalSales} 
-                    dateRangeLabel={dateRangeLabel} 
-                />
+                <div ref={componentRef}>
+                    <CashierClosingPrintable
+                        salesByPaymentMethod={salesByPaymentMethod} 
+                        totalSales={totalSales} 
+                        dateRangeLabel={dateRangeLabel} 
+                    />
+                </div>
             </div>
             <Card>
                 <CardHeader>

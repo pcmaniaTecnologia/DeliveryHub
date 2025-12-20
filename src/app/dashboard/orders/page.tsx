@@ -80,9 +80,9 @@ const statusMap: { [key: string]: Order['status'][] } = {
   "Finalizados": ["Entregue", "Cancelado"],
 }
 
-const PrintableOrder = React.forwardRef<HTMLDivElement, { order: Order; company?: Company }>(({ order, company }, ref) => {
+const PrintableOrder = ({ order, company }: { order: Order; company?: Company }) => {
     return (
-        <div ref={ref} className="p-6">
+        <div className="p-6">
             <div className="text-center">
                 <h2 className="text-2xl font-bold">{company?.name || 'Seu Restaurante'}</h2>
                 <p className="text-sm text-gray-500">Pedido: {order.id.substring(0, 6).toUpperCase()}</p>
@@ -137,7 +137,7 @@ const PrintableOrder = React.forwardRef<HTMLDivElement, { order: Order; company?
             </div>
         </div>
     );
-});
+};
 PrintableOrder.displayName = 'PrintableOrder';
 
 export default function OrdersPage() {
@@ -287,9 +287,10 @@ export default function OrdersPage() {
 
 // Separate component for the dialog to manage its own state and refs
 const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order, company?: Company, onOpenChange: (isOpen: boolean) => void }) => {
-    const printRef = useRef<HTMLDivElement>(null);
+    const componentRef = useRef<HTMLDivElement>(null);
+
     const handlePrint = useReactToPrint({
-      content: () => printRef.current,
+      content: () => componentRef.current,
     });
 
     return (
@@ -299,7 +300,9 @@ const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order, co
                     <DialogTitle>Detalhes do Pedido</DialogTitle>
                 </DialogHeader>
                  <div className='max-h-[60vh] overflow-y-auto -mx-6 px-6'>
-                    <PrintableOrder order={order} company={company} ref={printRef} />
+                    <div ref={componentRef}>
+                        <PrintableOrder order={order} company={company} />
+                    </div>
                  </div>
                  <DialogFooter>
                     <Button variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>
