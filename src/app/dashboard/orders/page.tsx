@@ -34,7 +34,7 @@ import { MoreHorizontal, Package, Printer, Truck } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { useReactToPrint } from 'react-to-print';
+import ReactToPrint from 'react-to-print';
 
 type Company = {
     id: string;
@@ -144,7 +144,6 @@ export default function OrdersPage() {
     const { user, isUserLoading } = useUser();
     const firestore = useFirestore();
     const { toast } = useToast();
-    const printRef = useRef<HTMLDivElement>(null);
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
     const companyRef = useMemoFirebase(() => {
@@ -160,10 +159,6 @@ export default function OrdersPage() {
     }, [firestore, user?.uid]);
 
     const { data: orders, isLoading: isLoadingOrders } = useCollection<Order>(ordersRef);
-
-    const handlePrint = useReactToPrint({
-        content: () => printRef.current,
-      });
 
     const handleUpdateStatus = async (orderId: string, status: Order['status']) => {
         if (!firestore || !user) return;
@@ -280,23 +275,37 @@ export default function OrdersPage() {
       </CardContent>
     </Card>
     {selectedOrder && (
-        <Dialog open={selectedOrder !== null} onOpenChange={(isOpen) => { if (!isOpen) setSelectedOrder(null) }}>
+       <OrderDetailsDialog 
+            order={selectedOrder} 
+            company={companyData || undefined}
+            onOpenChange={(isOpen) => !isOpen && setSelectedOrder(null)}
+        />
+    )}
+    </>
+  );
+}
+
+// Separate component for the dialog to manage its own state and refs
+const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order, company?: Company, onOpenChange: (isOpen: boolean) => void }) => {
+    const printRef = useRef<HTMLDivElement>(null);
+
+    return (
+        <Dialog open={true} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-md">
                  <DialogHeader>
                     <DialogTitle>Detalhes do Pedido</DialogTitle>
                 </DialogHeader>
                  <div className='max-h-[60vh] overflow-y-auto -mx-6 px-6'>
-                    <div ref={printRef}>
-                       <PrintableOrder order={selectedOrder} company={companyData || undefined} />
-                    </div>
+                    <PrintableOrder order={order} company={company} ref={printRef} />
                  </div>
                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setSelectedOrder(null)}>Fechar</Button>
-                    <Button onClick={handlePrint}><Printer className="mr-2 h-4 w-4" />Imprimir</Button>
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>
+                    <ReactToPrint
+                        trigger={() => <Button><Printer className="mr-2 h-4 w-4" />Imprimir</Button>}
+                        content={() => printRef.current}
+                    />
                 </DialogFooter>
             </DialogContent>
         </Dialog>
-    )}
-    </>
-  );
-}
+    );
+};
