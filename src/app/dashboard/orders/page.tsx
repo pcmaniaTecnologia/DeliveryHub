@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, forwardRef } from 'react';
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { collection, doc, updateDoc, type Timestamp } from 'firebase/firestore';
 import {
@@ -80,9 +80,9 @@ const statusMap: { [key: string]: Order['status'][] } = {
   "Finalizados": ["Entregue", "Cancelado"],
 }
 
-const PrintableOrder = ({ order, company }: { order: Order; company?: Company }) => {
+const PrintableOrder = forwardRef<HTMLDivElement, { order: Order; company?: Company }>(({ order, company }, ref) => {
     return (
-      <div className="p-6">
+      <div ref={ref} className="p-6">
         <div className="text-center">
             <h2 className="text-2xl font-bold">{company?.name || 'Seu Restaurante'}</h2>
             <p className="text-sm text-gray-500">Pedido: {order.id.substring(0, 6).toUpperCase()}</p>
@@ -137,7 +137,8 @@ const PrintableOrder = ({ order, company }: { order: Order; company?: Company })
         </div>
       </div>
     );
-};
+});
+PrintableOrder.displayName = 'PrintableOrder';
 
 
 export default function OrdersPage() {
@@ -190,7 +191,7 @@ export default function OrdersPage() {
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="Todos">
-          <TabsList className="print:hidden">
+          <TabsList>
             {Object.keys(statusMap).map(status => (
               <TabsTrigger key={status} value={status}>{status}</TabsTrigger>
             ))}
@@ -207,7 +208,7 @@ export default function OrdersPage() {
                         <TableHead className="hidden sm:table-cell">Tipo</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="text-right">Total</TableHead>
-                        <TableHead className="text-right print:hidden">Ações</TableHead>
+                        <TableHead className="text-right">Ações</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -233,7 +234,7 @@ export default function OrdersPage() {
                             <Badge variant={order.status === 'Cancelado' ? 'destructive' : 'default'} className="whitespace-nowrap">{order.status}</Badge>
                           </TableCell>
                           <TableCell className="text-right">R${order.totalAmount.toFixed(2)}</TableCell>
-                          <TableCell className="text-right print:hidden">
+                          <TableCell className="text-right">
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="icon">
@@ -287,9 +288,34 @@ export default function OrdersPage() {
 
 // Separate component for the dialog to manage its own state and refs
 const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order, company?: Company, onOpenChange: (isOpen: boolean) => void }) => {
-    
+    const printRef = useRef<HTMLDivElement>(null);
+
     const handlePrint = () => {
+        const node = printRef.current;
+        if (!node) return;
+
+        const style = document.createElement('style');
+        style.innerHTML = `
+            @media print {
+                body > * {
+                    display: none;
+                }
+                .print-mount {
+                    display: block !important;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+
+        const printMount = document.createElement('div');
+        printMount.classList.add('print-mount');
+        printMount.appendChild(node.cloneNode(true));
+        document.body.appendChild(printMount);
+        
         window.print();
+
+        document.body.removeChild(printMount);
+        document.head.removeChild(style);
     };
 
     return (
@@ -298,10 +324,12 @@ const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order, co
                  <DialogHeader>
                     <DialogTitle>Detalhes do Pedido</DialogTitle>
                 </DialogHeader>
-                 <div className='max-h-[60vh] overflow-y-auto -mx-6 px-6 print-section'>
-                    <PrintableOrder order={order} company={company} />
+                 <div className='max-h-[60vh] overflow-y-auto -mx-6 px-6'>
+                    <div ref={printRef}>
+                       <PrintableOrder order={order} company={company} />
+                    </div>
                  </div>
-                 <DialogFooter className="no-print">
+                 <DialogFooter>
                     <Button variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>
                     <Button onClick={handlePrint}><Printer className="mr-2 h-4 w-4" />Imprimir</Button>
                 </DialogFooter>
