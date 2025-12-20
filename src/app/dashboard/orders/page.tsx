@@ -286,7 +286,9 @@ export default function OrdersPage() {
                     <DialogTitle>Detalhes do Pedido</DialogTitle>
                 </DialogHeader>
                  <div className='max-h-[60vh] overflow-y-auto -mx-6 px-6'>
-                    <PrintableOrder order={selectedOrder} company={companyData || undefined} ref={printRef} />
+                    <div ref={printRef}>
+                       <PrintableOrder order={selectedOrder} company={companyData || undefined} />
+                    </div>
                  </div>
                  <DialogFooter>
                     <Button variant="outline" onClick={() => setSelectedOrder(null)}>Fechar</Button>
