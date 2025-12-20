@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useRef, forwardRef } from 'react';
+import React, { useState, forwardRef } from 'react';
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { collection, doc, updateDoc, type Timestamp } from 'firebase/firestore';
 import {
@@ -184,7 +184,7 @@ export default function OrdersPage() {
 
   return (
     <>
-    <Card>
+    <Card className="no-print">
       <CardHeader>
         <CardTitle>Pedidos</CardTitle>
         <CardDescription>Gerencie seus pedidos e visualize o status de cada um.</CardDescription>
@@ -286,52 +286,20 @@ export default function OrdersPage() {
   );
 }
 
-// Separate component for the dialog to manage its own state and refs
+// Separate component for the dialog to manage its own state
 const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order, company?: Company, onOpenChange: (isOpen: boolean) => void }) => {
-    const printRef = useRef<HTMLDivElement>(null);
-
-    const handlePrint = () => {
-        const node = printRef.current;
-        if (!node) return;
-
-        const style = document.createElement('style');
-        style.innerHTML = `
-            @media print {
-                body > * {
-                    display: none;
-                }
-                .print-mount {
-                    display: block !important;
-                }
-            }
-        `;
-        document.head.appendChild(style);
-
-        const printMount = document.createElement('div');
-        printMount.classList.add('print-mount');
-        printMount.appendChild(node.cloneNode(true));
-        document.body.appendChild(printMount);
-        
-        window.print();
-
-        document.body.removeChild(printMount);
-        document.head.removeChild(style);
-    };
-
     return (
         <Dialog open={true} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-md">
                  <DialogHeader>
                     <DialogTitle>Detalhes do Pedido</DialogTitle>
                 </DialogHeader>
-                 <div className='max-h-[60vh] overflow-y-auto -mx-6 px-6'>
-                    <div ref={printRef}>
-                       <PrintableOrder order={order} company={company} />
-                    </div>
+                 <div className='max-h-[60vh] overflow-y-auto -mx-6 px-6 printable-section'>
+                    <PrintableOrder order={order} company={company} />
                  </div>
-                 <DialogFooter>
+                 <DialogFooter className="no-print">
                     <Button variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>
-                    <Button onClick={handlePrint}><Printer className="mr-2 h-4 w-4" />Imprimir</Button>
+                    <Button onClick={() => window.print()}><Printer className="mr-2 h-4 w-4" />Imprimir</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
