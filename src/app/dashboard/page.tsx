@@ -30,7 +30,7 @@ import { Button } from '@/components/ui/button';
 import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, type Timestamp } from 'firebase/firestore';
-import { useState, useMemo, useRef, forwardRef, type Ref } from 'react';
+import { useState, useMemo, useRef, ReactNode } from 'react';
 import { subDays, format, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { DateRange } from 'react-day-picker';
@@ -38,8 +38,6 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { cn } from '@/lib/utils';
 import { Calendar } from '@/components/ui/calendar';
 import { Separator } from '@/components/ui/separator';
-import { useReactToPrint } from 'react-to-print';
-import React from 'react';
 
 
 type Order = {
@@ -171,10 +169,9 @@ export default function DashboardPage() {
         to: endOfDay(new Date()),
       });
       
-    const componentRef = useRef<HTMLDivElement>(null);
-    const handlePrint = useReactToPrint({
-      content: () => componentRef.current,
-    });
+    const handlePrint = () => {
+        window.print();
+    };
 
     const handlePresetChange = (preset: 'today' | 'week' | 'month') => {
         setActivePreset(preset);
@@ -334,7 +331,14 @@ export default function DashboardPage() {
   
   return (
     <>
-      <div className="space-y-4">
+      <div className="printable-content">
+          <CashierClosingPrintable
+            salesByPaymentMethod={salesByPaymentMethod} 
+            totalSales={totalSales} 
+            dateRangeLabel={dateRangeLabel} 
+          />
+      </div>
+      <div className="space-y-4 non-printable-content">
         <div className="flex items-center justify-between space-y-2">
             <h2 className="text-3xl font-bold tracking-tight">Painel</h2>
             <div className="flex items-center space-x-2">
@@ -441,15 +445,6 @@ export default function DashboardPage() {
             </Card>
 
             <div className="col-span-4 lg:col-span-3">
-             <div style={{ display: "none" }}>
-                <div ref={componentRef}>
-                    <CashierClosingPrintable
-                        salesByPaymentMethod={salesByPaymentMethod} 
-                        totalSales={totalSales} 
-                        dateRangeLabel={dateRangeLabel} 
-                    />
-                </div>
-            </div>
             <Card>
                 <CardHeader>
                     <div className="flex items-center justify-between">

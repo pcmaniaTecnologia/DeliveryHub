@@ -34,7 +34,7 @@ import { MoreHorizontal, Package, Printer, Truck } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { useReactToPrint } from 'react-to-print';
+
 
 type Company = {
     id: string;
@@ -183,7 +183,7 @@ export default function OrdersPage() {
 
   return (
     <>
-    <Card>
+    <Card className="non-printable-content">
       <CardHeader>
         <CardTitle>Pedidos</CardTitle>
         <CardDescription>Gerencie seus pedidos e visualize o status de cada um.</CardDescription>
@@ -287,24 +287,21 @@ export default function OrdersPage() {
 
 // Separate component for the dialog to manage its own state and refs
 const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order, company?: Company, onOpenChange: (isOpen: boolean) => void }) => {
-    const componentRef = useRef<HTMLDivElement>(null);
-
-    const handlePrint = useReactToPrint({
-        content: () => componentRef.current,
-    });
+    
+    const handlePrint = () => {
+        window.print();
+    };
 
     return (
         <Dialog open={true} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="sm:max-w-md non-printable-content">
                  <DialogHeader>
                     <DialogTitle>Detalhes do Pedido</DialogTitle>
                 </DialogHeader>
-                 <div className='max-h-[60vh] overflow-y-auto -mx-6 px-6'>
-                    <div ref={componentRef}>
-                        <PrintableOrder order={order} company={company} />
-                    </div>
+                 <div className='max-h-[60vh] overflow-y-auto -mx-6 px-6 printable-content'>
+                    <PrintableOrder order={order} company={company} />
                  </div>
-                 <DialogFooter>
+                 <DialogFooter className="non-printable-content">
                     <Button variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>
                     <Button onClick={handlePrint}><Printer className="mr-2 h-4 w-4" />Imprimir</Button>
                 </DialogFooter>
