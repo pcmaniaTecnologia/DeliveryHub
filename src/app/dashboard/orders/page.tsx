@@ -80,9 +80,9 @@ const statusMap: { [key: string]: Order['status'][] } = {
   "Finalizados": ["Entregue", "Cancelado"],
 }
 
-const PrintableOrder = forwardRef<HTMLDivElement, { order: Order; company?: Company }>(({ order, company }, ref) => {
+const PrintableOrder = ({ order, company }: { order: Order; company?: Company }) => {
     return (
-      <div ref={ref} className="p-6">
+      <div className="p-6">
         <div className="text-center">
             <h2 className="text-2xl font-bold">{company?.name || 'Seu Restaurante'}</h2>
             <p className="text-sm text-gray-500">Pedido: {order.id.substring(0, 6).toUpperCase()}</p>
@@ -137,8 +137,7 @@ const PrintableOrder = forwardRef<HTMLDivElement, { order: Order; company?: Comp
         </div>
       </div>
     );
-});
-PrintableOrder.displayName = 'PrintableOrder';
+};
 
 
 export default function OrdersPage() {
@@ -184,7 +183,7 @@ export default function OrdersPage() {
 
   return (
     <>
-    <Card className="no-print">
+    <Card>
       <CardHeader>
         <CardTitle>Pedidos</CardTitle>
         <CardDescription>Gerencie seus pedidos e visualize o status de cada um.</CardDescription>
@@ -290,11 +289,11 @@ export default function OrdersPage() {
 const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order, company?: Company, onOpenChange: (isOpen: boolean) => void }) => {
     return (
         <Dialog open={true} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="sm:max-w-md printable-section">
                  <DialogHeader>
                     <DialogTitle>Detalhes do Pedido</DialogTitle>
                 </DialogHeader>
-                 <div className='max-h-[60vh] overflow-y-auto -mx-6 px-6 printable-section'>
+                 <div className='max-h-[60vh] overflow-y-auto -mx-6 px-6'>
                     <PrintableOrder order={order} company={company} />
                  </div>
                  <DialogFooter className="no-print">

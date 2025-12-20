@@ -62,19 +62,21 @@ body {
 }
 
 @media print {
-  body * {
-    visibility: hidden;
-  }
-  .printable-section, .printable-section * {
-    visibility: visible;
+  .no-print {
+    display: none !important;
   }
   .printable-section {
+    display: block !important;
+  }
+  body > *:not(.printable-section) {
+    display: none !important;
+  }
+  body > .printable-section {
     position: absolute;
     left: 0;
     top: 0;
     width: 100%;
-  }
-  .no-print {
-    display: none;
+    height: auto;
+    overflow: visible;
   }
 }
