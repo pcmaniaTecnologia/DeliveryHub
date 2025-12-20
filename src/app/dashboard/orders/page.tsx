@@ -80,67 +80,66 @@ const statusMap: { [key: string]: Order['status'][] } = {
   "Finalizados": ["Entregue", "Cancelado"],
 }
 
-class PrintableOrder extends React.Component<{ order: Order; company?: Company }> {
-    render() {
-        const { order, company } = this.props;
-        return (
-            <div className="p-6">
-                <div className="text-center">
-                    <h2 className="text-2xl font-bold">{company?.name || 'Seu Restaurante'}</h2>
-                    <p className="text-sm text-gray-500">Pedido: {order.id.substring(0, 6).toUpperCase()}</p>
-                    <p className="text-sm text-gray-500">{order.orderDate.toDate().toLocaleString('pt-BR')}</p>
-                </div>
-                <Separator className="my-4" />
-                <div className="space-y-4">
-                    <div className="space-y-1">
-                        <h3 className="font-semibold">Cliente</h3>
-                        <p>{order.customerName || 'Cliente anônimo'}</p>
-                        {order.deliveryType === 'Delivery' && <p className="text-gray-500">{order.deliveryAddress}</p>}
-                    </div>
-                    <Separator />
-                    <div>
-                        <h3 className="font-semibold mb-2">Itens do Pedido</h3>
-                        <table className="w-full text-sm">
-                            <thead>
-                                <tr className="border-b">
-                                    <th className="text-left py-2">Produto</th>
-                                    <th className="text-center py-2">Qtd.</th>
-                                    <th className="text-right py-2">Preço</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {order.orderItems.map((item, index) => (
-                                    <tr key={index} className="border-b">
-                                        <td className="py-2">{item.productName || item.productId}</td>
-                                        <td className="text-center py-2">{item.quantity}</td>
-                                        <td className="text-right py-2">R${(item.unitPrice * item.quantity).toFixed(2)}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                    <Separator />
-                     <div className="space-y-2">
-                         <div className="flex justify-between">
-                            <span>Subtotal</span>
-                            <span>R${order.totalAmount.toFixed(2)}</span>
-                         </div>
-                         <div className="flex justify-between font-bold text-lg">
-                            <span>Total</span>
-                            <span>R${order.totalAmount.toFixed(2)}</span>
-                         </div>
-                    </div>
-                    <Separator />
-                    <div className="space-y-1">
-                        <h3 className="font-semibold">Pagamento</h3>
-                        <p>Forma de Pagamento: {order.paymentMethod}</p>
-                        <p>Tipo de Entrega: {order.deliveryType}</p>
-                    </div>
-                </div>
+const PrintableOrder = React.forwardRef<HTMLDivElement, { order: Order; company?: Company }>((props, ref) => {
+    const { order, company } = props;
+    return (
+      <div ref={ref} className="p-6">
+        <div className="text-center">
+            <h2 className="text-2xl font-bold">{company?.name || 'Seu Restaurante'}</h2>
+            <p className="text-sm text-gray-500">Pedido: {order.id.substring(0, 6).toUpperCase()}</p>
+            <p className="text-sm text-gray-500">{order.orderDate.toDate().toLocaleString('pt-BR')}</p>
+        </div>
+        <Separator className="my-4" />
+        <div className="space-y-4">
+            <div className="space-y-1">
+                <h3 className="font-semibold">Cliente</h3>
+                <p>{order.customerName || 'Cliente anônimo'}</p>
+                {order.deliveryType === 'Delivery' && <p className="text-gray-500">{order.deliveryAddress}</p>}
             </div>
-        );
-    }
-}
+            <Separator />
+            <div>
+                <h3 className="font-semibold mb-2">Itens do Pedido</h3>
+                <table className="w-full text-sm">
+                    <thead>
+                        <tr className="border-b">
+                            <th className="text-left py-2">Produto</th>
+                            <th className="text-center py-2">Qtd.</th>
+                            <th className="text-right py-2">Preço</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {order.orderItems.map((item, index) => (
+                            <tr key={index} className="border-b">
+                                <td className="py-2">{item.productName || item.productId}</td>
+                                <td className="text-center py-2">{item.quantity}</td>
+                                <td className="text-right py-2">R${(item.unitPrice * item.quantity).toFixed(2)}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+            <Separator />
+             <div className="space-y-2">
+                 <div className="flex justify-between">
+                    <span>Subtotal</span>
+                    <span>R${order.totalAmount.toFixed(2)}</span>
+                 </div>
+                 <div className="flex justify-between font-bold text-lg">
+                    <span>Total</span>
+                    <span>R${order.totalAmount.toFixed(2)}</span>
+                 </div>
+            </div>
+            <Separator />
+            <div className="space-y-1">
+                <h3 className="font-semibold">Pagamento</h3>
+                <p>Forma de Pagamento: {order.paymentMethod}</p>
+                <p>Tipo de Entrega: {order.deliveryType}</p>
+            </div>
+        </div>
+      </div>
+    );
+});
+PrintableOrder.displayName = 'PrintableOrder';
 
 
 export default function OrdersPage() {
@@ -290,7 +289,7 @@ export default function OrdersPage() {
 
 // Separate component for the dialog to manage its own state and refs
 const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order, company?: Company, onOpenChange: (isOpen: boolean) => void }) => {
-    const componentRef = useRef<PrintableOrder>(null);
+    const componentRef = useRef<HTMLDivElement>(null);
 
     const handlePrint = useReactToPrint({
       content: () => componentRef.current,

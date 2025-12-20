@@ -74,55 +74,54 @@ const chartConfig = {
 };
 
 
-class CashierClosingPrintable extends React.Component<{ 
+const CashierClosingPrintable = React.forwardRef<HTMLDivElement, { 
     salesByPaymentMethod: SalesByPaymentMethod, 
     totalSales: number,
     dateRangeLabel: string,
-}> {
-    render() {
-        const { salesByPaymentMethod, totalSales, dateRangeLabel } = this.props;
-        return (
-            <div className="p-6 font-sans">
-                <div className="text-center mb-6">
-                    <h2 className="text-2xl font-bold">Fechamento de Caixa</h2>
-                    <p className="text-sm text-gray-500">Período: {dateRangeLabel}</p>
-                    <p className="text-sm text-gray-500">Gerado em: {format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ptBR })}</p>
-                </div>
-                <div className="space-y-4 text-base">
-                        <div className="flex items-center">
-                            <Banknote className="h-5 w-5 mr-3 text-muted-foreground" />
-                            <span className="flex-1">Dinheiro</span>
-                            <span className="font-medium">R$ {salesByPaymentMethod.cash.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                        </div>
-                        <Separator />
-                        <div className="flex items-center">
-                            <Landmark className="h-5 w-5 mr-3 text-muted-foreground" />
-                            <span className="flex-1">PIX</span>
-                            <span className="font-medium">R$ {salesByPaymentMethod.pix.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                        </div>
-                        <Separator />
-                        <div className="flex items-center">
-                            <CreditCard className="h-5 w-5 mr-3 text-muted-foreground" />
-                            <span className="flex-1">Cartão de Crédito</span>
-                            <span className="font-medium">R$ {salesByPaymentMethod.credit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                        </div>
-                        <Separator />
-                        <div className="flex items-center">
-                            <CreditCard className="h-5 w-5 mr-3 text-muted-foreground" />
-                            <span className="flex-1">Cartão de Débito</span>
-                            <span className="font-medium">R$ {salesByPaymentMethod.debit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                        </div>
-                        <Separator className="my-6" />
-                        <div className="flex items-center text-xl">
-                            <DollarSign className="h-6 w-6 mr-3" />
-                            <span className="flex-1 font-bold">Total</span>
-                            <span className="font-bold">R$ {totalSales.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                        </div>
-                    </div>
+}>((props, ref) => {
+    const { salesByPaymentMethod, totalSales, dateRangeLabel } = props;
+    return (
+        <div ref={ref} className="p-6 font-sans">
+            <div className="text-center mb-6">
+                <h2 className="text-2xl font-bold">Fechamento de Caixa</h2>
+                <p className="text-sm text-gray-500">Período: {dateRangeLabel}</p>
+                <p className="text-sm text-gray-500">Gerado em: {format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ptBR })}</p>
             </div>
-        );
-    }
-}
+            <div className="space-y-4 text-base">
+                    <div className="flex items-center">
+                        <Banknote className="h-5 w-5 mr-3 text-muted-foreground" />
+                        <span className="flex-1">Dinheiro</span>
+                        <span className="font-medium">R$ {salesByPaymentMethod.cash.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                    <Separator />
+                    <div className="flex items-center">
+                        <Landmark className="h-5 w-5 mr-3 text-muted-foreground" />
+                        <span className="flex-1">PIX</span>
+                        <span className="font-medium">R$ {salesByPaymentMethod.pix.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                    <Separator />
+                    <div className="flex items-center">
+                        <CreditCard className="h-5 w-5 mr-3 text-muted-foreground" />
+                        <span className="flex-1">Cartão de Crédito</span>
+                        <span className="font-medium">R$ {salesByPaymentMethod.credit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                    <Separator />
+                    <div className="flex items-center">
+                        <CreditCard className="h-5 w-5 mr-3 text-muted-foreground" />
+                        <span className="flex-1">Cartão de Débito</span>
+                        <span className="font-medium">R$ {salesByPaymentMethod.debit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                    <Separator className="my-6" />
+                    <div className="flex items-center text-xl">
+                        <DollarSign className="h-6 w-6 mr-3" />
+                        <span className="flex-1 font-bold">Total</span>
+                        <span className="font-bold">R$ {totalSales.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                </div>
+        </div>
+    );
+});
+CashierClosingPrintable.displayName = 'CashierClosingPrintable';
 
 
 function RecentOrdersTable({ orders }: { orders: Order[] }) {
@@ -170,7 +169,7 @@ export default function DashboardPage() {
         to: endOfDay(new Date()),
       });
       
-    const componentRef = useRef<CashierClosingPrintable>(null);
+    const componentRef = useRef<HTMLDivElement>(null);
     const handlePrint = useReactToPrint({
       content: () => componentRef.current,
     });
