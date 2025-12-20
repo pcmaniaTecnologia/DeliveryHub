@@ -38,7 +38,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { cn } from '@/lib/utils';
 import { Calendar } from '@/components/ui/calendar';
 import { Separator } from '@/components/ui/separator';
-import ReactToPrint from 'react-to-print';
+import { useReactToPrint } from 'react-to-print';
 
 
 type Order = {
@@ -167,6 +167,9 @@ export default function DashboardPage() {
       });
       
     const printRef = useRef<HTMLDivElement>(null);
+    const handlePrint = useReactToPrint({
+      content: () => printRef.current,
+    });
 
     const handlePresetChange = (preset: 'today' | 'week' | 'month') => {
         setActivePreset(preset);
@@ -453,15 +456,10 @@ export default function DashboardPage() {
                                 Total de vendas do período detalhado por forma de pagamento.
                             </CardDescription>
                         </div>
-                        <ReactToPrint
-                            trigger={() => (
-                                <Button variant="outline" size="icon">
-                                    <Printer className="h-4 w-4" />
-                                    <span className="sr-only">Imprimir</span>
-                                </Button>
-                            )}
-                            content={() => printRef.current}
-                        />
+                        <Button variant="outline" size="icon" onClick={handlePrint}>
+                            <Printer className="h-4 w-4" />
+                            <span className="sr-only">Imprimir</span>
+                        </Button>
                     </div>
                 </CardHeader>
                 <CardContent>

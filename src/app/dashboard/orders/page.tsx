@@ -34,7 +34,7 @@ import { MoreHorizontal, Package, Printer, Truck } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import ReactToPrint from 'react-to-print';
+import { useReactToPrint } from 'react-to-print';
 
 type Company = {
     id: string;
@@ -288,6 +288,9 @@ export default function OrdersPage() {
 // Separate component for the dialog to manage its own state and refs
 const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order, company?: Company, onOpenChange: (isOpen: boolean) => void }) => {
     const printRef = useRef<HTMLDivElement>(null);
+    const handlePrint = useReactToPrint({
+      content: () => printRef.current,
+    });
 
     return (
         <Dialog open={true} onOpenChange={onOpenChange}>
@@ -300,10 +303,7 @@ const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order, co
                  </div>
                  <DialogFooter>
                     <Button variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>
-                    <ReactToPrint
-                        trigger={() => <Button><Printer className="mr-2 h-4 w-4" />Imprimir</Button>}
-                        content={() => printRef.current}
-                    />
+                    <Button onClick={handlePrint}><Printer className="mr-2 h-4 w-4" />Imprimir</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
