@@ -6,7 +6,8 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  CardDescription
+  CardDescription,
+  CardFooter,
 } from '@/components/ui/card';
 import {
   Bar,
@@ -447,21 +448,13 @@ export default function DashboardPage() {
             <div className="col-span-4 lg:col-span-3">
             <Card>
                 <CardHeader>
-                    <div className="flex items-center justify-between">
-                        <div className="space-y-1.5">
-                            <CardTitle className="flex items-center gap-2">
-                                <PieChart className="h-5 w-5 text-muted-foreground" />
-                                Fechamento de Caixa {dateRangeLabel}
-                            </CardTitle>
-                            <CardDescription>
-                                Total de vendas do período detalhado por forma de pagamento.
-                            </CardDescription>
-                        </div>
-                        <Button variant="outline" size="icon" onClick={handlePrint}>
-                            <Printer className="h-4 w-4" />
-                            <span className="sr-only">Imprimir</span>
-                        </Button>
-                    </div>
+                    <CardTitle className="flex items-center gap-2">
+                        <PieChart className="h-5 w-5 text-muted-foreground" />
+                        Fechamento de Caixa {dateRangeLabel}
+                    </CardTitle>
+                    <CardDescription>
+                        Total de vendas do período detalhado por forma de pagamento.
+                    </CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="space-y-4">
@@ -485,13 +478,20 @@ export default function DashboardPage() {
                             <span className="flex-1">Cartão de Débito</span>
                             <span className="font-medium">R$ {salesByPaymentMethod.debit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         </div>
-                        <div className="flex items-center border-t pt-4 mt-4">
-                            <DollarSign className="h-5 w-5 mr-3 text-muted-foreground" />
-                            <span className="flex-1 font-bold">Total</span>
-                            <span className="font-bold text-lg">R$ {totalSales.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                        </div>
                     </div>
                 </CardContent>
+                 <CardFooter className="flex-col items-stretch space-y-2">
+                     <Separator />
+                     <div className="flex items-center font-bold text-lg pt-2">
+                        <DollarSign className="h-5 w-5 mr-3" />
+                        <span className="flex-1">Total</span>
+                        <span>R$ {totalSales.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                    <Button variant="outline" onClick={handlePrint} className="w-full">
+                        <Printer className="mr-2 h-4 w-4" />
+                        Imprimir
+                    </Button>
+                </CardFooter>
             </Card>
             </div>
         </div>
