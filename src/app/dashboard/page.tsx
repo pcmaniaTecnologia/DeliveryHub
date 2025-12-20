@@ -72,59 +72,6 @@ const chartConfig = {
   },
 };
 
-
-const CashierClosingPrintable = ({ 
-    salesByPaymentMethod, 
-    totalSales,
-    dateRangeLabel,
-}: { 
-    salesByPaymentMethod: SalesByPaymentMethod, 
-    totalSales: number,
-    dateRangeLabel: string,
-}) => {
-    return (
-        <div className="p-6 font-sans">
-            <div className="text-center mb-6">
-                <h2 className="text-2xl font-bold">Fechamento de Caixa</h2>
-                <p className="text-sm text-gray-500">Período: {dateRangeLabel}</p>
-                <p className="text-sm text-gray-500">Gerado em: {format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ptBR })}</p>
-            </div>
-            <div className="space-y-4 text-base">
-                    <div className="flex items-center">
-                        <Banknote className="h-5 w-5 mr-3 text-muted-foreground" />
-                        <span className="flex-1">Dinheiro</span>
-                        <span className="font-medium">R$ {salesByPaymentMethod.cash.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                    </div>
-                    <Separator />
-                    <div className="flex items-center">
-                        <Landmark className="h-5 w-5 mr-3 text-muted-foreground" />
-                        <span className="flex-1">PIX</span>
-                        <span className="font-medium">R$ {salesByPaymentMethod.pix.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                    </div>
-                    <Separator />
-                    <div className="flex items-center">
-                        <CreditCard className="h-5 w-5 mr-3 text-muted-foreground" />
-                        <span className="flex-1">Cartão de Crédito</span>
-                        <span className="font-medium">R$ {salesByPaymentMethod.credit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                    </div>
-                    <Separator />
-                    <div className="flex items-center">
-                        <CreditCard className="h-5 w-5 mr-3 text-muted-foreground" />
-                        <span className="flex-1">Cartão de Débito</span>
-                        <span className="font-medium">R$ {salesByPaymentMethod.debit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                    </div>
-                    <Separator className="my-6" />
-                    <div className="flex items-center text-xl">
-                        <DollarSign className="h-6 w-6 mr-3" />
-                        <span className="flex-1 font-bold">Total</span>
-                        <span className="font-bold">R$ {totalSales.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                    </div>
-                </div>
-        </div>
-    );
-};
-
-
 function RecentOrdersTable({ orders }: { orders: Order[] }) {
     return (
         <Table>
@@ -331,102 +278,96 @@ export default function DashboardPage() {
     }
   
   return (
-    <>
-      <div className="printable-content">
-          <CashierClosingPrintable
-            salesByPaymentMethod={salesByPaymentMethod} 
-            totalSales={totalSales} 
-            dateRangeLabel={dateRangeLabel} 
-          />
-      </div>
-      <div className="space-y-4 non-printable-content">
-        <div className="flex items-center justify-between space-y-2">
-            <h2 className="text-3xl font-bold tracking-tight">Painel</h2>
-            <div className="flex items-center space-x-2">
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      id="date"
-                      variant={"outline"}
-                      className={cn(
-                        "w-[240px] justify-start text-left font-normal",
-                        !dateRange && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {dateRange?.from ? (
-                        dateRange.to ? (
-                          <>
-                            {format(dateRange.from, "LLL dd, y", { locale: ptBR })} -{" "}
-                            {format(dateRange.to, "LLL dd, y", { locale: ptBR })}
-                          </>
+      <div className="space-y-4">
+        <div className="no-print">
+            <div className="flex items-center justify-between space-y-2">
+                <h2 className="text-3xl font-bold tracking-tight">Painel</h2>
+                <div className="flex items-center space-x-2">
+                    <Popover>
+                    <PopoverTrigger asChild>
+                        <Button
+                        id="date"
+                        variant={"outline"}
+                        className={cn(
+                            "w-[240px] justify-start text-left font-normal",
+                            !dateRange && "text-muted-foreground"
+                        )}
+                        >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {dateRange?.from ? (
+                            dateRange.to ? (
+                            <>
+                                {format(dateRange.from, "LLL dd, y", { locale: ptBR })} -{" "}
+                                {format(dateRange.to, "LLL dd, y", { locale: ptBR })}
+                            </>
+                            ) : (
+                            format(dateRange.from, "LLL dd, y", { locale: ptBR })
+                            )
                         ) : (
-                          format(dateRange.from, "LLL dd, y", { locale: ptBR })
-                        )
-                      ) : (
-                        <span>Selecione uma data</span>
-                      )}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="end">
-                    <Calendar
-                      initialFocus
-                      mode="range"
-                      defaultMonth={dateRange?.from}
-                      selected={dateRange}
-                      onSelect={handleDateRangeChange}
-                      numberOfMonths={2}
-                      locale={ptBR}
-                    />
-                  </PopoverContent>
-                </Popover>
-                <Button onClick={() => handlePresetChange('today')} variant={activePreset === 'today' ? 'default' : 'outline'}>Hoje</Button>
-                <Button onClick={() => handlePresetChange('week')} variant={activePreset === 'week' ? 'default' : 'outline'}>Semana</Button>
-                <Button onClick={() => handlePresetChange('month')} variant={activePreset === 'month' ? 'default' : 'outline'}>Mês</Button>
+                            <span>Selecione uma data</span>
+                        )}
+                        </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="end">
+                        <Calendar
+                        initialFocus
+                        mode="range"
+                        defaultMonth={dateRange?.from}
+                        selected={dateRange}
+                        onSelect={handleDateRangeChange}
+                        numberOfMonths={2}
+                        locale={ptBR}
+                        />
+                    </PopoverContent>
+                    </Popover>
+                    <Button onClick={() => handlePresetChange('today')} variant={activePreset === 'today' ? 'default' : 'outline'}>Hoje</Button>
+                    <Button onClick={() => handlePresetChange('week')} variant={activePreset === 'week' ? 'default' : 'outline'}>Semana</Button>
+                    <Button onClick={() => handlePresetChange('month')} variant={activePreset === 'month' ? 'default' : 'outline'}>Mês</Button>
+                </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total de Vendas {dateRangeLabel}</CardTitle>
+                    <DollarSign className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">R${totalSales.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                </CardContent>
+                </Card>
+                <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total de Pedidos {dateRangeLabel}</CardTitle>
+                    <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">+{totalOrders}</div>
+                </CardContent>
+                </Card>
+                <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Ticket Médio {dateRangeLabel}</CardTitle>
+                    <Package className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">R${avgTicket.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                </CardContent>
+                </Card>
+                <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Pedidos Pendentes</CardTitle>
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">{pendingOrders}</div>
+                </CardContent>
+                </Card>
             </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total de Vendas {dateRangeLabel}</CardTitle>
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-                <div className="text-2xl font-bold">R${totalSales.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-            </CardContent>
-            </Card>
-            <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total de Pedidos {dateRangeLabel}</CardTitle>
-                <ShoppingCart className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-                <div className="text-2xl font-bold">+{totalOrders}</div>
-            </CardContent>
-            </Card>
-            <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Ticket Médio {dateRangeLabel}</CardTitle>
-                <Package className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-                <div className="text-2xl font-bold">R${avgTicket.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-            </CardContent>
-            </Card>
-            <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Pedidos Pendentes</CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-                <div className="text-2xl font-bold">{pendingOrders}</div>
-            </CardContent>
-            </Card>
-        </div>
-
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-            <Card className="col-span-4">
+            <Card className="col-span-4 no-print">
             <CardHeader>
                 <CardTitle>Visão Geral de Vendas (Últimos 7 dias)</CardTitle>
             </CardHeader>
@@ -445,58 +386,58 @@ export default function DashboardPage() {
             </CardContent>
             </Card>
 
-            <div className="col-span-4 lg:col-span-3">
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <PieChart className="h-5 w-5 text-muted-foreground" />
-                        Fechamento de Caixa {dateRangeLabel}
-                    </CardTitle>
-                    <CardDescription>
-                        Total de vendas do período detalhado por forma de pagamento.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="space-y-4">
-                        <div className="flex items-center">
-                            <Banknote className="h-5 w-5 mr-3 text-muted-foreground" />
-                            <span className="flex-1">Dinheiro</span>
-                            <span className="font-medium">R$ {salesByPaymentMethod.cash.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            <div className="col-span-4 lg:col-span-3 print-section">
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <PieChart className="h-5 w-5 text-muted-foreground" />
+                            Fechamento de Caixa {dateRangeLabel}
+                        </CardTitle>
+                        <CardDescription>
+                            Total de vendas do período detalhado por forma de pagamento.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="space-y-4">
+                            <div className="flex items-center">
+                                <Banknote className="h-5 w-5 mr-3 text-muted-foreground" />
+                                <span className="flex-1">Dinheiro</span>
+                                <span className="font-medium">R$ {salesByPaymentMethod.cash.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            </div>
+                            <div className="flex items-center">
+                                <Landmark className="h-5 w-5 mr-3 text-muted-foreground" />
+                                <span className="flex-1">PIX</span>
+                                <span className="font-medium">R$ {salesByPaymentMethod.pix.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            </div>
+                            <div className="flex items-center">
+                                <CreditCard className="h-5 w-5 mr-3 text-muted-foreground" />
+                                <span className="flex-1">Cartão de Crédito</span>
+                                <span className="font-medium">R$ {salesByPaymentMethod.credit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            </div>
+                            <div className="flex items-center">
+                                <CreditCard className="h-5 w-5 mr-3 text-muted-foreground" />
+                                <span className="flex-1">Cartão de Débito</span>
+                                <span className="font-medium">R$ {salesByPaymentMethod.debit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            </div>
                         </div>
-                        <div className="flex items-center">
-                            <Landmark className="h-5 w-5 mr-3 text-muted-foreground" />
-                            <span className="flex-1">PIX</span>
-                            <span className="font-medium">R$ {salesByPaymentMethod.pix.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </CardContent>
+                    <CardFooter className="flex-col items-stretch space-y-2">
+                        <Separator />
+                        <div className="flex items-center font-bold text-lg pt-2">
+                            <DollarSign className="h-5 w-5 mr-3" />
+                            <span className="flex-1">Total</span>
+                            <span>R$ {totalSales.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         </div>
-                        <div className="flex items-center">
-                            <CreditCard className="h-5 w-5 mr-3 text-muted-foreground" />
-                            <span className="flex-1">Cartão de Crédito</span>
-                            <span className="font-medium">R$ {salesByPaymentMethod.credit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                        </div>
-                        <div className="flex items-center">
-                            <CreditCard className="h-5 w-5 mr-3 text-muted-foreground" />
-                            <span className="flex-1">Cartão de Débito</span>
-                            <span className="font-medium">R$ {salesByPaymentMethod.debit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                        </div>
-                    </div>
-                </CardContent>
-                 <CardFooter className="flex-col items-stretch space-y-2">
-                     <Separator />
-                     <div className="flex items-center font-bold text-lg pt-2">
-                        <DollarSign className="h-5 w-5 mr-3" />
-                        <span className="flex-1">Total</span>
-                        <span>R$ {totalSales.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                    </div>
-                    <Button variant="outline" onClick={handlePrint} className="w-full">
-                        <Printer className="mr-2 h-4 w-4" />
-                        Imprimir
-                    </Button>
-                </CardFooter>
-            </Card>
+                        <Button variant="outline" onClick={handlePrint} className="w-full no-print">
+                            <Printer className="mr-2 h-4 w-4" />
+                            Imprimir
+                        </Button>
+                    </CardFooter>
+                </Card>
             </div>
         </div>
 
-        <Card className="col-span-4 lg:col-span-7">
+        <Card className="col-span-4 lg:col-span-7 no-print">
             <CardHeader>
                 <CardTitle>Pedidos Recentes</CardTitle>
             </CardHeader>
@@ -505,6 +446,5 @@ export default function DashboardPage() {
             </CardContent>
             </Card>
       </div>
-    </>
   );
 }

@@ -183,7 +183,7 @@ export default function OrdersPage() {
 
   return (
     <>
-    <Card className="non-printable-content">
+    <Card>
       <CardHeader>
         <CardTitle>Pedidos</CardTitle>
         <CardDescription>Gerencie seus pedidos e visualize o status de cada um.</CardDescription>
@@ -294,14 +294,14 @@ const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order, co
 
     return (
         <Dialog open={true} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-md non-printable-content">
+            <DialogContent className="sm:max-w-md">
                  <DialogHeader>
                     <DialogTitle>Detalhes do Pedido</DialogTitle>
                 </DialogHeader>
-                 <div className='max-h-[60vh] overflow-y-auto -mx-6 px-6 printable-content'>
+                 <div className='max-h-[60vh] overflow-y-auto -mx-6 px-6 print-section'>
                     <PrintableOrder order={order} company={company} />
                  </div>
-                 <DialogFooter className="non-printable-content">
+                 <DialogFooter className="no-print">
                     <Button variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>
                     <Button onClick={handlePrint}><Printer className="mr-2 h-4 w-4" />Imprimir</Button>
                 </DialogFooter>
