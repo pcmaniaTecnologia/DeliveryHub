@@ -112,14 +112,15 @@ service cloud.firestore {
 
     /**
      * @description Collection group rule for orders. Allows super admins to list all orders across all companies.
+     *              Also allows anyone to list orders if they are filtering by customerName.
      * @path /companies/{companyId}/orders/{orderId}
      * @allow (list) A super admin lists all orders for the dashboard analytics.
-     * @principle Grants wide-ranging read access on a specific collection group only to the highest privilege level.
+     * @allow (list) A customer lists their own orders on the tracking page.
+     * @principle Grants wide-ranging read access on a specific collection group only to the highest privilege level,
+     *            and allows limited public queries for specific use cases.
      */
     match /{path=**}/orders/{orderId} {
-      // Allow super admins to list all orders (for admin dashboard).
-      // Allow anyone to list orders if they are filtering by customerName.
-      allow list: if isSuperAdmin() || 'customerName' in request.query.where;
+      allow list: if isSuperAdmin() || (request.query.keys().hasAll(['where', 'orderBy', 'limit']) && request.query.where[0][0] == 'customerName');
     }
 
     // ------------------------------------------------------------------------
@@ -306,5 +307,3 @@ service cloud.firestore {
     }
   }
 }
-
-    
