@@ -62,21 +62,17 @@ body {
 }
 
 @media print {
-  .no-print {
-    display: none !important;
+  body.printing-active {
+    visibility: hidden;
   }
-  .printable-section {
-    display: block !important;
-  }
-  body > *:not(.printable-section) {
-    display: none !important;
-  }
-  body > .printable-section {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: auto;
-    overflow: visible;
+
+  body.printing-active .printable-content-only {
+      visibility: visible;
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
   }
 }
+
+    

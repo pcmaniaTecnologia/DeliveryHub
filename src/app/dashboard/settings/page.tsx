@@ -25,7 +25,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { BellRing, Clock, DollarSign, PlusCircle, Trash2, Copy, Printer, Crown, AlertTriangle } from 'lucide-react';
-import { useFirestore, useDoc, setDocument, useMemoFirebase, useUser, useCollection, addDocument, deleteDocument } from '@/firebase';
+import { useFirestore, useDoc, setDocument, useMemoFirebase, useUser, useCollection, addDocument, deleteDocument, updateDocument } from '@/firebase';
 import { doc, collection, Timestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -69,6 +69,12 @@ type BusinessHours = {
   friday: DayHours;
   saturday: DayHours;
   sunday: DayHours;
+};
+
+type WhatsAppTemplates = {
+    received: string;
+    delivery: string;
+    ready: string;
 };
 
 type DeliveryZone = {
@@ -148,6 +154,12 @@ export default function SettingsPage() {
     sunday: { isOpen: false, openTime: '', closeTime: '' },
   });
 
+  const [whatsappTemplates, setWhatsappTemplates] = useState<WhatsAppTemplates>({
+      received: 'Olá {cliente}, seu pedido nº {pedido_id} foi recebido e já estamos preparando tudo! 🍔',
+      delivery: 'Boas notícias, {cliente}! Seu pedido nº {pedido_id} acabou de sair para entrega e logo chegará até você! 🛵',
+      ready: 'Ei, {cliente}! Seu pedido nº {pedido_id} está prontinho te esperando para retirada. 😊',
+  });
+
   useEffect(() => {
     if (companyData) {
       setStoreName(companyData.name || '');
@@ -175,6 +187,14 @@ export default function SettingsPage() {
         } catch (e) {
           console.error("Error parsing business hours", e);
         }
+      }
+      if (companyData.whatsappMessageTemplates) {
+          try {
+              const templates = JSON.parse(companyData.whatsappMessageTemplates);
+              setWhatsappTemplates(templates);
+          } catch(e) {
+               console.error("Error parsing whatsapp templates", e);
+          }
       }
     }
   }, [companyData]);
@@ -213,7 +233,7 @@ export default function SettingsPage() {
     };
 
     try {
-        await setDocument(companyRef, updatedData, { merge: true });
+        await updateDocument(companyRef, updatedData);
         toast({
             title: 'Sucesso!',
             description: 'As configurações da sua empresa foram salvas.',
@@ -234,7 +254,7 @@ export default function SettingsPage() {
   const handleSavePayments = async () => {
     if (!companyRef) return;
      try {
-        await setDocument(companyRef, { paymentMethods }, { merge: true });
+        await updateDocument(companyRef, { paymentMethods });
         toast({
           title: 'Sucesso!',
           description: 'Métodos de pagamento salvos.',
@@ -258,7 +278,7 @@ export default function SettingsPage() {
     if (!companyRef) return;
     const businessHoursString = JSON.stringify(businessHours);
     try {
-        await setDocument(companyRef, { businessHours: businessHoursString }, { merge: true });
+        await updateDocument(companyRef, { businessHours: businessHoursString });
         toast({
           title: 'Sucesso!',
           description: 'Horários de funcionamento salvos.',
@@ -320,11 +340,26 @@ export default function SettingsPage() {
     if (!firestore || !user) return;
     const zoneRef = doc(firestore, 'companies', user.uid, 'deliveryZones', zone.id);
     try {
-        await setDocument(zoneRef, { isActive }, { merge: true });
+        await updateDocument(zoneRef, { isActive });
     } catch (error) {
         console.error("Failed to update delivery zone status:", error);
     }
   }
+
+  const handleSaveMessages = async () => {
+    if (!companyRef) return;
+    const whatsappTemplatesString = JSON.stringify(whatsappTemplates);
+    try {
+        await updateDocument(companyRef, { whatsappMessageTemplates: whatsappTemplatesString });
+        toast({
+            title: 'Sucesso!',
+            description: 'Mensagens do WhatsApp salvas.',
+        });
+    } catch(error) {
+        console.error("Failed to save whatsapp templates:", error);
+        toast({ variant: 'destructive', title: 'Erro ao salvar mensagens' });
+    }
+  };
 
   const handleDeleteStore = async () => {
     if (!companyRef || !user) {
@@ -704,15 +739,16 @@ export default function SettingsPage() {
             <CardHeader>
               <CardTitle>Mensagens do WhatsApp</CardTitle>
               <CardDescription>
-                Personalize as mensagens automáticas enviadas aos clientes.
+                Personalize as mensagens automáticas enviadas aos clientes. Use {'{cliente}'} e {'{pedido_id}'} como variáveis.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="msg-received">Pedido Recebido</Label>
+                <Label htmlFor="msg-received">Pedido Recebido / Em Preparo</Label>
                 <Textarea
                   id="msg-received"
-                  defaultValue="Olá {cliente}, seu pedido nº {pedido_id} foi recebido e já estamos preparando tudo! 🍔"
+                  value={whatsappTemplates.received}
+                  onChange={(e) => setWhatsappTemplates(p => ({...p, received: e.target.value}))}
                   disabled={isLoading || companyData?.isActive === false}
                 />
               </div>
@@ -720,7 +756,8 @@ export default function SettingsPage() {
                 <Label htmlFor="msg-delivery">Saiu para Entrega</Label>
                 <Textarea
                   id="msg-delivery"
-                  defaultValue="Boas notícias, {cliente}! Seu pedido nº {pedido_id} acabou de sair para entrega e logo chegará até você! 🛵"
+                  value={whatsappTemplates.delivery}
+                  onChange={(e) => setWhatsappTemplates(p => ({...p, delivery: e.target.value}))}
                   disabled={isLoading || companyData?.isActive === false}
                 />
               </div>
@@ -728,13 +765,14 @@ export default function SettingsPage() {
                 <Label htmlFor="msg-ready">Pronto para Retirada</Label>
                 <Textarea
                   id="msg-ready"
-                  defaultValue="Ei, {cliente}! Seu pedido nº {pedido_id} está prontinho te esperando para retirada. 😊"
+                  value={whatsappTemplates.ready}
+                  onChange={(e) => setWhatsappTemplates(p => ({...p, ready: e.target.value}))}
                   disabled={isLoading || companyData?.isActive === false}
                 />
               </div>
             </CardContent>
             <CardFooter>
-              <Button disabled={isLoading || companyData?.isActive === false}>Salvar Mensagens</Button>
+              <Button onClick={handleSaveMessages} disabled={isLoading || companyData?.isActive === false}>Salvar Mensagens</Button>
             </CardFooter>
           </Card>
         </TabsContent>
@@ -819,5 +857,7 @@ export default function SettingsPage() {
     </div>
   );
 }
+
+    
 
     
