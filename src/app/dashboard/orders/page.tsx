@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, forwardRef, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc, updateDocument, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { collection, doc, getDoc, type Timestamp } from 'firebase/firestore';
 import {
@@ -180,17 +180,13 @@ export default function OrdersPage() {
             errorEmitter.emit('permission-error', permissionError);
         });
 
-        // This part is optimistic and runs immediately.
-        // The error handling above will deal with permissions issues.
         toast({
             title: 'Status do Pedido Atualizado!',
             description: `O pedido foi marcado como "${status}".`,
         });
 
-        try {
-            const customerRef = doc(firestore, 'customers', order.customerId);
-            const customerSnap = await getDoc(customerRef);
-
+        const customerRef = doc(firestore, 'customers', order.customerId);
+        getDoc(customerRef).then(customerSnap => {
             if (!customerSnap.exists()) {
                 console.warn('Cliente não encontrado para notificação via WhatsApp.');
                 return;
@@ -228,17 +224,25 @@ export default function OrdersPage() {
             const whatsappUrl = `https://wa.me/55${customerPhone}?text=${encodeURIComponent(message)}`;
             window.open(whatsappUrl, '_blank');
 
-        } catch (error) {
-            console.error("Erro ao preparar notificação do WhatsApp:", error);
+        }).catch(serverError => {
+            const permissionError = new FirestorePermissionError({
+                path: customerRef.path,
+                operation: 'get',
+            });
+            errorEmitter.emit('permission-error', permissionError);
             toast({
                 variant: 'destructive',
-                title: 'Erro de Notificação',
-                description: 'Não foi possível preparar a mensagem para o WhatsApp.',
+                title: 'Erro de Permissão',
+                description: 'Não foi possível buscar os dados do cliente para a notificação.',
             });
-        }
+        });
     };
     
     const isLoading = isUserLoading || isLoadingOrders || isLoadingCompany;
+
+    const handlePrint = () => {
+        window.print();
+    };
 
   return (
     <>
@@ -338,40 +342,24 @@ export default function OrdersPage() {
             order={selectedOrder} 
             company={companyData || undefined}
             onOpenChange={(isOpen) => !isOpen && setSelectedOrder(null)}
+            onPrint={handlePrint}
         />
     )}
     </>
   );
 }
 
-const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order; company?: Company; onOpenChange: (isOpen: boolean) => void }) => {
-    const printableContentRef = useRef<HTMLDivElement>(null);
-    const componentRef = useRef<PrintableOrder>(null);
-
-    const handlePrint = () => {
-        document.body.classList.add('printing-active');
-        if (printableContentRef.current) {
-            printableContentRef.current.classList.add('printable-content-only');
-        }
-        window.print();
-        if (printableContentRef.current) {
-            printableContentRef.current.classList.remove('printable-content-only');
-        }
-        document.body.classList.remove('printing-active');
-    };
+const OrderDetailsDialog = ({ order, company, onOpenChange, onPrint }: { order: Order; company?: Company; onOpenChange: (isOpen: boolean) => void; onPrint: () => void; }) => {
     
-
     return (
         <Dialog open={!!order} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-md">
-                <div ref={printableContentRef}>
-                    <DialogHeader>
-                        <DialogTitle>Detalhes do Pedido #{order.id.substring(0, 6).toUpperCase()}</DialogTitle>
-                    </DialogHeader>
-                     <PrintableOrder ref={componentRef} order={order} company={company} />
-                </div>
+            <DialogContent className="max-w-md printable-section">
+                <DialogHeader>
+                    <DialogTitle>Detalhes do Pedido #{order.id.substring(0, 6).toUpperCase()}</DialogTitle>
+                </DialogHeader>
+                <PrintableOrder order={order} company={company} />
                  <DialogFooter className='non-printable-content'>
-                    <Button variant="outline" onClick={handlePrint}>
+                    <Button variant="outline" onClick={onPrint}>
                         <Printer className="mr-2 h-4 w-4" />
                         Imprimir
                     </Button>
