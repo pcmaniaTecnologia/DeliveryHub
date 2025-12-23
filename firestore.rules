@@ -118,8 +118,8 @@ service cloud.firestore {
      */
     match /{path=**}/orders/{orderId} {
       // Allow super admins to list all orders (for admin dashboard).
-      // Also allow anyone to list orders IF they are filtering by customerName, which is required for the track order page.
-      allow list: if isSuperAdmin() || (request.query.keys().hasOnly(['customerName', 'orderDate', 'limit']));
+      // Allow anyone to list orders if they are filtering by customerName.
+      allow list: if isSuperAdmin() || 'customerName' in request.query.where;
     }
 
     // ------------------------------------------------------------------------
@@ -260,15 +260,15 @@ service cloud.firestore {
     }
 
     /**
-     * @description Manages customer profiles. A user can only access and manage their own profile.
+     * @description Manages customer profiles. A user can only access and manage their own profile. Super admins can also read.
      * @path /customers/{customerId}
      * @allow (create) A new user signs up and creates their own customer profile document.
-     * @deny (get) A user tries to read the profile data of another user.
+     * @deny (get) A user tries to read the profile data of another user (unless they are a super admin).
      * @deny (list) Any user tries to list all customers in the database.
-     * @principle Enforces a strict data ownership model and prevents user enumeration to protect privacy.
+     * @principle Enforces a strict data ownership model and prevents user enumeration, while allowing admin oversight.
      */
     match /customers/{customerId} {
-      allow get: if isOwner(customerId);
+      allow get: if isOwner(customerId) || isSuperAdmin();
       allow list: if false;
       allow create: if isCreatingOwnDoc(customerId);
       allow update: if isOwner(customerId) && resource != null && isMaintainingOwnDoc();
@@ -306,3 +306,5 @@ service cloud.firestore {
     }
   }
 }
+
+    
