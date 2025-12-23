@@ -58,10 +58,11 @@ export default function AdminDashboardPage() {
 
     const [salesData, setSalesData] = useState<CompanySales[]>([]);
     const [isLoadingSales, setIsLoadingSales] = useState(true);
+    const [totalOrders, setTotalOrders] = useState(0);
 
     useEffect(() => {
         const fetchSales = async () => {
-            if (!firestore || !companies || companies.length === 0) {
+            if (!firestore || !companies) {
                  if (companies && companies.length === 0) setIsLoadingSales(false);
                 return;
             };
@@ -69,12 +70,31 @@ export default function AdminDashboardPage() {
             setIsLoadingSales(true);
             
             try {
-                const ordersQuery = query(collectionGroup(firestore, 'orders'), where('status', '!=', 'Cancelado'));
-                const ordersSnapshot = await getDocs(ordersQuery);
+                const ordersQuery = query(collectionGroup(firestore, 'orders'));
+                
+                const ordersSnapshot = await getDocs(ordersQuery).catch(serverError => {
+                    const permissionError = new FirestorePermissionError({
+                        path: 'orders',
+                        operation: 'list',
+                    });
+                    errorEmitter.emit('permission-error', permissionError);
+                    // Return a fake empty snapshot to prevent further errors down the chain
+                    return { docs: [], empty: true } as any; 
+                });
+
+                if (ordersSnapshot.empty) {
+                    setIsLoadingSales(false);
+                    return;
+                }
+
                 const allOrders = ordersSnapshot.docs.map(doc => doc.data() as Order);
 
+                const successfulOrders = allOrders.filter(order => order.status !== 'Cancelado');
+
+                setTotalOrders(successfulOrders.length);
+
                 const salesByCompany = companies.map(company => {
-                    const companyOrders = allOrders.filter(order => order.companyId === company.id);
+                    const companyOrders = successfulOrders.filter(order => order.companyId === company.id);
                     const totalSales = companyOrders.reduce((sum, order) => sum + order.totalAmount, 0);
                     return {
                         name: company.name,
@@ -84,34 +104,32 @@ export default function AdminDashboardPage() {
                 
                 setSalesData(salesByCompany);
             } catch (error) {
-                 const contextualError = new FirestorePermissionError({
-                    operation: 'list',
-                    path: 'orders (collectionGroup)',
-                });
-                errorEmitter.emit('permission-error', contextualError);
+                 // This will catch other potential errors, though the permission error is handled above
+                 console.error("An unexpected error occurred while fetching sales data:", error);
             } finally {
                 setIsLoadingSales(false);
             }
         };
 
-        fetchSales();
+        if (companies) {
+            fetchSales();
+        }
     }, [firestore, companies]);
 
-    const { totalRevenue, totalCompanies, totalOrders } = useMemo(() => {
+    const { totalRevenue, totalCompanies } = useMemo(() => {
         if (!salesData || !companies) {
-            return { totalRevenue: 0, totalCompanies: 0, totalOrders: 0 };
+            return { totalRevenue: 0, totalCompanies: 0 };
         }
         const totalRevenue = salesData.reduce((sum, company) => sum + company.Vendas, 0);
         return {
             totalRevenue,
             totalCompanies: companies.length,
-            totalOrders: 0, // Note: A full order count would require another query. This is a placeholder.
         };
     }, [salesData, companies]);
 
     const isLoading = isUserLoading || isLoadingCompanies || isLoadingSales;
     
-    if (isLoading) {
+    if (isLoading && salesData.length === 0) {
         return <p>Carregando dashboard do administrador...</p>;
     }
 
@@ -145,7 +163,7 @@ export default function AdminDashboardPage() {
             <ShoppingCart className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">...</div>
+            <div className="text-2xl font-bold">{totalOrders}</div>
             <p className="text-xs text-muted-foreground">contagem de todos os pedidos</p>
           </CardContent>
         </Card>
