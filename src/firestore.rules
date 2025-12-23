@@ -268,7 +268,7 @@ service cloud.firestore {
      * @principle Enforces a strict data ownership model and prevents user enumeration to protect privacy.
      */
     match /customers/{customerId} {
-      allow get: if isOwner(customerId);
+      allow get: if isOwner(customerId) || isCompanyMember(request.auth.uid);
       allow list: if false;
       allow create: if isCreatingOwnDoc(customerId);
       allow update: if isOwner(customerId) && resource != null && isMaintainingOwnDoc();
