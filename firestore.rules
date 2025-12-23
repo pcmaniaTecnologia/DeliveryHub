@@ -112,15 +112,12 @@ service cloud.firestore {
 
     /**
      * @description Collection group rule for orders. Allows super admins to list all orders across all companies.
-     *              Also allows anyone to list orders if they are filtering by customerName.
      * @path /companies/{companyId}/orders/{orderId}
      * @allow (list) A super admin lists all orders for the dashboard analytics.
-     * @allow (list) A customer lists their own orders on the tracking page.
-     * @principle Grants wide-ranging read access on a specific collection group only to the highest privilege level,
-     *            and allows limited public queries for specific use cases.
+     * @principle Grants wide-ranging read access on a specific collection group only to the highest privilege level.
      */
     match /{path=**}/orders/{orderId} {
-      allow list: if isSuperAdmin() || (request.query.keys().hasAll(['where', 'orderBy', 'limit']) && request.query.where[0][0] == 'customerName');
+      allow list: if isSuperAdmin();
     }
 
     // ------------------------------------------------------------------------
@@ -221,12 +218,12 @@ service cloud.firestore {
      * @path /companies/{companyId}/orders/{orderId}
      * @allow (create) Any user (authenticated or not) creates a new order.
      * @allow (get) The customer who placed the order retrieves its status.
-     * @deny (list) A customer tries to list all orders for the company without filtering.
+     * @allow (list) A customer can list their own orders by filtering by name.
      * @principle Enforces shared access between the document owner (customer) and business operators (company members).
      */
     match /companies/{companyId}/orders/{orderId} {
       allow get: if isCompanyMember(companyId) || isSuperAdmin() || (isSignedIn() && resource.data.customerId == request.auth.uid);
-      allow list: if isCompanyMember(companyId) || isSuperAdmin() || request.query.where.size() > 0 && 'customerName' in request.query.where[0][0];
+      allow list: if (isCompanyMember(companyId) || isSuperAdmin()) || (request.query.where.size() > 0 && 'customerName' in request.query.where[0][0]);
       allow create: if request.resource.data.companyId == companyId;
       allow update: if (isCompanyMember(companyId) || isSuperAdmin()) && resource != null;
       allow delete: if false;

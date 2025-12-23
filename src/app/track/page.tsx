@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import { useFirestore } from '@/firebase';
-import { collectionGroup, getDocs, query, where, Timestamp, orderBy, limit } from 'firebase/firestore';
+import { collection, getDocs, query, where, Timestamp, orderBy, limit } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -50,6 +50,10 @@ export default function TrackOrderPage() {
       setError('Por favor, insira o seu nome.');
       return;
     }
+     if (!companyId) {
+        setError('ID da loja não encontrado na URL.');
+        return;
+    }
     setIsLoading(true);
     setError(null);
     setFoundOrders([]);
@@ -57,7 +61,8 @@ export default function TrackOrderPage() {
     setSearched(true);
 
     try {
-      const ordersRef = collectionGroup(firestore, 'orders');
+      // Use a direct collection path now that we have companyId
+      const ordersRef = collection(firestore, 'companies', companyId, 'orders');
       const q = query(
         ordersRef, 
         where('customerName', '==', customerName.trim()),
@@ -74,7 +79,7 @@ export default function TrackOrderPage() {
         setFoundOrders(orders);
       }
     } catch (err) {
-      console.error(err);
+      console.error("Error searching for orders:", err);
       setError('Ocorreu um erro ao buscar seus pedidos. Tente novamente mais tarde.');
     } finally {
       setIsLoading(false);
