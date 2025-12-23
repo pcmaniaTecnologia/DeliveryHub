@@ -166,74 +166,80 @@ export default function OrdersPage() {
 
     const { data: orders, isLoading: isLoadingOrders } = useCollection<Order>(ordersRef);
 
-    const handleUpdateStatus = async (order: Order, status: Order['status']) => {
+    const handleUpdateStatus = (order: Order, status: Order['status']) => {
         if (!firestore || !user || !companyData) return;
         const orderDocRef = doc(firestore, `companies/${user.uid}/orders`, order.id);
         const newStatus = { status };
 
-        updateDocument(orderDocRef, newStatus).catch(serverError => {
+        updateDocument(orderDocRef, newStatus).then(async () => {
+            toast({
+                title: 'Status do Pedido Atualizado!',
+                description: `O pedido foi marcado como "${status}".`,
+            });
+
+            // Proceed with WhatsApp notification logic
+            try {
+                const customerRef = doc(firestore, 'customers', order.customerId);
+                const customerSnap = await getDoc(customerRef);
+
+                if (!customerSnap.exists()) {
+                    console.warn('Cliente não encontrado para notificação via WhatsApp.');
+                    return;
+                }
+                
+                const customer = customerSnap.data() as Customer;
+                const customerPhone = customer.phone?.replace(/\D/g, '');
+
+                if (!customerPhone) {
+                    console.warn('Cliente não possui telefone para notificação via WhatsApp.');
+                    return;
+                }
+
+                const templates = companyData.whatsappMessageTemplates ? JSON.parse(companyData.whatsappMessageTemplates) : {};
+                let messageTemplate = '';
+                
+                switch (status) {
+                    case 'Em preparo':
+                        messageTemplate = templates.received || "Olá {cliente}, seu pedido nº {pedido_id} foi recebido e já estamos preparando tudo! 🍔";
+                        break;
+                    case 'Saiu para entrega':
+                        messageTemplate = templates.delivery || "Boas notícias, {cliente}! Seu pedido nº {pedido_id} acabou de sair para entrega e logo chegará até você! 🛵";
+                        break;
+                    case 'Pronto para retirada':
+                        messageTemplate = templates.ready || "Ei, {cliente}! Seu pedido nº {pedido_id} está prontinho te esperando para retirada. 😊";
+                        break;
+                    default:
+                        return; // Do not send notification for other statuses
+                }
+                
+                const message = messageTemplate
+                    .replace('{cliente}', order.customerName || 'Cliente')
+                    .replace('{pedido_id}', order.id.substring(0, 6).toUpperCase());
+
+                const whatsappUrl = `https://wa.me/55${customerPhone}?text=${encodeURIComponent(message)}`;
+                window.open(whatsappUrl, '_blank');
+
+            } catch (customerError) {
+                 console.error("Could not fetch customer for WhatsApp notification:", customerError);
+                 toast({
+                    variant: 'destructive',
+                    title: 'Aviso de Notificação',
+                    description: 'Não foi possível buscar os dados do cliente para a notificação via WhatsApp, mas o status do pedido foi atualizado.',
+                });
+            }
+
+        }).catch(serverError => {
+            // Handle updateDoc failure
             const permissionError = new FirestorePermissionError({
                 path: orderDocRef.path,
                 operation: 'update',
                 requestResourceData: newStatus,
             });
             errorEmitter.emit('permission-error', permissionError);
-        });
-
-        toast({
-            title: 'Status do Pedido Atualizado!',
-            description: `O pedido foi marcado como "${status}".`,
-        });
-
-        const customerRef = doc(firestore, 'customers', order.customerId);
-        getDoc(customerRef).then(customerSnap => {
-            if (!customerSnap.exists()) {
-                console.warn('Cliente não encontrado para notificação via WhatsApp.');
-                return;
-            }
-            
-            const customer = customerSnap.data() as Customer;
-            const customerPhone = customer.phone?.replace(/\D/g, '');
-
-            if (!customerPhone) {
-                 console.warn('Cliente não possui telefone para notificação via WhatsApp.');
-                return;
-            }
-
-            const templates = companyData.whatsappMessageTemplates ? JSON.parse(companyData.whatsappMessageTemplates) : {};
-            let messageTemplate = '';
-            
-            switch (status) {
-                case 'Em preparo':
-                    messageTemplate = templates.received || "Olá {cliente}, seu pedido nº {pedido_id} foi recebido e já estamos preparando tudo! 🍔";
-                    break;
-                case 'Saiu para entrega':
-                    messageTemplate = templates.delivery || "Boas notícias, {cliente}! Seu pedido nº {pedido_id} acabou de sair para entrega e logo chegará até você! 🛵";
-                    break;
-                case 'Pronto para retirada':
-                    messageTemplate = templates.ready || "Ei, {cliente}! Seu pedido nº {pedido_id} está prontinho te esperando para retirada. 😊";
-                    break;
-                default:
-                    return;
-            }
-            
-            const message = messageTemplate
-                .replace('{cliente}', order.customerName || 'Cliente')
-                .replace('{pedido_id}', order.id.substring(0, 6).toUpperCase());
-
-            const whatsappUrl = `https://wa.me/55${customerPhone}?text=${encodeURIComponent(message)}`;
-            window.open(whatsappUrl, '_blank');
-
-        }).catch(serverError => {
-            const permissionError = new FirestorePermissionError({
-                path: customerRef.path,
-                operation: 'get',
-            });
-            errorEmitter.emit('permission-error', permissionError);
             toast({
                 variant: 'destructive',
                 title: 'Erro de Permissão',
-                description: 'Não foi possível buscar os dados do cliente para a notificação.',
+                description: 'Você não tem permissão para atualizar este pedido.',
             });
         });
     };
@@ -241,7 +247,17 @@ export default function OrdersPage() {
     const isLoading = isUserLoading || isLoadingOrders || isLoadingCompany;
 
     const handlePrint = () => {
-        window.print();
+        const printableElement = document.querySelector('.printable-section');
+        if (printableElement) {
+            const originalContents = document.body.innerHTML;
+            const printContents = printableElement.innerHTML;
+            document.body.innerHTML = printContents;
+            window.print();
+            document.body.innerHTML = originalContents;
+            // We need to re-attach the event listeners after restoring the content
+            // but for a simple print, a reload might be the easiest way to restore full functionality
+            window.location.reload(); 
+        }
     };
 
   return (
@@ -351,15 +367,24 @@ export default function OrdersPage() {
 
 const OrderDetailsDialog = ({ order, company, onOpenChange, onPrint }: { order: Order; company?: Company; onOpenChange: (isOpen: boolean) => void; onPrint: () => void; }) => {
     
+    const handlePrintClick = () => {
+        // This is a simple browser print.
+        // For more advanced printing, a library like react-to-print may be needed,
+        // but can introduce complexity with modern React components.
+        window.print();
+    };
+
     return (
         <Dialog open={!!order} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-md printable-section">
-                <DialogHeader>
-                    <DialogTitle>Detalhes do Pedido #{order.id.substring(0, 6).toUpperCase()}</DialogTitle>
-                </DialogHeader>
-                <PrintableOrder order={order} company={company} />
+            <DialogContent className="max-w-md">
+                 <div className='printable-section'>
+                    <DialogHeader>
+                        <DialogTitle>Detalhes do Pedido #{order.id.substring(0, 6).toUpperCase()}</DialogTitle>
+                    </DialogHeader>
+                    <PrintableOrder order={order} company={company} />
+                 </div>
                  <DialogFooter className='non-printable-content'>
-                    <Button variant="outline" onClick={onPrint}>
+                    <Button variant="outline" onClick={handlePrintClick}>
                         <Printer className="mr-2 h-4 w-4" />
                         Imprimir
                     </Button>
@@ -368,3 +393,4 @@ const OrderDetailsDialog = ({ order, company, onOpenChange, onPrint }: { order: 
         </Dialog>
     );
 };
+
