@@ -2,8 +2,8 @@
 'use client';
 
 import React, { useState, forwardRef, useRef } from 'react';
-import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
-import { collection, doc, updateDoc, getDoc, type Timestamp } from 'firebase/firestore';
+import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc, updateDocument, errorEmitter, FirestorePermissionError } from '@/firebase';
+import { collection, doc, getDoc, type Timestamp } from 'firebase/firestore';
 import {
   Card,
   CardContent,
@@ -169,30 +169,39 @@ export default function OrdersPage() {
     const handleUpdateStatus = async (order: Order, status: Order['status']) => {
         if (!firestore || !user || !companyData) return;
         const orderDocRef = doc(firestore, `companies/${user.uid}/orders`, order.id);
-        
-        try {
-            // Update the status in Firestore
-            await updateDoc(orderDocRef, { status });
-            toast({
-                title: 'Status do Pedido Atualizado!',
-                description: `O pedido foi marcado como "${status}".`,
+        const newStatus = { status };
+
+        updateDocument(orderDocRef, newStatus).catch(serverError => {
+            const permissionError = new FirestorePermissionError({
+                path: orderDocRef.path,
+                operation: 'update',
+                requestResourceData: newStatus,
             });
-            
-            // Prepare and send WhatsApp notification
+            errorEmitter.emit('permission-error', permissionError);
+        });
+
+        // This part is optimistic and runs immediately.
+        // The error handling above will deal with permissions issues.
+        toast({
+            title: 'Status do Pedido Atualizado!',
+            description: `O pedido foi marcado como "${status}".`,
+        });
+
+        try {
             const customerRef = doc(firestore, 'customers', order.customerId);
             const customerSnap = await getDoc(customerRef);
 
             if (!customerSnap.exists()) {
-                 toast({ variant: 'destructive', title: 'Cliente não encontrado', description: 'Não foi possível encontrar o telefone do cliente para notificar.' });
-                 return;
+                console.warn('Cliente não encontrado para notificação via WhatsApp.');
+                return;
             }
             
             const customer = customerSnap.data() as Customer;
-            const customerPhone = customer.phone?.replace(/\D/g, ''); // Sanitize phone number
-            
+            const customerPhone = customer.phone?.replace(/\D/g, '');
+
             if (!customerPhone) {
-                 toast({ variant: 'destructive', title: 'Telefone não encontrado', description: 'O cliente não possui um número de telefone cadastrado.' });
-                 return;
+                 console.warn('Cliente não possui telefone para notificação via WhatsApp.');
+                return;
             }
 
             const templates = companyData.whatsappMessageTemplates ? JSON.parse(companyData.whatsappMessageTemplates) : {};
@@ -206,10 +215,9 @@ export default function OrdersPage() {
                     messageTemplate = templates.delivery || "Boas notícias, {cliente}! Seu pedido nº {pedido_id} acabou de sair para entrega e logo chegará até você! 🛵";
                     break;
                 case 'Pronto para retirada':
-                     messageTemplate = templates.ready || "Ei, {cliente}! Seu pedido nº {pedido_id} está prontinho te esperando para retirada. 😊";
+                    messageTemplate = templates.ready || "Ei, {cliente}! Seu pedido nº {pedido_id} está prontinho te esperando para retirada. 😊";
                     break;
                 default:
-                    // Do not send notifications for other statuses
                     return;
             }
             
@@ -221,11 +229,11 @@ export default function OrdersPage() {
             window.open(whatsappUrl, '_blank');
 
         } catch (error) {
-            console.error("Failed to update order status or send notification:", error);
+            console.error("Erro ao preparar notificação do WhatsApp:", error);
             toast({
                 variant: 'destructive',
-                title: 'Erro',
-                description: 'Não foi possível atualizar o status do pedido ou notificar o cliente.',
+                title: 'Erro de Notificação',
+                description: 'Não foi possível preparar a mensagem para o WhatsApp.',
             });
         }
     };
@@ -336,41 +344,39 @@ export default function OrdersPage() {
   );
 }
 
-const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order, company?: Company, onOpenChange: (isOpen: boolean) => void }) => {
-    const componentRef = useRef<HTMLDivElement>(null);
-    
+const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order; company?: Company; onOpenChange: (isOpen: boolean) => void }) => {
+    const printableContentRef = useRef<HTMLDivElement>(null);
+    const componentRef = useRef<PrintableOrder>(null);
+
     const handlePrint = () => {
-        const node = componentRef.current;
-        if (node) {
-            const body = document.body;
-            const printSection = document.createElement('div');
-            printSection.innerHTML = node.innerHTML;
-            printSection.className = 'printable-content-only';
-            body.appendChild(printSection);
-            
-            body.classList.add('printing-active');
-            window.print();
-            body.removeChild(printSection);
-            body.classList.remove('printing-active');
+        document.body.classList.add('printing-active');
+        if (printableContentRef.current) {
+            printableContentRef.current.classList.add('printable-content-only');
         }
+        window.print();
+        if (printableContentRef.current) {
+            printableContentRef.current.classList.remove('printable-content-only');
+        }
+        document.body.classList.remove('printing-active');
     };
     
+
     return (
-        <Dialog open={true} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-md">
-                 <DialogHeader>
-                    <DialogTitle>Detalhes do Pedido</DialogTitle>
-                </DialogHeader>
-                 <div className='max-h-[60vh] overflow-y-auto -mx-6 px-6' ref={componentRef}>
-                    <PrintableOrder order={order} company={company} />
-                 </div>
-                 <DialogFooter>
-                    <Button variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>
-                    <Button onClick={handlePrint}><Printer className="mr-2 h-4 w-4" />Imprimir</Button>
+        <Dialog open={!!order} onOpenChange={onOpenChange}>
+            <DialogContent className="max-w-md">
+                <div ref={printableContentRef}>
+                    <DialogHeader>
+                        <DialogTitle>Detalhes do Pedido #{order.id.substring(0, 6).toUpperCase()}</DialogTitle>
+                    </DialogHeader>
+                     <PrintableOrder ref={componentRef} order={order} company={company} />
+                </div>
+                 <DialogFooter className='non-printable-content'>
+                    <Button variant="outline" onClick={handlePrint}>
+                        <Printer className="mr-2 h-4 w-4" />
+                        Imprimir
+                    </Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
     );
 };
-
-    
