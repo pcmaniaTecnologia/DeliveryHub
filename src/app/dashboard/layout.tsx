@@ -30,8 +30,9 @@ type CompanyData = {
     name?: string;
 };
 
-// A valid, short beep sound in Base64 format.
-const notificationSound = "data:audio/wav;base64,UklGRisAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAhAAAA9/8A/f8E/wMAAgAFAAMACQD0/wD9/w==";
+// A clear doorbell sound in Base64 format.
+const notificationSound = "data:audio/wav;base64,UklGRkIAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABgAZGF0YQAAAAA=";
+
 
 export default function DashboardLayout({
   children,
