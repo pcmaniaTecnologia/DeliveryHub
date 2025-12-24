@@ -12,8 +12,6 @@ const notificationSoundUrl = "https://actions.google.com/sounds/v1/alarms/doorbe
 
 interface NotificationContextType {
     isEnabled: boolean;
-    isActivating: boolean;
-    activateSystem: () => void;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
@@ -24,32 +22,9 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
     const firestore = useFirestore();
 
     const [isEnabled, setIsEnabled] = useState(false);
-    const [isActivating, setIsActivating] = useState(false);
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const processedOrderIds = useRef(new Set<string>());
     const listenerUnsubscribe = useRef<() => void | null>(null);
-
-     useEffect(() => {
-        // This effect runs once to create the audio element.
-        const audio = document.createElement('audio');
-        const source = document.createElement('source');
-        source.src = notificationSoundUrl;
-        source.type = 'audio/ogg';
-        audio.appendChild(source);
-        audio.preload = 'auto';
-        document.body.appendChild(audio);
-        audioRef.current = audio;
-
-        return () => {
-            if (listenerUnsubscribe.current) {
-                listenerUnsubscribe.current();
-            }
-            if (audioRef.current) {
-                document.body.removeChild(audioRef.current);
-                audioRef.current = null;
-            }
-        };
-    }, []);
 
     const playSound = useCallback(() => {
         if (audioRef.current && companyData?.soundNotificationEnabled) {
@@ -92,13 +67,9 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
                     if (!processedOrderIds.current.has(order.id)) {
                         processedOrderIds.current.add(order.id);
                         
-                        // 1. Play sound
                         playSound();
-                        
-                        // 2. Print order
                         printOrder(order);
 
-                        // 3. Update status to "Em preparo"
                         const orderDocRef = doc(firestore, `companies/${user.uid}/orders`, order.id);
                         updateDocument(orderDocRef, { status: 'Em preparo' });
                     }
@@ -109,9 +80,7 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
     }, [firestore, user?.uid, playSound, printOrder]);
 
     const activateSystem = useCallback(() => {
-        if (isEnabled || isActivating || !audioRef.current) return;
-        
-        setIsActivating(true);
+        if (isEnabled || !audioRef.current) return;
 
         const promise = audioRef.current.play();
 
@@ -123,27 +92,54 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
             
             setIsEnabled(true);
             listenToNewOrders();
-            toast({
-                title: 'Sistema Ativado',
-                description: 'As notificações sonoras para novos pedidos estão ativas.',
-            });
         }).catch((err) => {
             console.error("Could not activate audio:", err);
-            toast({
+             toast({
                 variant: 'destructive',
                 title: 'Não foi possível ativar o som',
-                description: 'Seu navegador pode estar bloqueando a reprodução automática. Interaja com a página e tente novamente.',
+                description: 'Interaja com a página (clique em algo) e recarregue para tentar novamente.',
             });
-        }).finally(() => {
-            setIsActivating(false);
         });
+    }, [isEnabled, listenToNewOrders, toast]);
 
-    }, [isEnabled, isActivating, listenToNewOrders, toast]);
+     useEffect(() => {
+        const audio = document.createElement('audio');
+        const source = document.createElement('source');
+        source.src = notificationSoundUrl;
+        source.type = 'audio/ogg';
+        audio.appendChild(source);
+        audio.preload = 'auto';
+        document.body.appendChild(audio);
+        audioRef.current = audio;
+        
+        const handleFirstInteraction = () => {
+            if (!isEnabled) {
+               activateSystem();
+            }
+            // Remove the listener after the first interaction
+            window.removeEventListener('click', handleFirstInteraction);
+            window.removeEventListener('touchstart', handleFirstInteraction);
+        };
+
+        window.addEventListener('click', handleFirstInteraction);
+        window.addEventListener('touchstart', handleFirstInteraction);
+
+        return () => {
+            if (listenerUnsubscribe.current) {
+                listenerUnsubscribe.current();
+            }
+            if (audioRef.current) {
+                document.body.removeChild(audioRef.current);
+                audioRef.current = null;
+            }
+            window.removeEventListener('click', handleFirstInteraction);
+            window.removeEventListener('touchstart', handleFirstInteraction);
+        };
+    }, [activateSystem, isEnabled]);
+
 
     const value = {
         isEnabled,
-        isActivating,
-        activateSystem,
     };
 
     return <NotificationContext.Provider value={value}>{children}</NotificationContext.Provider>;
