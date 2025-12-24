@@ -29,6 +29,28 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
     const processedOrderIds = useRef(new Set<string>());
     const listenerUnsubscribe = useRef<() => void | null>(null);
 
+     // Effect to create and manage the audio element
+    useEffect(() => {
+        const audio = document.createElement('audio');
+        const source = document.createElement('source');
+        source.src = notificationSoundUrl;
+        source.type = 'audio/ogg';
+        audio.appendChild(source);
+        audio.preload = 'auto';
+        document.body.appendChild(audio);
+        audioRef.current = audio;
+
+        return () => {
+            if (listenerUnsubscribe.current) {
+                listenerUnsubscribe.current();
+            }
+            if (audioRef.current) {
+                document.body.removeChild(audioRef.current);
+                audioRef.current = null;
+            }
+        };
+    }, []);
+
     const playSound = useCallback(() => {
         if (audioRef.current && companyData?.soundNotificationEnabled) {
             audioRef.current.currentTime = 0;
@@ -88,68 +110,38 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
         setIsActivating(true);
         const audio = audioRef.current;
 
+        // The play() method returns a Promise. We handle it without 'await' to avoid blocking.
         const promise = audio.play();
         
-        if(promise !== undefined){
+        if (promise !== undefined) {
             promise.then(() => {
+                // Playback started successfully.
                 audio.pause();
-                audio.currentTime = 0;
+                audio.currentTime = 0; // Reset for next play.
                 
                 setIsEnabled(true);
-                listenToNewOrders();
+                listenToNewOrders(); // Start listening for orders only after successful activation.
                 toast({ title: "Sistema de notificação ativado!" });
 
             }).catch(error => {
+                // Playback was blocked by the browser.
                 console.error("Falha ao ativar o áudio:", error);
-                 toast({
+                toast({
                     variant: 'destructive',
                     title: 'Não foi possível ativar o som',
                     description: 'Seu navegador pode estar bloqueando a reprodução automática. Interaja com a página e tente novamente.',
                 });
                 setIsEnabled(false);
             }).finally(() => {
-                 setIsActivating(false);
+                // This will run regardless of success or failure.
+                setIsActivating(false);
             });
+        } else {
+             // Fallback for older browsers that don't return a promise.
+             setIsActivating(false);
         }
 
     }, [isEnabled, isActivating, listenToNewOrders, toast]);
-
-     useEffect(() => {
-        // Setup audio element
-        const audio = document.createElement('audio');
-        const source = document.createElement('source');
-        source.src = notificationSoundUrl;
-        source.type = 'audio/ogg';
-        audio.appendChild(source);
-        audio.preload = 'auto';
-        document.body.appendChild(audio);
-        audioRef.current = audio;
-
-        // Auto-activation on first user interaction
-        const handleFirstInteraction = () => {
-            if (!isEnabled) {
-                activateSystem();
-            }
-            window.removeEventListener('click', handleFirstInteraction);
-            window.removeEventListener('touchend', handleFirstInteraction);
-        };
-        
-        window.addEventListener('click', handleFirstInteraction);
-        window.addEventListener('touchend', handleFirstInteraction);
-
-        return () => {
-            if (listenerUnsubscribe.current) {
-                listenerUnsubscribe.current();
-            }
-            if (audioRef.current) {
-                document.body.removeChild(audioRef.current);
-                audioRef.current = null;
-            }
-             window.removeEventListener('click', handleFirstInteraction);
-             window.removeEventListener('touchend', handleFirstInteraction);
-        };
-    }, [activateSystem, isEnabled]);
-
 
     const value = {
         isEnabled,
