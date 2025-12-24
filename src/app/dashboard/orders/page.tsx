@@ -297,8 +297,14 @@ const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order; co
      const handlePrint = () => {
         const itemsHtml = order.orderItems.map(item => `
             <tr>
-                <td>${item.productName || item.productId}</td>
-                <td style="text-align: center;">${item.quantity}</td>
+                <td colspan="3">
+                    ${item.productName || item.productId}
+                    ${item.notes ? `<br><small style="color: #555;">OBS: ${item.notes}</small>` : ''}
+                </td>
+            </tr>
+            <tr>
+                <td>&nbsp;</td>
+                <td style="text-align: center;">${item.quantity} x R$${item.unitPrice.toFixed(2)}</td>
                 <td style="text-align: right;">R$${(item.unitPrice * item.quantity).toFixed(2)}</td>
             </tr>
         `).join('');
@@ -308,14 +314,17 @@ const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order; co
                 <head>
                     <title>Pedido ${order.id.substring(0,6).toUpperCase()}</title>
                     <style>
-                        body { font-family: 'Courier New', monospace; font-size: 10pt; margin: 20px; }
+                        body { font-family: 'Courier New', monospace; font-size: 10pt; margin: 20px; color: #000; }
                         h2, p { margin: 0; text-align: center; }
                         h2 { font-size: 1.2em; }
                         hr { border: none; border-top: 1px dashed black; margin: 10px 0; }
                         table { width: 100%; border-collapse: collapse; }
                         th, td { padding: 5px 0; }
                         th { text-align: left; border-bottom: 1px dashed black;}
-                        .totals { text-align: right; margin-top: 10px; font-size: 1.1em; }
+                        .totals { text-align: right; margin-top: 10px; }
+                        .totals strong { font-size: 1.1em; }
+                        .section { margin-top: 15px; }
+                        .section-title { font-weight: bold; text-align: left; }
                     </style>
                 </head>
                 <body>
@@ -323,15 +332,19 @@ const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order; co
                     <p>Pedido: ${order.id.substring(0, 6).toUpperCase()}</p>
                     <p>${order.orderDate.toDate().toLocaleString('pt-BR')}</p>
                     <hr />
-                    <p><strong>Cliente:</strong> ${order.customerName || 'Cliente anônimo'}</p>
-                    ${order.deliveryType === 'Delivery' ? `<p>${order.deliveryAddress}</p>` : ''}
+                    <div class="section">
+                        <p class="section-title">Cliente:</p>
+                        <p style="text-align: left;">${order.customerName || 'Cliente anônimo'}</p>
+                        ${order.customerPhone ? `<p style="text-align: left;">Tel: ${order.customerPhone}</p>` : ''}
+                        ${order.deliveryType === 'Delivery' ? `<p style="text-align: left;">${order.deliveryAddress}</p>` : ''}
+                    </div>
                     <hr />
                     <table>
                         <thead>
                             <tr>
                                 <th>Item</th>
-                                <th style="text-align: center;">Qtd</th>
-                                <th style="text-align: right;">Preço</th>
+                                <th style="text-align: center;">Qtd x Valor</th>
+                                <th style="text-align: right;">Total</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -339,10 +352,15 @@ const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order; co
                         </tbody>
                     </table>
                     <hr />
-                    <div class="totals"><strong>Total: R$${order.totalAmount.toFixed(2)}</strong></div>
+                    ${order.notes ? `<div class="section"><p class="section-title">Observações do Pedido:</p><p style="text-align: left;">${order.notes}</p></div><hr />` : ''}
+                    <div class="totals">
+                        <p>Subtotal: R$${order.totalAmount.toFixed(2)}</p>
+                        ${order.deliveryFee ? `<p>Taxa de Entrega: R$${order.deliveryFee.toFixed(2)}</p>` : ''}
+                        <strong>Total: R$${(order.totalAmount + (order.deliveryFee || 0)).toFixed(2)}</strong>
+                    </div>
                      <hr />
-                    <p>Forma de Pagamento: ${order.paymentMethod}</p>
-                    <p>Tipo de Entrega: ${order.deliveryType}</p>
+                    <p style="text-align: left;">Forma de Pagamento: ${order.paymentMethod}</p>
+                    <p style="text-align: left;">Tipo de Entrega: ${order.deliveryType}</p>
                     
                     <script>
                         window.print();
@@ -352,7 +370,7 @@ const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order; co
             </html>
         `;
         
-        const printWindow = window.open('', '_blank');
+        const printWindow = window.open('', '_blank', 'width=300,height=500');
         if (printWindow) {
             printWindow.document.write(printHtml);
             printWindow.document.close();
@@ -376,7 +394,7 @@ const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order; co
                         <div className="space-y-1">
                             <h3 className="font-semibold">Cliente</h3>
                             <p>{order.customerName || 'Cliente anônimo'}</p>
-                            {order.customerPhone && <p className="text-sm text-gray-500">{order.customerPhone}</p>}
+                            {order.customerPhone && <p className="text-sm text-muted-foreground">{order.customerPhone}</p>}
                             {order.deliveryType === 'Delivery' && <p className="text-gray-500">{order.deliveryAddress}</p>}
                         </div>
                         <Separator />
@@ -393,7 +411,10 @@ const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order; co
                                 <tbody>
                                     {order.orderItems.map((item, index) => (
                                         <tr key={index} className="border-b">
-                                            <td className="py-2">{item.productName || item.productId}</td>
+                                            <td className="py-2">
+                                                {item.productName || item.productId}
+                                                {item.notes && <p className="text-xs text-muted-foreground">OBS: {item.notes}</p>}
+                                            </td>
                                             <td className="text-center py-2">{item.quantity}</td>
                                             <td className="text-right py-2">R${(item.unitPrice * item.quantity).toFixed(2)}</td>
                                         </tr>
@@ -401,15 +422,30 @@ const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order; co
                                 </tbody>
                             </table>
                         </div>
+                         {order.notes && (
+                            <>
+                                <Separator />
+                                <div className="space-y-1">
+                                    <h3 className="font-semibold">Observações do Pedido</h3>
+                                    <p className="text-sm text-muted-foreground">{order.notes}</p>
+                                </div>
+                            </>
+                        )}
                         <Separator />
                         <div className="space-y-2">
                             <div className="flex justify-between">
                                 <span>Subtotal</span>
-                                <span>R${order.totalAmount.toFixed(2)}</span>
+                                <span>R$${order.totalAmount.toFixed(2)}</span>
                             </div>
+                            {order.deliveryFee && (
+                                <div className="flex justify-between">
+                                    <span>Taxa de Entrega</span>
+                                    <span>R$${order.deliveryFee.toFixed(2)}</span>
+                                </div>
+                            )}
                             <div className="flex justify-between font-bold text-lg">
                                 <span>Total</span>
-                                <span>R${order.totalAmount.toFixed(2)}</span>
+                                <span>R$${(order.totalAmount + (order.deliveryFee || 0)).toFixed(2)}</span>
                             </div>
                         </div>
                         <Separator />
