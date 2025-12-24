@@ -12,6 +12,8 @@ const notificationSoundUrl = "https://actions.google.com/sounds/v1/alarms/doorbe
 
 interface NotificationContextType {
     isEnabled: boolean;
+    isActivating: boolean;
+    activateSystem: () => void;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
@@ -22,11 +24,13 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
     const firestore = useFirestore();
 
     const [isEnabled, setIsEnabled] = useState(false);
+    const [isActivating, setIsActivating] = useState(false);
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const processedOrderIds = useRef(new Set<string>());
     const listenerUnsubscribe = useRef<() => void | null>(null);
 
-    const playSound = useCallback(() => {
+     const playSound = useCallback(() => {
+        // Only play sound if it's enabled in the company settings
         if (audioRef.current && companyData?.soundNotificationEnabled) {
             audioRef.current.currentTime = 0;
             audioRef.current.play().catch(err => {
@@ -79,8 +83,10 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
         
     }, [firestore, user?.uid, playSound, printOrder]);
 
-    const activateSystem = useCallback(() => {
-        if (isEnabled || !audioRef.current) return;
+     const activateSystem = useCallback(() => {
+        if (isEnabled || isActivating || !audioRef.current) return;
+
+        setIsActivating(true);
 
         const promise = audioRef.current.play();
 
@@ -92,15 +98,19 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
             
             setIsEnabled(true);
             listenToNewOrders();
+            toast({ title: "Sistema de notificação ativado!" });
         }).catch((err) => {
             console.error("Could not activate audio:", err);
              toast({
                 variant: 'destructive',
                 title: 'Não foi possível ativar o som',
-                description: 'Interaja com a página (clique em algo) e recarregue para tentar novamente.',
+                description: 'Seu navegador pode estar bloqueando a reprodução automática. Interaja com a página e tente novamente.',
             });
+             setIsEnabled(false);
+        }).finally(() => {
+            setIsActivating(false);
         });
-    }, [isEnabled, listenToNewOrders, toast]);
+    }, [isEnabled, isActivating, listenToNewOrders, toast]);
 
      useEffect(() => {
         const audio = document.createElement('audio');
@@ -111,18 +121,6 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
         audio.preload = 'auto';
         document.body.appendChild(audio);
         audioRef.current = audio;
-        
-        const handleFirstInteraction = () => {
-            if (!isEnabled) {
-               activateSystem();
-            }
-            // Remove the listener after the first interaction
-            window.removeEventListener('click', handleFirstInteraction);
-            window.removeEventListener('touchstart', handleFirstInteraction);
-        };
-
-        window.addEventListener('click', handleFirstInteraction);
-        window.addEventListener('touchstart', handleFirstInteraction);
 
         return () => {
             if (listenerUnsubscribe.current) {
@@ -132,14 +130,14 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
                 document.body.removeChild(audioRef.current);
                 audioRef.current = null;
             }
-            window.removeEventListener('click', handleFirstInteraction);
-            window.removeEventListener('touchstart', handleFirstInteraction);
         };
-    }, [activateSystem, isEnabled]);
+    }, []);
 
 
     const value = {
         isEnabled,
+        isActivating,
+        activateSystem,
     };
 
     return <NotificationContext.Provider value={value}>{children}</NotificationContext.Provider>;
