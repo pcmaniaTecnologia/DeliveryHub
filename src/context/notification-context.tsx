@@ -126,27 +126,6 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
 
     }, [isEnabled, isActivating, listenToNewOrders, toast]);
 
-    // Effect to auto-activate on first user interaction
-    useEffect(() => {
-        const autoActivate = () => {
-            if (!isEnabled && !isActivating) {
-                activateSystem();
-            }
-            // Remove listener after first interaction to avoid multiple calls
-            window.removeEventListener('click', autoActivate);
-            window.removeEventListener('touchstart', autoActivate);
-        };
-
-        window.addEventListener('click', autoActivate);
-        window.addEventListener('touchstart', autoActivate);
-
-        return () => {
-            window.removeEventListener('click', autoActivate);
-            window.removeEventListener('touchstart', autoActivate);
-        };
-    }, [activateSystem, isEnabled, isActivating]);
-
-
     // Cleanup listener on unmount
     useEffect(() => {
         const unsubscribe = listenerUnsubscribe.current;
@@ -173,5 +152,3 @@ export const useNotifications = (): NotificationContextType => {
     }
     return context;
 };
-
-    

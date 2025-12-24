@@ -18,7 +18,6 @@ import { DashboardNav } from '@/components/dashboard-nav';
 import { useUser } from '@/firebase';
 import { hexToHsl } from '@/lib/utils';
 import type { Order } from './orders/page';
-import { generateOrderPrintHtml } from '@/lib/print-utils';
 import { NotificationProvider } from '@/context/notification-context';
 
 
