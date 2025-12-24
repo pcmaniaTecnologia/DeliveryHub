@@ -18,7 +18,7 @@ interface NotificationContextType {
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
-export const NotificationProvider = ({ children, companyData }: { children: ReactNode, companyData?: { soundNotificationEnabled?: boolean; autoPrintEnabled?: boolean; name?: string }}) => {
+export const NotificationProvider = ({ children, companyData }: { children: ReactNode, companyData?: { name?: string, soundNotificationEnabled?: boolean; autoPrintEnabled?: boolean; }}) => {
     const { toast } = useToast();
     const { user } = useUser();
     const firestore = useFirestore();
@@ -27,9 +27,9 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
     const [isActivating, setIsActivating] = useState(false);
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const processedOrderIds = useRef(new Set<string>());
-    const listenerUnsubscribe = useRef<() => void | null>(null);
+    const listenerUnsubscribe = useRef<(() => void) | null>(null);
 
-     // Effect to create and manage the audio element
+    // Effect to create and manage the audio element
     useEffect(() => {
         const audio = document.createElement('audio');
         const source = document.createElement('source');
@@ -104,13 +104,12 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
         
     }, [firestore, user?.uid, playSound, printOrder]);
 
-     const activateSystem = useCallback(() => {
+    const activateSystem = useCallback(() => {
         if (isEnabled || isActivating || !audioRef.current) return;
         
         setIsActivating(true);
         const audio = audioRef.current;
 
-        // The play() method returns a Promise. We handle it without 'await' to avoid blocking.
         const promise = audio.play();
         
         if (promise !== undefined) {
@@ -139,6 +138,8 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
         } else {
              // Fallback for older browsers that don't return a promise.
              setIsActivating(false);
+             setIsEnabled(true);
+             listenToNewOrders();
         }
 
     }, [isEnabled, isActivating, listenToNewOrders, toast]);
