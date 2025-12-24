@@ -2,8 +2,8 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from 'react';
-import { useFirestore, useUser } from '@/firebase';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { useFirestore, useUser, updateDocument } from '@/firebase';
+import { collection, query, where, onSnapshot, doc } from 'firebase/firestore';
 import type { Order } from '@/app/dashboard/orders/page';
 import { generateOrderPrintHtml } from '@/lib/print-utils';
 import { useToast } from '@/hooks/use-toast';
@@ -29,7 +29,7 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
     const processedOrderIds = useRef(new Set<string>());
     const listenerUnsubscribe = useRef<() => void | null>(null);
 
-    useEffect(() => {
+     useEffect(() => {
         const audio = document.createElement('audio');
         const source = document.createElement('source');
         source.src = notificationSoundUrl;
@@ -90,8 +90,16 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
                     const order = { id: change.doc.id, ...change.doc.data() } as Order;
                     if (!processedOrderIds.current.has(order.id)) {
                         processedOrderIds.current.add(order.id);
+                        
+                        // 1. Play sound
                         playSound();
+                        
+                        // 2. Print order
                         printOrder(order);
+
+                        // 3. Update status to "Em preparo"
+                        const orderDocRef = doc(firestore, `companies/${user.uid}/orders`, order.id);
+                        updateDocument(orderDocRef, { status: 'Em preparo' });
                     }
                 }
             });
@@ -107,7 +115,6 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
         const promise = audioRef.current.play();
 
         promise.then(() => {
-            // Success
             if(audioRef.current) {
                 audioRef.current.pause();
                 audioRef.current.currentTime = 0;
@@ -120,7 +127,6 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
                 description: 'As notificações sonoras para novos pedidos estão ativas.',
             });
         }).catch((err) => {
-            // Failure (likely blocked by browser)
             console.error("Could not activate audio:", err);
             toast({
                 variant: 'destructive',
@@ -128,7 +134,6 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
                 description: 'Seu navegador pode estar bloqueando a reprodução automática. Interaja com a página e tente novamente.',
             });
         }).finally(() => {
-            // Always stop the activating state
             setIsActivating(false);
         });
 
