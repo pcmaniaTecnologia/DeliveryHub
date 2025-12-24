@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -9,7 +9,7 @@ import {
   Package2,
 } from 'lucide-react';
 import { useCollection, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, doc } from 'firebase/firestore';
+import { collection, doc, onSnapshot, query, where, Timestamp } from 'firebase/firestore';
 
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -18,13 +18,16 @@ import { DashboardNav } from '@/components/dashboard-nav';
 import { useUser } from '@/firebase';
 import { hexToHsl } from '@/lib/utils';
 import type { Order } from './orders/page';
+import { generateOrderPrintHtml } from '@/lib/print-utils';
 
 type CompanyData = {
     themeColors?: string;
     soundNotificationEnabled?: boolean;
+    autoPrintEnabled?: boolean;
     isActive?: boolean;
     planId?: string;
     subscriptionEndDate?: any;
+    name?: string;
 };
 
 // A valid, short beep sound in Base64 format.
@@ -41,8 +44,7 @@ export default function DashboardLayout({
   const firestore = useFirestore();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [hasInteracted, setHasInteracted] = useState(false);
-  const previousNewOrdersCountRef = useRef<number>(0);
-
+  const [processedOrderIds, setProcessedOrderIds] = useState<Set<string>>(new Set());
 
   const companyRef = useMemoFirebase(() => {
     if (!firestore || !user?.uid) return null;
@@ -58,33 +60,33 @@ export default function DashboardLayout({
 
   const { data: adminData, isLoading: isLoadingAdmin } = useDoc(adminRef);
 
-  const ordersRef = useMemoFirebase(() => {
+  // This collection hook is just for the badge count.
+  const allOrdersRef = useMemoFirebase(() => {
     if (!firestore || !user?.uid) return null;
     return collection(firestore, `companies/${user.uid}/orders`);
   }, [firestore, user?.uid]);
 
-  const { data: orders, isLoading: isLoadingOrders } = useCollection<Order>(ordersRef);
+  const { data: allOrders, isLoading: isLoadingAllOrders } = useCollection<Order>(allOrdersRef);
   
   const newOrdersCount = useMemo(() => {
-    if (!orders) return 0;
-    return orders.filter(order => order.status === 'Novo' || order.status === 'Aguardando pagamento').length;
-  }, [orders]);
+    if (!allOrders) return 0;
+    return allOrders.filter(order => order.status === 'Novo' || order.status === 'Aguardando pagamento').length;
+  }, [allOrders]);
 
-
+  // This effect sets up the first user interaction listener for audio.
   useEffect(() => {
-    // This effect handles the audio initialization and user interaction detection
     const handleFirstInteraction = () => {
         if (!hasInteracted) {
             setHasInteracted(true);
-            if (audioRef.current) {
-                audioRef.current.load(); // Pre-load the audio on first interaction
+            if (!audioRef.current) {
+                audioRef.current = new Audio(notificationSound);
             }
+            audioRef.current.load();
         }
         window.removeEventListener('click', handleFirstInteraction);
         window.removeEventListener('keydown', handleFirstInteraction);
     };
 
-    audioRef.current = new Audio(notificationSound);
     window.addEventListener('click', handleFirstInteraction);
     window.addEventListener('keydown', handleFirstInteraction);
 
@@ -92,25 +94,56 @@ export default function DashboardLayout({
         window.removeEventListener('click', handleFirstInteraction);
         window.removeEventListener('keydown', handleFirstInteraction);
     };
-}, [hasInteracted]);
+  }, [hasInteracted]);
 
-  // This effect detects new orders and triggers sound
+  // This effect listens for NEW orders in real-time.
   useEffect(() => {
-      if (isLoadingOrders || !companyData?.soundNotificationEnabled || !hasInteracted || !audioRef.current) {
-          return;
-      }
-      
-      // Play sound only if the number of new orders has increased since the last check.
-      if (newOrdersCount > previousNewOrdersCountRef.current) {
-          if (audioRef.current.paused) {
+    if (!firestore || !user?.uid || !companyData) return;
+
+    // Only set up the listener if sound or printing is enabled.
+    if (!companyData.soundNotificationEnabled && !companyData.autoPrintEnabled) {
+      return;
+    }
+
+    const q = query(
+        collection(firestore, `companies/${user.uid}/orders`), 
+        where('status', 'in', ['Novo', 'Aguardando pagamento'])
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      snapshot.docChanges().forEach((change) => {
+        // We only care about newly added documents.
+        if (change.type === 'added') {
+          const order = { id: change.doc.id, ...change.doc.data() } as Order;
+          
+          // Check if we've already processed this order ID.
+          if (!processedOrderIds.has(order.id)) {
+            
+            // 1. Play sound if enabled
+            if (companyData.soundNotificationEnabled && audioRef.current && hasInteracted) {
+              audioRef.current.currentTime = 0;
               audioRef.current.play().catch(err => console.error("Audio playback failed:", err));
+            }
+
+            // 2. Auto-print if enabled
+            if (companyData.autoPrintEnabled && hasInteracted) {
+              const printHtml = generateOrderPrintHtml(order, companyData);
+              const printWindow = window.open('', '_blank', 'width=300,height=500');
+              if (printWindow) {
+                  printWindow.document.write(printHtml);
+                  printWindow.document.close();
+              }
+            }
+
+            // 3. Mark order as processed to avoid duplicates
+            setProcessedOrderIds(prev => new Set(prev).add(order.id));
           }
-      }
+        }
+      });
+    });
 
-      // Update the previous count ref for the next render.
-      previousNewOrdersCountRef.current = newOrdersCount;
-
-  }, [newOrdersCount, isLoadingOrders, companyData, hasInteracted]);
+    return () => unsubscribe(); // Cleanup the listener on unmount.
+  }, [firestore, user?.uid, companyData, hasInteracted, processedOrderIds]);
 
 
   useEffect(() => {
@@ -120,9 +153,7 @@ export default function DashboardLayout({
   }, [user, isUserLoading, router]);
 
    useEffect(() => {
-    // Check if company data is loaded and if the company is inactive
     if (!isLoadingCompany && companyData && companyData.isActive === false) {
-        // If the user is not already on the settings page, redirect them.
         if (pathname !== '/dashboard/settings') {
             router.push('/dashboard/settings');
         }
@@ -153,7 +184,7 @@ export default function DashboardLayout({
 }, [companyData]);
 
 
-  if (isUserLoading || isLoadingCompany || !user || isLoadingOrders || isLoadingAdmin) {
+  if (isUserLoading || isLoadingCompany || !user || isLoadingAllOrders || isLoadingAdmin) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <p>Carregando...</p>
@@ -161,7 +192,6 @@ export default function DashboardLayout({
     );
   }
 
-  // If company is inactive and we're not on the settings page, show loading while redirecting.
   if (companyData?.isActive === false && pathname !== '/dashboard/settings') {
      return (
         <div className="flex min-h-screen items-center justify-center">
@@ -169,7 +199,6 @@ export default function DashboardLayout({
         </div>
      )
   }
-
 
   return (
     <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">

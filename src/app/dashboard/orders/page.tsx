@@ -34,6 +34,8 @@ import { MoreHorizontal, Package, Printer, Truck } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
+import { generateOrderPrintHtml } from '@/lib/print-utils';
+
 
 type Company = {
     id: string;
@@ -109,70 +111,45 @@ export default function OrdersPage() {
         const orderDocRef = doc(firestore, `companies/${user.uid}/orders`, order.id);
         const newStatus = { status };
 
-        updateDocument(orderDocRef, newStatus).then(async () => {
+        updateDocument(orderDocRef, newStatus).then(() => {
             toast({
                 title: 'Status do Pedido Atualizado!',
                 description: `O pedido foi marcado como "${status}".`,
             });
-
-            // Proceed with WhatsApp notification logic
-            try {
-                const customerRef = doc(firestore, 'customers', order.customerId);
-                const customerSnap = await getDoc(customerRef).catch(serverError => {
-                    const permissionError = new FirestorePermissionError({
-                        path: customerRef.path,
-                        operation: 'get',
-                    });
-                    errorEmitter.emit('permission-error', permissionError);
-                    // This allows the flow to continue, but we won't have customer data.
-                    throw new Error("Permission denied to fetch customer data."); 
-                });
-
-                if (!customerSnap.exists()) {
-                    console.warn('Cliente não encontrado para notificação via WhatsApp.');
-                    return;
-                }
-                
-                const customer = customerSnap.data() as Customer;
-                const customerPhone = customer.phone?.replace(/\D/g, '');
-
-                if (!customerPhone) {
-                    console.warn('Cliente não possui telefone para notificação via WhatsApp.');
-                    return;
-                }
-
-                const templates = companyData.whatsappMessageTemplates ? JSON.parse(companyData.whatsappMessageTemplates) : {};
-                let messageTemplate = '';
-                
-                switch (status) {
-                    case 'Em preparo':
-                        messageTemplate = templates.received || "Olá {cliente}, seu pedido nº {pedido_id} foi recebido e já estamos preparando tudo! 🍔";
-                        break;
-                    case 'Saiu para entrega':
-                        messageTemplate = templates.delivery || "Boas notícias, {cliente}! Seu pedido nº {pedido_id} acabou de sair para entrega e logo chegará até você! 🛵";
-                        break;
-                    case 'Pronto para retirada':
-                        messageTemplate = templates.ready || "Ei, {cliente}! Seu pedido nº {pedido_id} está prontinho te esperando para retirada. 😊";
-                        break;
-                    default:
-                        return; // Do not send notification for other statuses
-                }
-                
-                const message = messageTemplate
-                    .replace('{cliente}', order.customerName || 'Cliente')
-                    .replace('{pedido_id}', order.id.substring(0, 6).toUpperCase());
-
-                const whatsappUrl = `https://wa.me/55${customerPhone}?text=${encodeURIComponent(message)}`;
-                window.open(whatsappUrl, '_blank');
-
-            } catch (customerError) {
-                 console.error("Could not fetch customer for WhatsApp notification:", customerError);
-                 toast({
-                    variant: 'destructive',
-                    title: 'Aviso de Notificação',
-                    description: 'Não foi possível buscar os dados do cliente para a notificação via WhatsApp, mas o status do pedido foi atualizado.',
-                });
+            
+            // Proceed with WhatsApp notification logic only after successful update
+            const templates = companyData.whatsappMessageTemplates ? JSON.parse(companyData.whatsappMessageTemplates) : {};
+            let messageTemplate = '';
+            
+            switch (status) {
+                case 'Em preparo':
+                    messageTemplate = templates.received || "Olá {cliente}, seu pedido nº {pedido_id} foi recebido e já estamos preparando tudo! 🍔";
+                    break;
+                case 'Saiu para entrega':
+                    messageTemplate = templates.delivery || "Boas notícias, {cliente}! Seu pedido nº {pedido_id} acabou de sair para entrega e logo chegará até você! 🛵";
+                    break;
+                case 'Pronto para retirada':
+                    messageTemplate = templates.ready || "Ei, {cliente}! Seu pedido nº {pedido_id} está prontinho te esperando para retirada. 😊";
+                    break;
+                default:
+                    return; // Do not send notification for other statuses
             }
+
+            // We need the customer's phone number for the notification.
+            // It should be on the order object.
+            const customerPhone = order.customerPhone?.replace(/\D/g, '');
+
+            if (!customerPhone) {
+                console.warn('Cliente não possui telefone para notificação via WhatsApp.');
+                return;
+            }
+            
+            const message = messageTemplate
+                .replace('{cliente}', order.customerName || 'Cliente')
+                .replace('{pedido_id}', order.id.substring(0, 6).toUpperCase());
+
+            const whatsappUrl = `https://wa.me/55${customerPhone}?text=${encodeURIComponent(message)}`;
+            window.open(whatsappUrl, '_blank');
 
         }).catch(serverError => {
             // This will catch the updateDoc failure
@@ -295,81 +272,7 @@ export default function OrdersPage() {
 const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order; company?: Company; onOpenChange: (isOpen: boolean) => void; }) => {
     
      const handlePrint = () => {
-        const itemsHtml = order.orderItems.map(item => `
-            <tr>
-                <td colspan="3">
-                    ${item.productName || item.productId}
-                    ${item.notes ? `<br><small style="color: #555;">OBS: ${item.notes}</small>` : ''}
-                </td>
-            </tr>
-            <tr>
-                <td>&nbsp;</td>
-                <td style="text-align: center;">${item.quantity} x R$${item.unitPrice.toFixed(2)}</td>
-                <td style="text-align: right;">R$${(item.unitPrice * item.quantity).toFixed(2)}</td>
-            </tr>
-        `).join('');
-
-        const printHtml = `
-            <html>
-                <head>
-                    <title>Pedido ${order.id.substring(0,6).toUpperCase()}</title>
-                    <style>
-                        body { font-family: 'Courier New', monospace; font-size: 10pt; margin: 20px; color: #000; }
-                        h2, p { margin: 0; text-align: center; }
-                        h2 { font-size: 1.2em; }
-                        hr { border: none; border-top: 1px dashed black; margin: 10px 0; }
-                        table { width: 100%; border-collapse: collapse; }
-                        th, td { padding: 5px 0; }
-                        th { text-align: left; border-bottom: 1px dashed black;}
-                        .totals { text-align: right; margin-top: 10px; }
-                        .totals strong { font-size: 1.1em; }
-                        .section { margin-top: 15px; }
-                        .section-title { font-weight: bold; text-align: left; }
-                    </style>
-                </head>
-                <body>
-                    <h2>${company?.name || 'Seu Restaurante'}</h2>
-                    <p>Pedido: ${order.id.substring(0, 6).toUpperCase()}</p>
-                    <p>${order.orderDate.toDate().toLocaleString('pt-BR')}</p>
-                    <hr />
-                    <div class="section">
-                        <p class="section-title">Cliente:</p>
-                        <p style="text-align: left;">${order.customerName || 'Cliente anônimo'}</p>
-                        ${order.customerPhone ? `<p style="text-align: left;">Tel: ${order.customerPhone}</p>` : ''}
-                        ${order.deliveryType === 'Delivery' ? `<p style="text-align: left;">${order.deliveryAddress}</p>` : ''}
-                    </div>
-                    <hr />
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Item</th>
-                                <th style="text-align: center;">Qtd x Valor</th>
-                                <th style="text-align: right;">Total</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${itemsHtml}
-                        </tbody>
-                    </table>
-                    <hr />
-                    ${order.notes ? `<div class="section"><p class="section-title">Observações do Pedido:</p><p style="text-align: left;">${order.notes}</p></div><hr />` : ''}
-                    <div class="totals">
-                        <p>Subtotal: R$${order.totalAmount.toFixed(2)}</p>
-                        ${order.deliveryFee ? `<p>Taxa de Entrega: R$${order.deliveryFee.toFixed(2)}</p>` : ''}
-                        <strong>Total: R$${(order.totalAmount + (order.deliveryFee || 0)).toFixed(2)}</strong>
-                    </div>
-                     <hr />
-                    <p style="text-align: left;">Forma de Pagamento: ${order.paymentMethod}</p>
-                    <p style="text-align: left;">Tipo de Entrega: ${order.deliveryType}</p>
-                    
-                    <script>
-                        window.print();
-                        window.onafterprint = () => window.close();
-                    </script>
-                </body>
-            </html>
-        `;
-        
+        const printHtml = generateOrderPrintHtml(order, company);
         const printWindow = window.open('', '_blank', 'width=300,height=500');
         if (printWindow) {
             printWindow.document.write(printHtml);
