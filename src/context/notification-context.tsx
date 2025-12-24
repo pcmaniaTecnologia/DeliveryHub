@@ -8,7 +8,7 @@ import type { Order } from '@/app/dashboard/orders/page';
 import { generateOrderPrintHtml } from '@/lib/print-utils';
 import { useToast } from '@/hooks/use-toast';
 
-const notificationSound = "https://actions.google.com/sounds/v1/alarms/doorbell_ring.ogg";
+const notificationSoundUrl = "https://actions.google.com/sounds/v1/alarms/doorbell_ring.ogg";
 
 interface NotificationContextType {
     isEnabled: boolean;
@@ -29,12 +29,25 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
     const processedOrderIds = useRef(new Set<string>());
     const listenerUnsubscribe = useRef<() => void | null>(null);
     
-    // Initialize Audio Ref
+    // This effect handles the creation and cleanup of the audio element.
     useEffect(() => {
-        if (!audioRef.current) {
-            audioRef.current = new Audio(notificationSound);
-            audioRef.current.preload = 'auto';
-        }
+        // Create an audio element programmatically
+        const audio = document.createElement('audio');
+        const source = document.createElement('source');
+        source.src = notificationSoundUrl;
+        source.type = 'audio/ogg';
+        audio.appendChild(source);
+        audio.preload = 'auto';
+        document.body.appendChild(audio);
+        audioRef.current = audio;
+        
+        // Cleanup function to remove the audio element when the component unmounts
+        return () => {
+            if (audioRef.current) {
+                document.body.removeChild(audioRef.current);
+                audioRef.current = null;
+            }
+        };
     }, []);
 
     const playSound = useCallback(() => {
@@ -97,7 +110,7 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
         setIsActivating(true);
 
         if (!audioRef.current) {
-            toast({ variant: 'destructive', title: 'Erro de Áudio' });
+            toast({ variant: 'destructive', title: 'Erro de Áudio', description: 'O elemento de áudio não foi carregado.' });
             setIsActivating(false);
             return;
         }
