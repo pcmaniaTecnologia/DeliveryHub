@@ -29,8 +29,7 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
     const processedOrderIds = useRef(new Set<string>());
     const listenerUnsubscribe = useRef<() => void | null>(null);
 
-     const playSound = useCallback(() => {
-        // Only play sound if it's enabled in the company settings
+    const playSound = useCallback(() => {
         if (audioRef.current && companyData?.soundNotificationEnabled) {
             audioRef.current.currentTime = 0;
             audioRef.current.play().catch(err => {
@@ -85,34 +84,38 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
 
      const activateSystem = useCallback(() => {
         if (isEnabled || isActivating || !audioRef.current) return;
-
+        
         setIsActivating(true);
+        const audio = audioRef.current;
 
-        const promise = audioRef.current.play();
+        const promise = audio.play();
+        
+        if(promise !== undefined){
+            promise.then(() => {
+                audio.pause();
+                audio.currentTime = 0;
+                
+                setIsEnabled(true);
+                listenToNewOrders();
+                toast({ title: "Sistema de notificação ativado!" });
 
-        promise.then(() => {
-            if(audioRef.current) {
-                audioRef.current.pause();
-                audioRef.current.currentTime = 0;
-            }
-            
-            setIsEnabled(true);
-            listenToNewOrders();
-            toast({ title: "Sistema de notificação ativado!" });
-        }).catch((err) => {
-            console.error("Could not activate audio:", err);
-             toast({
-                variant: 'destructive',
-                title: 'Não foi possível ativar o som',
-                description: 'Seu navegador pode estar bloqueando a reprodução automática. Interaja com a página e tente novamente.',
+            }).catch(error => {
+                console.error("Falha ao ativar o áudio:", error);
+                 toast({
+                    variant: 'destructive',
+                    title: 'Não foi possível ativar o som',
+                    description: 'Seu navegador pode estar bloqueando a reprodução automática. Interaja com a página e tente novamente.',
+                });
+                setIsEnabled(false);
+            }).finally(() => {
+                 setIsActivating(false);
             });
-             setIsEnabled(false);
-        }).finally(() => {
-            setIsActivating(false);
-        });
+        }
+
     }, [isEnabled, isActivating, listenToNewOrders, toast]);
 
      useEffect(() => {
+        // Setup audio element
         const audio = document.createElement('audio');
         const source = document.createElement('source');
         source.src = notificationSoundUrl;
@@ -122,6 +125,18 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
         document.body.appendChild(audio);
         audioRef.current = audio;
 
+        // Auto-activation on first user interaction
+        const handleFirstInteraction = () => {
+            if (!isEnabled) {
+                activateSystem();
+            }
+            window.removeEventListener('click', handleFirstInteraction);
+            window.removeEventListener('touchend', handleFirstInteraction);
+        };
+        
+        window.addEventListener('click', handleFirstInteraction);
+        window.addEventListener('touchend', handleFirstInteraction);
+
         return () => {
             if (listenerUnsubscribe.current) {
                 listenerUnsubscribe.current();
@@ -130,8 +145,10 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
                 document.body.removeChild(audioRef.current);
                 audioRef.current = null;
             }
+             window.removeEventListener('click', handleFirstInteraction);
+             window.removeEventListener('touchend', handleFirstInteraction);
         };
-    }, []);
+    }, [activateSystem, isEnabled]);
 
 
     const value = {

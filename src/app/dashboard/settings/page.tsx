@@ -350,7 +350,7 @@ export default function SettingsPage() {
     if (!companyRef) return;
     const whatsappTemplatesString = JSON.stringify(whatsappTemplates);
     try {
-        await updateDocument(companyRef, { whatsappMessageTemplates: whatsappTemplatesString });
+        await updateDocument(companyRef, { whatsappTemplates: whatsappTemplatesString });
         toast({
             title: 'Sucesso!',
             description: 'Mensagens do WhatsApp salvas.',
@@ -861,3 +861,4 @@ export default function SettingsPage() {
     
 
     
+
