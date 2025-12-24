@@ -35,6 +35,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { generateOrderPrintHtml } from '@/lib/print-utils';
+import NotificationToggle from '@/components/dashboard/notification-toggle';
 
 
 type Company = {
@@ -169,8 +170,13 @@ export default function OrdersPage() {
     <>
     <Card>
       <CardHeader>
-        <CardTitle>Pedidos</CardTitle>
-        <CardDescription>Gerencie seus pedidos e visualize o status de cada um.</CardDescription>
+        <div className="flex items-center justify-between">
+            <div>
+                <CardTitle>Pedidos</CardTitle>
+                <CardDescription>Gerencie seus pedidos e visualize o status de cada um.</CardDescription>
+            </div>
+            <NotificationToggle />
+        </div>
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="Todos">
@@ -272,6 +278,7 @@ export default function OrdersPage() {
 const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order; company?: Company; onOpenChange: (isOpen: boolean) => void; }) => {
     
      const handlePrint = () => {
+        if (!order) return;
         const printHtml = generateOrderPrintHtml(order, company);
         const printWindow = window.open('', '_blank', 'width=300,height=500');
         if (printWindow) {
