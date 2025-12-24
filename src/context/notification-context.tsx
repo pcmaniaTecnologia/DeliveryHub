@@ -99,20 +99,19 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
         
     }, [firestore, user?.uid, playSound, printOrder]);
 
-    const activateSystem = useCallback(async () => {
-        if (isEnabled || isActivating) return;
+    const activateSystem = useCallback(() => {
+        if (isEnabled || isActivating || !audioRef.current) return;
+        
         setIsActivating(true);
 
-        if (!audioRef.current) {
-            toast({ variant: 'destructive', title: 'Erro de Áudio', description: 'O elemento de áudio não foi carregado.' });
-            setIsActivating(false);
-            return;
-        }
+        const promise = audioRef.current.play();
 
-        try {
-            await audioRef.current.play();
-            audioRef.current.pause();
-            audioRef.current.currentTime = 0;
+        promise.then(() => {
+            // Success
+            if(audioRef.current) {
+                audioRef.current.pause();
+                audioRef.current.currentTime = 0;
+            }
             
             setIsEnabled(true);
             listenToNewOrders();
@@ -120,16 +119,19 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
                 title: 'Sistema Ativado',
                 description: 'As notificações sonoras para novos pedidos estão ativas.',
             });
-        } catch (err) {
+        }).catch((err) => {
+            // Failure (likely blocked by browser)
             console.error("Could not activate audio:", err);
             toast({
                 variant: 'destructive',
                 title: 'Não foi possível ativar o som',
                 description: 'Seu navegador pode estar bloqueando a reprodução automática. Interaja com a página e tente novamente.',
             });
-        } finally {
+        }).finally(() => {
+            // Always stop the activating state
             setIsActivating(false);
-        }
+        });
+
     }, [isEnabled, isActivating, listenToNewOrders, toast]);
 
     const value = {
