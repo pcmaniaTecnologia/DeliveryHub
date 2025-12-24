@@ -264,6 +264,48 @@ export default function DashboardPage() {
         return `(${from} - ${to})`;
     }, [dateRange]);
 
+    const handlePrint = () => {
+        const formatCurrency = (value: number) => `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+        const printHtml = `
+            <html>
+                <head>
+                    <title>Fechamento de Caixa</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; margin: 20px; }
+                        h2, h3 { text-align: center; }
+                        div { margin-bottom: 15px; }
+                        span { display: inline-block; }
+                        .item { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px dashed #ccc; }
+                        .total { display: flex; justify-content: space-between; font-weight: bold; font-size: 1.2em; padding-top: 10px; border-top: 2px solid #000; }
+                    </style>
+                </head>
+                <body>
+                    <h2>Fechamento de Caixa</h2>
+                    <h3>${dateRangeLabel.replace(/[()]/g, '')}</h3>
+                    
+                    <div class="item"><span>Dinheiro</span> <span>${formatCurrency(salesByPaymentMethod.cash)}</span></div>
+                    <div class="item"><span>PIX</span> <span>${formatCurrency(salesByPaymentMethod.pix)}</span></div>
+                    <div class="item"><span>Cartão de Crédito</span> <span>${formatCurrency(salesByPaymentMethod.credit)}</span></div>
+                    <div class="item"><span>Cartão de Débito</span> <span>${formatCurrency(salesByPaymentMethod.debit)}</span></div>
+                    
+                    <div class="total"><span>Total</span> <span>${formatCurrency(totalSales)}</span></div>
+
+                    <script>
+                        window.print();
+                        window.onafterprint = () => window.close();
+                    </script>
+                </body>
+            </html>
+        `;
+        
+        const printWindow = window.open('', '_blank');
+        if (printWindow) {
+            printWindow.document.write(printHtml);
+            printWindow.document.close();
+        }
+    };
+
 
     if (isLoading) {
         return (
@@ -275,7 +317,7 @@ export default function DashboardPage() {
   
   return (
       <div className="space-y-4">
-        <div className="no-print">
+        <div>
             <div className="flex items-center justify-between space-y-2">
                 <h2 className="text-3xl font-bold tracking-tight">Painel</h2>
                 <div className="flex items-center space-x-2">
@@ -363,7 +405,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-            <Card className="col-span-4 no-print">
+            <Card className="col-span-4">
             <CardHeader>
                 <CardTitle>Visão Geral de Vendas (Últimos 7 dias)</CardTitle>
             </CardHeader>
@@ -382,7 +424,7 @@ export default function DashboardPage() {
             </CardContent>
             </Card>
 
-            <div className="col-span-4 lg:col-span-3 printable-section">
+            <div className="col-span-4 lg:col-span-3">
                 <Card>
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
@@ -424,7 +466,7 @@ export default function DashboardPage() {
                             <span className="flex-1">Total</span>
                             <span>R$ {totalSales.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         </div>
-                        <Button variant="outline" className="w-full no-print" onClick={() => window.print()}>
+                        <Button variant="outline" className="w-full" onClick={handlePrint}>
                             <Printer className="mr-2 h-4 w-4" />
                             Imprimir
                         </Button>
@@ -433,7 +475,7 @@ export default function DashboardPage() {
             </div>
         </div>
 
-        <Card className="col-span-4 lg:col-span-7 no-print">
+        <Card className="col-span-4 lg:col-span-7">
             <CardHeader>
                 <CardTitle>Pedidos Recentes</CardTitle>
             </CardHeader>

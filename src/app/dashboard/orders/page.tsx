@@ -83,69 +83,6 @@ const statusMap: { [key: string]: Order['status'][] } = {
   "Finalizados": ["Entregue", "Cancelado"],
 }
 
-class PrintableOrder extends React.Component<{ order: Order; company?: Company }> {
-    render() {
-        const { order, company } = this.props;
-        return (
-            <div className="p-6">
-                <div className="text-center">
-                    <h2 className="text-2xl font-bold">{company?.name || 'Seu Restaurante'}</h2>
-                    <p className="text-sm text-gray-500">Pedido: {order.id.substring(0, 6).toUpperCase()}</p>
-                    <p className="text-sm text-gray-500">{order.orderDate.toDate().toLocaleString('pt-BR')}</p>
-                </div>
-                <Separator className="my-4" />
-                <div className="space-y-4">
-                    <div className="space-y-1">
-                        <h3 className="font-semibold">Cliente</h3>
-                        <p>{order.customerName || 'Cliente anônimo'}</p>
-                        {order.deliveryType === 'Delivery' && <p className="text-gray-500">{order.deliveryAddress}</p>}
-                    </div>
-                    <Separator />
-                    <div>
-                        <h3 className="font-semibold mb-2">Itens do Pedido</h3>
-                        <table className="w-full text-sm">
-                            <thead>
-                                <tr className="border-b">
-                                    <th className="text-left py-2">Produto</th>
-                                    <th className="text-center py-2">Qtd.</th>
-                                    <th className="text-right py-2">Preço</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {order.orderItems.map((item, index) => (
-                                    <tr key={index} className="border-b">
-                                        <td className="py-2">{item.productName || item.productId}</td>
-                                        <td className="text-center py-2">{item.quantity}</td>
-                                        <td className="text-right py-2">R${(item.unitPrice * item.quantity).toFixed(2)}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                    <Separator />
-                    <div className="space-y-2">
-                        <div className="flex justify-between">
-                            <span>Subtotal</span>
-                            <span>R${order.totalAmount.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between font-bold text-lg">
-                            <span>Total</span>
-                            <span>R${order.totalAmount.toFixed(2)}</span>
-                        </div>
-                    </div>
-                    <Separator />
-                    <div className="space-y-1">
-                        <h3 className="font-semibold">Pagamento</h3>
-                        <p>Forma de Pagamento: {order.paymentMethod}</p>
-                        <p>Tipo de Entrega: {order.deliveryType}</p>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-}
-
-
 export default function OrdersPage() {
     const { user, isUserLoading } = useUser();
     const firestore = useFirestore();
@@ -246,20 +183,6 @@ export default function OrdersPage() {
     
     const isLoading = isUserLoading || isLoadingOrders || isLoadingCompany;
 
-    const handlePrint = () => {
-        const printableElement = document.querySelector('.printable-section');
-        if (printableElement) {
-            const originalContents = document.body.innerHTML;
-            const printContents = printableElement.innerHTML;
-            document.body.innerHTML = printContents;
-            window.print();
-            document.body.innerHTML = originalContents;
-            // We need to re-attach the event listeners after restoring the content
-            // but for a simple print, a reload might be the easiest way to restore full functionality
-            window.location.reload(); 
-        }
-    };
-
   return (
     <>
     <Card>
@@ -358,33 +281,141 @@ export default function OrdersPage() {
             order={selectedOrder} 
             company={companyData || undefined}
             onOpenChange={(isOpen) => !isOpen && setSelectedOrder(null)}
-            onPrint={handlePrint}
         />
     )}
     </>
   );
 }
 
-const OrderDetailsDialog = ({ order, company, onOpenChange, onPrint }: { order: Order; company?: Company; onOpenChange: (isOpen: boolean) => void; onPrint: () => void; }) => {
+const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order; company?: Company; onOpenChange: (isOpen: boolean) => void; }) => {
     
-    const handlePrintClick = () => {
-        // This is a simple browser print.
-        // For more advanced printing, a library like react-to-print may be needed,
-        // but can introduce complexity with modern React components.
-        window.print();
+     const handlePrint = () => {
+        const itemsHtml = order.orderItems.map(item => `
+            <tr>
+                <td>${item.productName || item.productId}</td>
+                <td style="text-align: center;">${item.quantity}</td>
+                <td style="text-align: right;">R$${(item.unitPrice * item.quantity).toFixed(2)}</td>
+            </tr>
+        `).join('');
+
+        const printHtml = `
+            <html>
+                <head>
+                    <title>Pedido ${order.id.substring(0,6).toUpperCase()}</title>
+                    <style>
+                        body { font-family: 'Courier New', monospace; font-size: 10pt; margin: 20px; }
+                        h2, p { margin: 0; text-align: center; }
+                        h2 { font-size: 1.2em; }
+                        hr { border: none; border-top: 1px dashed black; margin: 10px 0; }
+                        table { width: 100%; border-collapse: collapse; }
+                        th, td { padding: 5px 0; }
+                        th { text-align: left; border-bottom: 1px dashed black;}
+                        .totals { text-align: right; margin-top: 10px; font-size: 1.1em; }
+                    </style>
+                </head>
+                <body>
+                    <h2>${company?.name || 'Seu Restaurante'}</h2>
+                    <p>Pedido: ${order.id.substring(0, 6).toUpperCase()}</p>
+                    <p>${order.orderDate.toDate().toLocaleString('pt-BR')}</p>
+                    <hr />
+                    <p><strong>Cliente:</strong> ${order.customerName || 'Cliente anônimo'}</p>
+                    ${order.deliveryType === 'Delivery' ? `<p>${order.deliveryAddress}</p>` : ''}
+                    <hr />
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th style="text-align: center;">Qtd</th>
+                                <th style="text-align: right;">Preço</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${itemsHtml}
+                        </tbody>
+                    </table>
+                    <hr />
+                    <div class="totals"><strong>Total: R$${order.totalAmount.toFixed(2)}</strong></div>
+                     <hr />
+                    <p>Forma de Pagamento: ${order.paymentMethod}</p>
+                    <p>Tipo de Entrega: ${order.deliveryType}</p>
+                    
+                    <script>
+                        window.print();
+                        window.onafterprint = () => window.close();
+                    </script>
+                </body>
+            </html>
+        `;
+        
+        const printWindow = window.open('', '_blank');
+        if (printWindow) {
+            printWindow.document.write(printHtml);
+            printWindow.document.close();
+        }
     };
 
     return (
         <Dialog open={!!order} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-md">
-                 <div className='printable-section'>
-                    <DialogHeader>
-                        <DialogTitle>Detalhes do Pedido #{order.id.substring(0, 6).toUpperCase()}</DialogTitle>
-                    </DialogHeader>
-                    <PrintableOrder order={order} company={company} />
-                 </div>
-                 <DialogFooter className='non-printable-content'>
-                    <Button variant="outline" onClick={handlePrintClick}>
+                <DialogHeader>
+                    <DialogTitle>Detalhes do Pedido #{order.id.substring(0, 6).toUpperCase()}</DialogTitle>
+                </DialogHeader>
+                <div className="p-6">
+                    <div className="text-center">
+                        <h2 className="text-2xl font-bold">{company?.name || 'Seu Restaurante'}</h2>
+                        <p className="text-sm text-gray-500">Pedido: {order.id.substring(0, 6).toUpperCase()}</p>
+                        <p className="text-sm text-gray-500">{order.orderDate.toDate().toLocaleString('pt-BR')}</p>
+                    </div>
+                    <Separator className="my-4" />
+                    <div className="space-y-4">
+                        <div className="space-y-1">
+                            <h3 className="font-semibold">Cliente</h3>
+                            <p>{order.customerName || 'Cliente anônimo'}</p>
+                            {order.deliveryType === 'Delivery' && <p className="text-gray-500">{order.deliveryAddress}</p>}
+                        </div>
+                        <Separator />
+                        <div>
+                            <h3 className="font-semibold mb-2">Itens do Pedido</h3>
+                            <table className="w-full text-sm">
+                                <thead>
+                                    <tr className="border-b">
+                                        <th className="text-left py-2">Produto</th>
+                                        <th className="text-center py-2">Qtd.</th>
+                                        <th className="text-right py-2">Preço</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {order.orderItems.map((item, index) => (
+                                        <tr key={index} className="border-b">
+                                            <td className="py-2">{item.productName || item.productId}</td>
+                                            <td className="text-center py-2">{item.quantity}</td>
+                                            <td className="text-right py-2">R${(item.unitPrice * item.quantity).toFixed(2)}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        <Separator />
+                        <div className="space-y-2">
+                            <div className="flex justify-between">
+                                <span>Subtotal</span>
+                                <span>R${order.totalAmount.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between font-bold text-lg">
+                                <span>Total</span>
+                                <span>R${order.totalAmount.toFixed(2)}</span>
+                            </div>
+                        </div>
+                        <Separator />
+                        <div className="space-y-1">
+                            <h3 className="font-semibold">Pagamento</h3>
+                            <p>Forma de Pagamento: {order.paymentMethod}</p>
+                            <p>Tipo de Entrega: {order.deliveryType}</p>
+                        </div>
+                    </div>
+                </div>
+                 <DialogFooter>
+                    <Button variant="outline" onClick={handlePrint}>
                         <Printer className="mr-2 h-4 w-4" />
                         Imprimir
                     </Button>
@@ -393,4 +424,3 @@ const OrderDetailsDialog = ({ order, company, onOpenChange, onPrint }: { order: 
         </Dialog>
     );
 };
-

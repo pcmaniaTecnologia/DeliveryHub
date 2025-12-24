@@ -60,19 +60,3 @@ body {
     @apply bg-background text-foreground;
   }
 }
-
-@media print {
-  body.printing-active {
-    visibility: hidden;
-  }
-
-  body.printing-active .printable-content-only {
-      visibility: visible;
-      position: absolute;
-      left: 0;
-      top: 0;
-      width: 100%;
-  }
-}
-
-    
