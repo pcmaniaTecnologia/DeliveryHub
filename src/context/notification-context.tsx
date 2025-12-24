@@ -44,6 +44,9 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
                 document.body.removeChild(audioRef.current);
                 audioRef.current = null;
             }
+            if (listenerUnsubscribe.current) {
+                listenerUnsubscribe.current();
+            }
         };
     }, []);
 
@@ -96,7 +99,7 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
         
     }, [firestore, user?.uid, playSound, printOrder]);
 
-    const activateSystem = useCallback(() => {
+    const activateSystem = useCallback(async () => {
         if (isEnabled || isActivating) return;
         setIsActivating(true);
 
@@ -106,35 +109,28 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
             return;
         }
 
-        audioRef.current.play().then(() => {
-            audioRef.current?.pause();
-            audioRef.current!.currentTime = 0;
+        try {
+            await audioRef.current.play();
+            audioRef.current.pause();
+            audioRef.current.currentTime = 0;
             
             setIsEnabled(true);
             listenToNewOrders();
-
-        }).catch(err => {
+            toast({
+                title: 'Sistema Ativado',
+                description: 'As notificações sonoras para novos pedidos estão ativas.',
+            });
+        } catch (err) {
             console.error("Could not activate audio:", err);
             toast({
                 variant: 'destructive',
                 title: 'Não foi possível ativar o som',
-                description: 'Seu navegador pode estar bloqueando a reprodução automática.',
+                description: 'Seu navegador pode estar bloqueando a reprodução automática. Interaja com a página e tente novamente.',
             });
-        }).finally(() => {
+        } finally {
             setIsActivating(false);
-        });
-
+        }
     }, [isEnabled, isActivating, listenToNewOrders, toast]);
-
-    // Cleanup listener on unmount
-    useEffect(() => {
-        const unsubscribe = listenerUnsubscribe.current;
-        return () => {
-            if (unsubscribe) {
-                unsubscribe();
-            }
-        };
-    }, []);
 
     const value = {
         isEnabled,
