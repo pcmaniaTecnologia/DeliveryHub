@@ -93,7 +93,7 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
     }, [firestore, user?.uid, playSound, printOrder]);
 
     const activateSystem = useCallback(() => {
-        if (isEnabled) return;
+        if (isEnabled || isActivating) return;
         setIsActivating(true);
 
         if (!audioRef.current) {
@@ -103,6 +103,7 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
         }
 
         // The user interaction allows us to "unlock" the audio.
+        // We play a silent sound to check if the browser allows it.
         audioRef.current.play().then(() => {
             audioRef.current?.pause();
             audioRef.current!.currentTime = 0;
@@ -126,7 +127,7 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
             setIsActivating(false);
         });
 
-    }, [isEnabled, listenToNewOrders, toast]);
+    }, [isEnabled, isActivating, listenToNewOrders, toast]);
 
     // Cleanup listener on unmount
     useEffect(() => {
