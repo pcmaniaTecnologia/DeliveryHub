@@ -71,7 +71,8 @@ export type Order = {
   orderItems: OrderItem[];
   totalAmount: number;
   notes?: string;
-  customerName?: string; 
+  customerName?: string;
+  customerPhone?: string;
 };
 
 
@@ -117,7 +118,15 @@ export default function OrdersPage() {
             // Proceed with WhatsApp notification logic
             try {
                 const customerRef = doc(firestore, 'customers', order.customerId);
-                const customerSnap = await getDoc(customerRef);
+                const customerSnap = await getDoc(customerRef).catch(serverError => {
+                    const permissionError = new FirestorePermissionError({
+                        path: customerRef.path,
+                        operation: 'get',
+                    });
+                    errorEmitter.emit('permission-error', permissionError);
+                    // This allows the flow to continue, but we won't have customer data.
+                    throw new Error("Permission denied to fetch customer data."); 
+                });
 
                 if (!customerSnap.exists()) {
                     console.warn('Cliente não encontrado para notificação via WhatsApp.');
@@ -166,18 +175,14 @@ export default function OrdersPage() {
             }
 
         }).catch(serverError => {
-            // Handle updateDoc failure
+            // This will catch the updateDoc failure
             const permissionError = new FirestorePermissionError({
                 path: orderDocRef.path,
                 operation: 'update',
                 requestResourceData: newStatus,
             });
             errorEmitter.emit('permission-error', permissionError);
-            toast({
-                variant: 'destructive',
-                title: 'Erro de Permissão',
-                description: 'Você não tem permissão para atualizar este pedido.',
-            });
+            // No need for a toast here, as the global error handler will show it.
         });
     };
     
@@ -371,6 +376,7 @@ const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order; co
                         <div className="space-y-1">
                             <h3 className="font-semibold">Cliente</h3>
                             <p>{order.customerName || 'Cliente anônimo'}</p>
+                            {order.customerPhone && <p className="text-sm text-gray-500">{order.customerPhone}</p>}
                             {order.deliveryType === 'Delivery' && <p className="text-gray-500">{order.deliveryAddress}</p>}
                         </div>
                         <Separator />
