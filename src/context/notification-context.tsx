@@ -28,10 +28,8 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const processedOrderIds = useRef(new Set<string>());
     const listenerUnsubscribe = useRef<() => void | null>(null);
-    
-    // This effect handles the creation and cleanup of the audio element.
+
     useEffect(() => {
-        // Create an audio element programmatically
         const audio = document.createElement('audio');
         const source = document.createElement('source');
         source.src = notificationSoundUrl;
@@ -40,8 +38,7 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
         audio.preload = 'auto';
         document.body.appendChild(audio);
         audioRef.current = audio;
-        
-        // Cleanup function to remove the audio element when the component unmounts
+
         return () => {
             if (audioRef.current) {
                 document.body.removeChild(audioRef.current);
@@ -54,16 +51,10 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
         if (audioRef.current && companyData?.soundNotificationEnabled) {
             audioRef.current.currentTime = 0;
             audioRef.current.play().catch(err => {
-                console.error("Audio playback failed. User may need to interact with the page again.", err);
-                toast({
-                    variant: 'destructive',
-                    title: 'Erro na Notificação Sonora',
-                    description: 'Clique na página novamente para reativar o som.',
-                });
-                setIsEnabled(false);
+                console.error("Audio playback failed.", err);
             });
         }
-    }, [companyData?.soundNotificationEnabled, toast]);
+    }, [companyData?.soundNotificationEnabled]);
 
     const printOrder = useCallback((order: Order) => {
         if (companyData?.autoPrintEnabled) {
@@ -115,16 +106,9 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
             return;
         }
 
-        // The user interaction allows us to "unlock" the audio.
-        // We play a silent sound to check if the browser allows it.
         audioRef.current.play().then(() => {
             audioRef.current?.pause();
             audioRef.current!.currentTime = 0;
-            
-            toast({
-                title: 'Sistema Ativado',
-                description: 'Aguardando novos pedidos...',
-            });
             
             setIsEnabled(true);
             listenToNewOrders();
@@ -141,6 +125,27 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
         });
 
     }, [isEnabled, isActivating, listenToNewOrders, toast]);
+
+    // Effect to auto-activate on first user interaction
+    useEffect(() => {
+        const autoActivate = () => {
+            if (!isEnabled && !isActivating) {
+                activateSystem();
+            }
+            // Remove listener after first interaction to avoid multiple calls
+            window.removeEventListener('click', autoActivate);
+            window.removeEventListener('touchstart', autoActivate);
+        };
+
+        window.addEventListener('click', autoActivate);
+        window.addEventListener('touchstart', autoActivate);
+
+        return () => {
+            window.removeEventListener('click', autoActivate);
+            window.removeEventListener('touchstart', autoActivate);
+        };
+    }, [activateSystem, isEnabled, isActivating]);
+
 
     // Cleanup listener on unmount
     useEffect(() => {
@@ -168,3 +173,5 @@ export const useNotifications = (): NotificationContextType => {
     }
     return context;
 };
+
+    

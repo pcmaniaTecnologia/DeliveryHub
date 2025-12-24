@@ -35,7 +35,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { generateOrderPrintHtml } from '@/lib/print-utils';
-import NotificationToggle from '@/components/dashboard/notification-toggle';
 
 
 type Company = {
@@ -112,13 +111,12 @@ export default function OrdersPage() {
         const orderDocRef = doc(firestore, `companies/${user.uid}/orders`, order.id);
         const newStatus = { status };
 
-        updateDocument(orderDocRef, newStatus).then(() => {
+        updateDocument(orderDocRef, newStatus).then(async () => {
             toast({
                 title: 'Status do Pedido Atualizado!',
                 description: `O pedido foi marcado como "${status}".`,
             });
             
-            // Proceed with WhatsApp notification logic only after successful update
             const templates = companyData.whatsappMessageTemplates ? JSON.parse(companyData.whatsappMessageTemplates) : {};
             let messageTemplate = '';
             
@@ -133,14 +131,10 @@ export default function OrdersPage() {
                     messageTemplate = templates.ready || "Ei, {cliente}! Seu pedido nº {pedido_id} está prontinho te esperando para retirada. 😊";
                     break;
                 default:
-                    return; // Do not send notification for other statuses
+                    return; 
             }
 
-            // We need the customer's phone number for the notification.
-            // It should be on the order object.
-            const customerPhone = order.customerPhone?.replace(/\D/g, '');
-
-            if (!customerPhone) {
+            if (!order.customerPhone) {
                 console.warn('Cliente não possui telefone para notificação via WhatsApp.');
                 return;
             }
@@ -149,18 +143,16 @@ export default function OrdersPage() {
                 .replace('{cliente}', order.customerName || 'Cliente')
                 .replace('{pedido_id}', order.id.substring(0, 6).toUpperCase());
 
-            const whatsappUrl = `https://wa.me/55${customerPhone}?text=${encodeURIComponent(message)}`;
+            const whatsappUrl = `https://wa.me/55${order.customerPhone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
             window.open(whatsappUrl, '_blank');
 
         }).catch(serverError => {
-            // This will catch the updateDoc failure
             const permissionError = new FirestorePermissionError({
                 path: orderDocRef.path,
                 operation: 'update',
                 requestResourceData: newStatus,
             });
             errorEmitter.emit('permission-error', permissionError);
-            // No need for a toast here, as the global error handler will show it.
         });
     };
     
@@ -175,7 +167,6 @@ export default function OrdersPage() {
                 <CardTitle>Pedidos</CardTitle>
                 <CardDescription>Gerencie seus pedidos e visualize o status de cada um.</CardDescription>
             </div>
-            <NotificationToggle />
         </div>
       </CardHeader>
       <CardContent>
@@ -376,3 +367,7 @@ const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order; co
         </Dialog>
     );
 };
+
+    
+
+    
