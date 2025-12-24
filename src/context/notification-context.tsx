@@ -30,6 +30,7 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
     const listenerUnsubscribe = useRef<() => void | null>(null);
 
      useEffect(() => {
+        // This effect runs once to create the audio element.
         const audio = document.createElement('audio');
         const source = document.createElement('source');
         source.src = notificationSoundUrl;
@@ -40,12 +41,12 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
         audioRef.current = audio;
 
         return () => {
+            if (listenerUnsubscribe.current) {
+                listenerUnsubscribe.current();
+            }
             if (audioRef.current) {
                 document.body.removeChild(audioRef.current);
                 audioRef.current = null;
-            }
-            if (listenerUnsubscribe.current) {
-                listenerUnsubscribe.current();
             }
         };
     }, []);
