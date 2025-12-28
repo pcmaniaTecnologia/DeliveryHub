@@ -64,12 +64,12 @@ export default function AdminLayout({
   useEffect(() => {
     const isCheckingPermissions = isUserLoading || isLoadingAdmin;
 
-    // Wait until loading is finished before making a decision.
+    // Se ainda estiver verificando, não faça nada.
     if (isCheckingPermissions) {
-      return; // Do nothing while we wait for data.
+      return;
     }
 
-    // If, after loading, there is no adminData, then redirect.
+    // Após a verificação, se o usuário não tiver dados de admin, redirecione.
     if (!adminData) {
       router.push('/dashboard');
     }
@@ -77,6 +77,7 @@ export default function AdminLayout({
   
   const isCheckingPermissions = isUserLoading || isLoadingAdmin;
 
+  // Enquanto verifica, mostre um estado de carregamento.
   if (isCheckingPermissions) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -85,17 +86,16 @@ export default function AdminLayout({
     );
   }
   
+  // Se, após a verificação, não for admin, mostre um estado de redirecionamento (ou nada).
   if (!adminData) {
-    // This will briefly show while the redirect is in flight. 
-    // Or you can return null for an invisible transition.
      return (
       <div className="flex min-h-screen items-center justify-center">
-        <p>Redirecionando...</p>
+        <p>Acesso negado. Redirecionando...</p>
       </div>
     );
   }
 
-
+  // Se for admin, renderize o layout.
   return (
     <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
       <div className="hidden border-r bg-background md:block">
