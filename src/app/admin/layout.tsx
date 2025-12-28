@@ -33,7 +33,7 @@ function AdminNav() {
             href={item.href}
             className={cn(
                 'flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary',
-                { 'bg-muted text-primary': pathname === item.href }
+                { 'bg-muted text-primary': pathname.startsWith(item.href) && (item.href === '/admin' ? pathname === item.href : true) }
             )}
             >
             <item.icon className="h-4 w-4" />
@@ -62,19 +62,39 @@ export default function AdminLayout({
   const { data: adminData, isLoading: isLoadingAdmin } = useDoc(adminRef);
 
   useEffect(() => {
-    // If loading is finished and user is not an admin, redirect them
-    if (!isUserLoading && !isLoadingAdmin && !adminData) {
+    const isCheckingPermissions = isUserLoading || isLoadingAdmin;
+
+    // Wait until loading is finished before making a decision.
+    if (isCheckingPermissions) {
+      return; // Do nothing while we wait for data.
+    }
+
+    // If, after loading, there is no adminData, then redirect.
+    if (!adminData) {
       router.push('/dashboard');
     }
   }, [user, isUserLoading, adminData, isLoadingAdmin, router]);
+  
+  const isCheckingPermissions = isUserLoading || isLoadingAdmin;
 
-  if (isUserLoading || isLoadingAdmin || !adminData) {
+  if (isCheckingPermissions) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <p>Verificando permissões de administrador...</p>
       </div>
     );
   }
+  
+  if (!adminData) {
+    // This will briefly show while the redirect is in flight. 
+    // Or you can return null for an invisible transition.
+     return (
+      <div className="flex min-h-screen items-center justify-center">
+        <p>Redirecionando...</p>
+      </div>
+    );
+  }
+
 
   return (
     <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
