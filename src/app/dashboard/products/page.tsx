@@ -249,6 +249,32 @@ export default function ProductsPage() {
     }
   }
 
+    const handleDuplicateProduct = async (product: Product) => {
+    if (!productsRef) return;
+    
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { id, ...productDataToCopy } = product;
+    const duplicatedData = {
+        ...productDataToCopy,
+        name: `${product.name} (Cópia)`,
+    };
+
+    try {
+      await addDocument(productsRef, duplicatedData);
+      toast({
+        title: 'Produto Duplicado!',
+        description: `Uma cópia de "${product.name}" foi criada.`,
+      });
+    } catch (error) {
+      console.error("Failed to duplicate product:", error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao duplicar',
+        description: 'Não foi possível duplicar o produto.',
+      });
+    }
+  };
+
   const handleAddCategory = async () => {
     if (!newCategoryName.trim()) {
         toast({ variant: "destructive", title: "Nome da categoria é obrigatório." });
@@ -576,7 +602,7 @@ export default function ProductsPage() {
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Ações</DropdownMenuLabel>
                         <DropdownMenuItem onClick={() => handleOpenDialog(product)}>Editar</DropdownMenuItem>
-                        <DropdownMenuItem>Duplicar</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleDuplicateProduct(product)}>Duplicar</DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
@@ -673,3 +699,5 @@ function VariantItemsArray({ groupIndex, control }: { groupIndex: number; contro
     </div>
   )
 }
+
+    
