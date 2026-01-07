@@ -86,6 +86,8 @@ const statusMap: { [key: string]: Order['status'][] } = {
   "Finalizados": ["Entregue", "Cancelado"],
 }
 
+let whatsappWindow: Window | null = null;
+
 export default function OrdersPage() {
     const { user, isUserLoading } = useUser();
     const firestore = useFirestore();
@@ -144,7 +146,13 @@ export default function OrdersPage() {
                 .replace('{pedido_id}', order.id.substring(0, 6).toUpperCase());
 
             const whatsappUrl = `https://wa.me/55${order.customerPhone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
-            window.open(whatsappUrl, 'whatsapp_notification');
+            
+            if (whatsappWindow && !whatsappWindow.closed) {
+                whatsappWindow.location.href = whatsappUrl;
+                whatsappWindow.focus();
+            } else {
+                whatsappWindow = window.open(whatsappUrl, 'whatsapp_notification');
+            }
 
         }).catch(serverError => {
             const permissionError = new FirestorePermissionError({
@@ -367,3 +375,5 @@ const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order; co
         </Dialog>
     );
 };
+
+    
