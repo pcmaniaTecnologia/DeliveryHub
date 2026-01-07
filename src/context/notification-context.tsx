@@ -25,21 +25,10 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
     const playSound = useCallback(() => {
         if (companyData?.soundNotificationEnabled) {
             const audio = new Audio(notificationSoundUrl);
-            audio.load(); // Explicitly load the audio
-
-            const playPromise = new Promise<void>((resolve, reject) => {
-                audio.addEventListener('canplaythrough', () => {
-                    audio.play().then(resolve).catch(reject);
-                });
-                audio.addEventListener('error', (e) => {
-                    reject(new Error("Failed to load audio source."));
-                });
-            });
-
-            playPromise.catch(err => {
-                console.error("Audio playback failed:", err);
-                // We don't toast here to avoid bothering the user if they haven't interacted yet.
-                // The browser will block it until the first user gesture.
+            audio.play().catch(error => {
+                console.error("Audio playback failed:", error);
+                // This error is expected if the user hasn't interacted with the page yet.
+                // We don't show a toast to avoid annoying the user.
             });
         }
     }, [companyData?.soundNotificationEnabled]);
