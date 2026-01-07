@@ -12,7 +12,7 @@ const notificationSoundUrl = "https://actions.google.com/sounds/v1/alarms/doorbe
 
 interface NotificationContextType {
     isEnabled: boolean;
-    isActivating: boolean; // Manter para feedback de UI, mas a lógica será mais rápida
+    isActivating: boolean;
     activateSystem: () => void;
 }
 
@@ -25,16 +25,11 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
 
     const [isEnabled, setIsEnabled] = useState(false);
     const [isActivating, setIsActivating] = useState(false);
-    const audioRef = useRef<HTMLAudioElement | null>(null);
     const processedOrderIds = useRef(new Set<string>());
     const listenerUnsubscribe = useRef<(() => void) | null>(null);
 
-    // Efeito para criar o elemento de áudio
     useEffect(() => {
-        const audio = new Audio(notificationSoundUrl);
-        audio.preload = 'auto';
-        audioRef.current = audio;
-
+        // Cleanup listener on unmount
         return () => {
             if (listenerUnsubscribe.current) {
                 listenerUnsubscribe.current();
@@ -43,17 +38,19 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
     }, []);
 
     const playSound = useCallback(() => {
-        if (audioRef.current && companyData?.soundNotificationEnabled) {
-            audioRef.current.play().catch(err => {
-                console.error("Audio playback failed. User interaction might be needed.", err);
-                toast({
-                    variant: 'destructive',
-                    title: 'Aviso sonoro bloqueado',
-                    description: 'Interaja com a página para ativar o som.',
+        if (companyData?.soundNotificationEnabled) {
+            // Create a new Audio object each time to ensure it's fresh and ready.
+            const audio = new Audio(notificationSoundUrl);
+            const playPromise = audio.play();
+            
+            if (playPromise !== undefined) {
+                playPromise.catch(err => {
+                    console.error("Audio playback failed. User interaction might be needed.", err);
+                    // Avoid toasting every time, as it can be annoying. The user will know from the activate button.
                 });
-            });
+            }
         }
-    }, [companyData?.soundNotificationEnabled, toast]);
+    }, [companyData?.soundNotificationEnabled]);
 
     const printOrder = useCallback((order: Order) => {
         if (companyData?.autoPrintEnabled) {
@@ -78,9 +75,8 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
             return;
         }
 
-        // Se já houver um listener, não crie outro.
         if (listenerUnsubscribe.current) {
-            return;
+            return; // Listener already active
         }
         
         const q = query(
@@ -92,7 +88,6 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
             snapshot.docChanges().forEach((change) => {
                 if (change.type === 'added') {
                     const order = { id: change.doc.id, ...change.doc.data() } as Order;
-                    // Evita processar o mesmo pedido múltiplas vezes
                     if (!processedOrderIds.current.has(order.id)) {
                         processedOrderIds.current.add(order.id);
                         
@@ -100,7 +95,6 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
                         playSound();
                         printOrder(order);
 
-                        // Atualiza o status do pedido
                         const orderDocRef = doc(firestore, `companies/${user.uid}/orders`, order.id);
                         updateDocument(orderDocRef, { status: 'Em preparo' }).catch(err => {
                             console.error("Failed to update order status:", err);
@@ -116,6 +110,10 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
                 description: 'Não foi possível monitorar novos pedidos. Verifique sua conexão e permissões.',
             });
             setIsEnabled(false);
+            if (listenerUnsubscribe.current) {
+                listenerUnsubscribe.current();
+                listenerUnsubscribe.current = null;
+            }
         });
 
     }, [firestore, user?.uid, playSound, printOrder, toast]);
@@ -124,26 +122,21 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
         if (isEnabled) return;
         
         setIsActivating(true);
-
-        // A tentativa de tocar o som aqui serve como um "teste" para obter a permissão do navegador
-        const audio = audioRef.current;
-        if (!audio) {
-            toast({ variant: 'destructive', title: 'Erro de áudio', description: 'Componente de áudio não inicializado.'});
-            setIsActivating(false);
-            return;
-        }
-
+        
+        // Attempt to play a sound to get user gesture permission from the browser.
+        const audio = new Audio(notificationSoundUrl);
         const playPromise = audio.play();
 
         playPromise.then(() => {
-            audio.pause(); // Pausa imediatamente, só queríamos a permissão
+            audio.pause();
             audio.currentTime = 0;
             
             listenToNewOrders();
             setIsEnabled(true);
             toast({ title: "Sistema de notificação ativado!" });
+
         }).catch(error => {
-            console.error("Falha ao ativar o áudio:", error);
+            console.error("Failed to activate audio:", error);
             toast({
                 variant: 'destructive',
                 title: 'Não foi possível ativar o som',
@@ -153,6 +146,7 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
         }).finally(() => {
             setIsActivating(false);
         });
+
     }, [isEnabled, listenToNewOrders, toast]);
 
     const value = {
