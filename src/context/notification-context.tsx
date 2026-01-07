@@ -145,7 +145,7 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
             toast({
                 variant: 'destructive',
                 title: 'Não foi possível ativar o som',
-                description: 'Seu navegador pode estar bloqueando a reprodução automática. Interaja com a página e tente novamente.',
+                description: 'Seu navegador pode estar bloqueando a reprodução automática. Clique novamente para permitir.',
             });
             setIsEnabled(false);
         }).finally(() => {
