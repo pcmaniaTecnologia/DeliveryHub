@@ -7,6 +7,7 @@ import { collection, query, where, onSnapshot, doc } from 'firebase/firestore';
 import type { Order } from '@/app/dashboard/orders/page';
 import { generateOrderPrintHtml } from '@/lib/print-utils';
 import { useToast } from '@/hooks/use-toast';
+import { Button } from '@/components/ui/button';
 
 const notificationSoundUrl = "https://storage.googleapis.com/starlit-id-prod.appspot.com/public-assets/notification.mp3";
 
@@ -22,20 +23,20 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
     const processedOrderIds = useRef(new Set<string>());
     const listenerUnsubscribe = useRef<(() => void) | null>(null);
 
-    useEffect(() => {
-        // Define playSound and printOrder inside the useEffect that depends on companyData.
-        // This ensures they always have the latest companyData.
-        const playSound = () => {
-            if (companyData?.soundNotificationEnabled) {
-                const audio = new Audio(notificationSoundUrl);
-                audio.play().catch(error => {
-                    // This error is common if the user hasn't interacted with the page yet.
-                    // It's logged for debugging but doesn't break the app.
-                    console.error("Audio playback failed (this is expected before the first user interaction):", error);
-                });
-            }
-        };
+    // This function will be called by the toast action.
+    const playSoundOnClick = () => {
+        const audio = new Audio(notificationSoundUrl);
+        audio.play().catch(error => {
+            console.error("Error playing sound on click:", error);
+            toast({
+                variant: "destructive",
+                title: "Erro ao tocar som",
+                description: "Não foi possível reproduzir o som de notificação."
+            });
+        });
+    };
 
+    useEffect(() => {
         const printOrder = (order: Order) => {
             if (companyData?.autoPrintEnabled) {
                 const printHtml = generateOrderPrintHtml(order, companyData);
@@ -54,12 +55,15 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
         };
 
         if (!firestore || !user?.uid) {
+            if (listenerUnsubscribe.current) {
+                listenerUnsubscribe.current();
+                listenerUnsubscribe.current = null;
+            }
             return;
         }
 
-        // Only create one listener.
         if (listenerUnsubscribe.current) {
-            return;
+            return; // Listener already active
         }
         
         console.log("Notification system: Starting to listen for new orders...");
@@ -79,9 +83,12 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
                         toast({
                             title: "Novo Pedido Recebido!",
                             description: `Pedido de ${order.customerName || 'um cliente'}.`,
+                            action: (
+                                <Button onClick={playSoundOnClick}>Tocar Som</Button>
+                            ),
+                            duration: 20000 // Keep toast longer
                         });
                         
-                        playSound();
                         printOrder(order);
 
                         const orderDocRef = doc(firestore, `companies/${user.uid}/orders`, order.id);
@@ -99,7 +106,6 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
             }
         });
         
-        // Cleanup function for the main useEffect.
         return () => {
             if (listenerUnsubscribe.current) {
                 console.log("Notification system: Stopping listener.");
@@ -108,7 +114,7 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
             }
         };
 
-    }, [firestore, user?.uid, companyData, toast]); // Rerun this effect if companyData changes.
+    }, [firestore, user?.uid, companyData, toast]);
 
     const value = {};
 
