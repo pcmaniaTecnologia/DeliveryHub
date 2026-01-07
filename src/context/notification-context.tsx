@@ -10,11 +10,8 @@ import { useToast } from '@/hooks/use-toast';
 
 const notificationSoundUrl = "https://storage.googleapis.com/starlit-id-prod.appspot.com/public-assets/notification.mp3";
 
-interface NotificationContextType {
-    isEnabled: boolean;
-    isActivating: boolean;
-    activateSystem: () => void;
-}
+// Context type is simplified as the explicit activation state is removed.
+interface NotificationContextType {}
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
@@ -23,19 +20,8 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
     const { user } = useUser();
     const firestore = useFirestore();
 
-    const [isEnabled, setIsEnabled] = useState(false);
-    const [isActivating, setIsActivating] = useState(false);
     const processedOrderIds = useRef(new Set<string>());
     const listenerUnsubscribe = useRef<(() => void) | null>(null);
-
-    useEffect(() => {
-        // Cleanup listener on unmount
-        return () => {
-            if (listenerUnsubscribe.current) {
-                listenerUnsubscribe.current();
-            }
-        };
-    }, []);
 
     const playSound = useCallback(() => {
         if (companyData?.soundNotificationEnabled) {
@@ -43,12 +29,8 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
             const playPromise = audio.play();
             if (playPromise !== undefined) {
                 playPromise.catch(err => {
-                    console.error("Audio playback failed.", err);
-                    toast({
-                        variant: 'destructive',
-                        title: 'Falha ao tocar notificação',
-                        description: 'O navegador pode estar impedindo a reprodução automática de som.',
-                    });
+                    console.error("Audio playback failed. This is often due to browser autoplay policies. A user interaction is required to enable sound.", err);
+                    // We don't toast here anymore to avoid annoying the user if they don't want to interact.
                 });
             }
         }
@@ -73,16 +55,14 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
     
     const listenToNewOrders = useCallback(() => {
         if (!firestore || !user?.uid) {
-            console.error("Firestore or user not available for listening to orders.");
             return;
         }
 
         if (listenerUnsubscribe.current) {
-            console.log("Listener already active.");
             return; // Listener already active
         }
         
-        console.log("Starting to listen for new orders...");
+        console.log("Notification system: Starting to listen for new orders...");
         const q = query(
             collection(firestore, `companies/${user.uid}/orders`),
             where('status', 'in', ['Novo', 'Aguardando pagamento'])
@@ -96,12 +76,17 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
                         processedOrderIds.current.add(order.id);
                         
                         console.log("New order detected:", order.id);
+                        toast({
+                            title: "Novo Pedido Recebido!",
+                            description: `Pedido de ${order.customerName || 'um cliente'}.`,
+                        });
+                        
                         playSound();
                         printOrder(order);
 
                         const orderDocRef = doc(firestore, `companies/${user.uid}/orders`, order.id);
                         updateDocument(orderDocRef, { status: 'Em preparo' }).catch(err => {
-                            console.error("Failed to update order status:", err);
+                            console.error("Failed to update order status automatically:", err);
                         });
                     }
                 }
@@ -113,7 +98,6 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
                 title: 'Erro de conexão',
                 description: 'Não foi possível monitorar novos pedidos. Verifique sua conexão e permissões.',
             });
-            setIsEnabled(false);
             if (listenerUnsubscribe.current) {
                 listenerUnsubscribe.current();
                 listenerUnsubscribe.current = null;
@@ -122,45 +106,24 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
 
     }, [firestore, user?.uid, playSound, printOrder, toast]);
 
-    const activateSystem = useCallback(() => {
-        if (isEnabled || isActivating) return;
-        
-        setIsActivating(true);
-        
-        // Attempt to play a silent sound to get user gesture permission from the browser.
-        const audio = new Audio(notificationSoundUrl);
-        audio.volume = 0; 
-        
-        const playPromise = audio.play();
+    // useEffect to automatically start listening when the provider mounts
+    useEffect(() => {
+        // Automatically start listening for orders.
+        listenToNewOrders();
 
-        playPromise.then(() => {
-            // Success! The browser allowed audio playback.
-            audio.pause();
-            audio.currentTime = 0;
-            
-            listenToNewOrders(); // Now we can start listening for real orders
-            setIsEnabled(true);
-            toast({ title: "Sistema de notificação ativado!" });
+        // Cleanup listener on unmount
+        return () => {
+            if (listenerUnsubscribe.current) {
+                console.log("Notification system: Stopping listener.");
+                listenerUnsubscribe.current();
+                listenerUnsubscribe.current = null;
+            }
+        };
+    }, [listenToNewOrders]);
 
-        }).catch(error => {
-            console.error("Failed to activate audio:", error);
-            toast({
-                variant: 'destructive',
-                title: 'Não foi possível ativar o som',
-                description: 'Seu navegador pode estar bloqueando a reprodução automática. Clique no botão novamente para permitir.',
-            });
-            setIsEnabled(false);
-        }).finally(() => {
-            setIsActivating(false);
-        });
 
-    }, [isEnabled, isActivating, listenToNewOrders, toast]);
-
-    const value = {
-        isEnabled,
-        isActivating,
-        activateSystem,
-    };
+    // The context no longer needs to provide activation controls.
+    const value = {};
 
     return <NotificationContext.Provider value={value}>{children}</NotificationContext.Provider>;
 };
