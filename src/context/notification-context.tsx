@@ -39,18 +39,39 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
 
     const playSound = useCallback(() => {
         if (companyData?.soundNotificationEnabled) {
-            // Create a new Audio object each time to ensure it's fresh and ready.
-            const audio = new Audio(notificationSoundUrl);
-            const playPromise = audio.play();
+             const audio = new Audio(notificationSoundUrl);
             
-            if (playPromise !== undefined) {
-                playPromise.catch(err => {
-                    console.error("Audio playback failed. User interaction might be needed.", err);
-                    // Avoid toasting every time, as it can be annoying. The user will know from the activate button.
+            const handleCanPlay = () => {
+                const playPromise = audio.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(err => {
+                        console.error("Audio playback failed.", err);
+                         toast({
+                            variant: 'destructive',
+                            title: 'Falha ao tocar notificação',
+                            description: 'O navegador impediu a reprodução do som.',
+                        });
+                    });
+                }
+                audio.removeEventListener('canplaythrough', handleCanPlay);
+            };
+
+            const handleError = (e: Event) => {
+                 console.error("Error loading audio source:", e);
+                 toast({
+                    variant: 'destructive',
+                    title: 'Erro ao carregar o som',
+                    description: 'Não foi possível carregar o arquivo de notificação sonora.',
                 });
+                audio.removeEventListener('error', handleError);
             }
+
+            audio.addEventListener('canplaythrough', handleCanPlay);
+            audio.addEventListener('error', handleError);
+            
+            audio.load(); // Explicitly start loading the audio
         }
-    }, [companyData?.soundNotificationEnabled]);
+    }, [companyData?.soundNotificationEnabled, toast]);
 
     const printOrder = useCallback((order: Order) => {
         if (companyData?.autoPrintEnabled) {
@@ -129,6 +150,7 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
         const audio = new Audio(notificationSoundUrl);
         // We don't need to actually hear this test sound
         audio.volume = 0; 
+        
         const playPromise = audio.play();
 
         playPromise.then(() => {
