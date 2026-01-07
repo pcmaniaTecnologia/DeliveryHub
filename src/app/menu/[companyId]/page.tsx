@@ -8,7 +8,7 @@ import { collection, doc } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { PlaceHolderImages, type ImagePlaceholder } from '@/lib/placeholder-images';
 import { Button } from '@/components/ui/button';
-import { Clock, Plus, Pizza, Hamburger, GlassWater, Cake, Sandwich, LeafyGreen, IceCream, UtensilsCrossed, type LucideIcon } from 'lucide-react';
+import { Clock, Plus, Pizza, Ham, GlassWater, Cake, Sandwich, LeafyGreen, IceCream, UtensilsCrossed, type LucideIcon } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCart, type SelectedVariant } from '@/context/cart-context';
 import {
@@ -72,8 +72,8 @@ const getCategoryIcon = (categoryName: string): LucideIcon => {
     
     const iconMap: { [key: string]: LucideIcon } = {
         'pizzas': Pizza,
-        'hambúrgueres': Hamburger,
-        'burgers': Hamburger,
+        'hambúrgueres': Ham,
+        'burgers': Ham,
         'bebidas': GlassWater,
         'refrigerantes': GlassWater,
         'sucos': GlassWater,
