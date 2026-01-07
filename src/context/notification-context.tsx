@@ -76,9 +76,11 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
         }
 
         if (listenerUnsubscribe.current) {
+            console.log("Listener already active.");
             return; // Listener already active
         }
         
+        console.log("Starting to listen for new orders...");
         const q = query(
             collection(firestore, `companies/${user.uid}/orders`),
             where('status', 'in', ['Novo', 'Aguardando pagamento'])
@@ -119,19 +121,22 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
     }, [firestore, user?.uid, playSound, printOrder, toast]);
 
     const activateSystem = useCallback(() => {
-        if (isEnabled) return;
+        if (isEnabled || isActivating) return;
         
         setIsActivating(true);
         
         // Attempt to play a sound to get user gesture permission from the browser.
         const audio = new Audio(notificationSoundUrl);
+        // We don't need to actually hear this test sound
+        audio.volume = 0; 
         const playPromise = audio.play();
 
         playPromise.then(() => {
+            // Success! The browser allowed audio playback.
             audio.pause();
             audio.currentTime = 0;
             
-            listenToNewOrders();
+            listenToNewOrders(); // Now we can start listening for real orders
             setIsEnabled(true);
             toast({ title: "Sistema de notificação ativado!" });
 
@@ -147,7 +152,7 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
             setIsActivating(false);
         });
 
-    }, [isEnabled, listenToNewOrders, toast]);
+    }, [isEnabled, isActivating, listenToNewOrders, toast]);
 
     const value = {
         isEnabled,
