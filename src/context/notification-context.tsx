@@ -22,37 +22,44 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
     const processedOrderIds = useRef(new Set<string>());
     const listenerUnsubscribe = useRef<(() => void) | null>(null);
 
-    const playSound = useCallback(() => {
-        if (companyData?.soundNotificationEnabled) {
-            const audio = new Audio(notificationSoundUrl);
-            audio.play().catch(error => {
-                // This error is common if the user hasn't interacted with the page yet.
-                // We log it for debugging but don't show a user-facing toast.
-                console.error("Audio playback failed:", error);
-            });
-        }
-    }, [companyData?.soundNotificationEnabled]);
-
-    const printOrder = useCallback((order: Order) => {
-        if (companyData?.autoPrintEnabled) {
-            const printHtml = generateOrderPrintHtml(order, companyData);
-            const printWindow = window.open('', '_blank', 'width=300,height=500');
-            if (printWindow) {
-                printWindow.document.write(printHtml);
-                printWindow.document.close();
-            } else {
-                 toast({
-                    variant: 'destructive',
-                    title: 'Impressão Bloqueada',
-                    description: 'Por favor, habilite pop-ups para impressão automática.',
+    useEffect(() => {
+        // Define playSound and printOrder inside the useEffect that depends on companyData.
+        // This ensures they always have the latest companyData.
+        const playSound = () => {
+            if (companyData?.soundNotificationEnabled) {
+                const audio = new Audio(notificationSoundUrl);
+                audio.play().catch(error => {
+                    // This error is common if the user hasn't interacted with the page yet.
+                    // It's logged for debugging but doesn't break the app.
+                    console.error("Audio playback failed (this is expected before the first user interaction):", error);
                 });
             }
+        };
+
+        const printOrder = (order: Order) => {
+            if (companyData?.autoPrintEnabled) {
+                const printHtml = generateOrderPrintHtml(order, companyData);
+                const printWindow = window.open('', '_blank', 'width=300,height=500');
+                if (printWindow) {
+                    printWindow.document.write(printHtml);
+                    printWindow.document.close();
+                } else {
+                     toast({
+                        variant: 'destructive',
+                        title: 'Impressão Bloqueada',
+                        description: 'Por favor, habilite pop-ups para impressão automática.',
+                    });
+                }
+            }
+        };
+
+        if (!firestore || !user?.uid) {
+            return;
         }
-    }, [companyData, toast]);
-    
-    const listenToNewOrders = useCallback(() => {
-        if (!firestore || !user?.uid || listenerUnsubscribe.current) {
-            return; 
+
+        // Only create one listener.
+        if (listenerUnsubscribe.current) {
+            return;
         }
         
         console.log("Notification system: Starting to listen for new orders...");
@@ -91,11 +98,8 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
                 listenerUnsubscribe.current = null;
             }
         });
-
-    }, [firestore, user?.uid, playSound, printOrder, toast]);
-
-    useEffect(() => {
-        listenToNewOrders();
+        
+        // Cleanup function for the main useEffect.
         return () => {
             if (listenerUnsubscribe.current) {
                 console.log("Notification system: Stopping listener.");
@@ -103,8 +107,8 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
                 listenerUnsubscribe.current = null;
             }
         };
-    }, [listenToNewOrders]);
 
+    }, [firestore, user?.uid, companyData, toast]); // Rerun this effect if companyData changes.
 
     const value = {};
 
