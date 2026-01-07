@@ -39,37 +39,18 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
 
     const playSound = useCallback(() => {
         if (companyData?.soundNotificationEnabled) {
-             const audio = new Audio(notificationSoundUrl);
-            
-            const handleCanPlay = () => {
-                const playPromise = audio.play();
-                if (playPromise !== undefined) {
-                    playPromise.catch(err => {
-                        console.error("Audio playback failed.", err);
-                         toast({
-                            variant: 'destructive',
-                            title: 'Falha ao tocar notificação',
-                            description: 'O navegador impediu a reprodução do som.',
-                        });
+            const audio = new Audio(notificationSoundUrl);
+            const playPromise = audio.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(err => {
+                    console.error("Audio playback failed.", err);
+                    toast({
+                        variant: 'destructive',
+                        title: 'Falha ao tocar notificação',
+                        description: 'O navegador pode estar impedindo a reprodução automática de som.',
                     });
-                }
-                audio.removeEventListener('canplaythrough', handleCanPlay);
-            };
-
-            const handleError = (e: Event) => {
-                 console.error("Error loading audio source:", e);
-                 toast({
-                    variant: 'destructive',
-                    title: 'Erro ao carregar o som',
-                    description: 'Não foi possível carregar o arquivo de notificação sonora.',
                 });
-                audio.removeEventListener('error', handleError);
             }
-
-            audio.addEventListener('canplaythrough', handleCanPlay);
-            audio.addEventListener('error', handleError);
-            
-            audio.load(); // Explicitly start loading the audio
         }
     }, [companyData?.soundNotificationEnabled, toast]);
 
@@ -146,9 +127,8 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
         
         setIsActivating(true);
         
-        // Attempt to play a sound to get user gesture permission from the browser.
+        // Attempt to play a silent sound to get user gesture permission from the browser.
         const audio = new Audio(notificationSoundUrl);
-        // We don't need to actually hear this test sound
         audio.volume = 0; 
         
         const playPromise = audio.play();
@@ -167,7 +147,7 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
             toast({
                 variant: 'destructive',
                 title: 'Não foi possível ativar o som',
-                description: 'Seu navegador pode estar bloqueando a reprodução automática. Clique novamente para permitir.',
+                description: 'Seu navegador pode estar bloqueando a reprodução automática. Clique no botão novamente para permitir.',
             });
             setIsEnabled(false);
         }).finally(() => {
