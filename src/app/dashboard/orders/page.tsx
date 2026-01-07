@@ -144,7 +144,7 @@ export default function OrdersPage() {
                 .replace('{pedido_id}', order.id.substring(0, 6).toUpperCase());
 
             const whatsappUrl = `https://wa.me/55${order.customerPhone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
-            window.open(whatsappUrl, '_blank');
+            window.open(whatsappUrl, 'whatsapp_notification');
 
         }).catch(serverError => {
             const permissionError = new FirestorePermissionError({
@@ -352,8 +352,8 @@ const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order; co
                         <Separator />
                         <div className="space-y-1">
                             <h3 className="font-semibold">Pagamento</h3>
-                            <p>Forma de Pagamento: {order.paymentMethod}</p>
-                            <p>Tipo de Entrega: {order.deliveryType}</p>
+                            <p>Forma de Pagamento: ${order.paymentMethod}</p>
+                            <p>Tipo de Entrega: ${order.deliveryType}</p>
                         </div>
                     </div>
                 </div>
