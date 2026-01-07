@@ -10,7 +10,6 @@ import { useToast } from '@/hooks/use-toast';
 
 const notificationSoundUrl = "https://storage.googleapis.com/starlit-id-prod.appspot.com/public-assets/notification.mp3";
 
-// Context type is simplified as the explicit activation state is removed.
 interface NotificationContextType {}
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
@@ -26,15 +25,24 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
     const playSound = useCallback(() => {
         if (companyData?.soundNotificationEnabled) {
             const audio = new Audio(notificationSoundUrl);
-            const playPromise = audio.play();
-            if (playPromise !== undefined) {
-                playPromise.catch(err => {
-                    console.error("Audio playback failed. This is often due to browser autoplay policies. A user interaction is required to enable sound.", err);
-                    // We don't toast here anymore to avoid annoying the user if they don't want to interact.
+            audio.load(); // Explicitly load the audio
+
+            const playPromise = new Promise<void>((resolve, reject) => {
+                audio.addEventListener('canplaythrough', () => {
+                    audio.play().then(resolve).catch(reject);
                 });
-            }
+                audio.addEventListener('error', (e) => {
+                    reject(new Error("Failed to load audio source."));
+                });
+            });
+
+            playPromise.catch(err => {
+                console.error("Audio playback failed:", err);
+                // We don't toast here to avoid bothering the user if they haven't interacted yet.
+                // The browser will block it until the first user gesture.
+            });
         }
-    }, [companyData?.soundNotificationEnabled, toast]);
+    }, [companyData?.soundNotificationEnabled]);
 
     const printOrder = useCallback((order: Order) => {
         if (companyData?.autoPrintEnabled) {
@@ -54,12 +62,8 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
     }, [companyData, toast]);
     
     const listenToNewOrders = useCallback(() => {
-        if (!firestore || !user?.uid) {
-            return;
-        }
-
-        if (listenerUnsubscribe.current) {
-            return; // Listener already active
+        if (!firestore || !user?.uid || listenerUnsubscribe.current) {
+            return; 
         }
         
         console.log("Notification system: Starting to listen for new orders...");
@@ -93,11 +97,6 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
             });
         }, (error) => {
             console.error("Error listening to orders:", error);
-            toast({
-                variant: 'destructive',
-                title: 'Erro de conexão',
-                description: 'Não foi possível monitorar novos pedidos. Verifique sua conexão e permissões.',
-            });
             if (listenerUnsubscribe.current) {
                 listenerUnsubscribe.current();
                 listenerUnsubscribe.current = null;
@@ -106,12 +105,8 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
 
     }, [firestore, user?.uid, playSound, printOrder, toast]);
 
-    // useEffect to automatically start listening when the provider mounts
     useEffect(() => {
-        // Automatically start listening for orders.
         listenToNewOrders();
-
-        // Cleanup listener on unmount
         return () => {
             if (listenerUnsubscribe.current) {
                 console.log("Notification system: Stopping listener.");
@@ -122,7 +117,6 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
     }, [listenToNewOrders]);
 
 
-    // The context no longer needs to provide activation controls.
     const value = {};
 
     return <NotificationContext.Provider value={value}>{children}</NotificationContext.Provider>;
