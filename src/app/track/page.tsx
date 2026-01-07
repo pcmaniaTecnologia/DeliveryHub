@@ -61,13 +61,13 @@ export default function TrackOrderPage() {
     setSearched(true);
 
     try {
-      // Use a direct collection path now that we have companyId
       const ordersRef = collection(firestore, 'companies', companyId, 'orders');
       const q = query(
         ordersRef, 
+        where('companyId', '==', companyId),
         where('customerName', '==', customerName.trim()),
         orderBy('orderDate', 'desc'),
-        limit(10) // Limit to last 10 orders for performance
+        limit(10)
       );
       
       const querySnapshot = await getDocs(q);
