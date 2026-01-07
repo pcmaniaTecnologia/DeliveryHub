@@ -26,9 +26,9 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
         if (companyData?.soundNotificationEnabled) {
             const audio = new Audio(notificationSoundUrl);
             audio.play().catch(error => {
+                // This error is common if the user hasn't interacted with the page yet.
+                // We log it for debugging but don't show a user-facing toast.
                 console.error("Audio playback failed:", error);
-                // This error is expected if the user hasn't interacted with the page yet.
-                // We don't show a toast to avoid annoying the user.
             });
         }
     }, [companyData?.soundNotificationEnabled]);
