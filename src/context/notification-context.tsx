@@ -9,9 +9,9 @@ import { generateOrderPrintHtml } from '@/lib/print-utils';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 
-const notificationSoundUrl = "https://storage.googleapis.com/starlit-id-prod.appspot.com/public-assets/notification.mp3";
-
-interface NotificationContextType {}
+interface NotificationContextType {
+    playTrigger: number;
+}
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
@@ -19,22 +19,10 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
     const { toast } = useToast();
     const { user } = useUser();
     const firestore = useFirestore();
+    const [playTrigger, setPlayTrigger] = useState(0);
 
     const processedOrderIds = useRef(new Set<string>());
     const listenerUnsubscribe = useRef<(() => void) | null>(null);
-
-    // This function will be called by the toast action.
-    const playSoundOnClick = () => {
-        const audio = new Audio(notificationSoundUrl);
-        audio.play().catch(error => {
-            console.error("Error playing sound on click:", error);
-            toast({
-                variant: "destructive",
-                title: "Erro ao tocar som",
-                description: "Não foi possível reproduzir o som de notificação. A interação do usuário pode ser necessária."
-            });
-        });
-    };
 
     useEffect(() => {
         const printOrder = (order: Order) => {
@@ -66,7 +54,6 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
             return; // Listener already active
         }
         
-        console.log("Notification system: Starting to listen for new orders...");
         const q = query(
             collection(firestore, `companies/${user.uid}/orders`),
             where('status', 'in', ['Novo', 'Aguardando pagamento'])
@@ -79,18 +66,13 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
                     if (!processedOrderIds.current.has(order.id)) {
                         processedOrderIds.current.add(order.id);
                         
-                        console.log("New order detected:", order.id);
-
                         if (companyData?.soundNotificationEnabled) {
-                            playSoundOnClick();
+                           setPlayTrigger(prev => prev + 1); // Trigger sound playback
                         }
 
                         toast({
                             title: "Novo Pedido Recebido!",
                             description: `Pedido de ${order.customerName || 'um cliente'}.`,
-                            action: companyData?.soundNotificationEnabled ? (
-                                <Button onClick={playSoundOnClick}>Tocar Som</Button>
-                            ) : undefined,
                             duration: 20000 // Keep toast longer
                         });
                         
@@ -113,7 +95,6 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
         
         return () => {
             if (listenerUnsubscribe.current) {
-                console.log("Notification system: Stopping listener.");
                 listenerUnsubscribe.current();
                 listenerUnsubscribe.current = null;
             }
@@ -121,7 +102,7 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
 
     }, [firestore, user?.uid, companyData, toast]);
 
-    const value = {};
+    const value = { playTrigger };
 
     return <NotificationContext.Provider value={value}>{children}</NotificationContext.Provider>;
 };

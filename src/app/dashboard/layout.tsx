@@ -18,8 +18,9 @@ import { DashboardNav } from '@/components/dashboard-nav';
 import { useUser } from '@/firebase';
 import { hexToHsl } from '@/lib/utils';
 import type { Order } from './orders/page';
-import { NotificationProvider } from '@/context/notification-context';
+import { NotificationProvider, useNotifications } from '@/context/notification-context';
 
+const notificationSoundUrl = "https://storage.googleapis.com/starlit-id-prod.appspot.com/public-assets/notification.mp3";
 
 type CompanyData = {
     themeColors?: string;
@@ -29,6 +30,24 @@ type CompanyData = {
     planId?: string;
     subscriptionEndDate?: any;
     name?: string;
+};
+
+// A component to handle sound playback, to be used inside the layout
+const SoundPlayer = () => {
+    const { playTrigger } = useNotifications();
+    const audioRef = useRef<HTMLAudioElement>(null);
+
+    useEffect(() => {
+        if (playTrigger > 0 && audioRef.current) {
+            audioRef.current.play().catch(error => {
+                // This error is expected if the user hasn't interacted with the page yet.
+                // It can be safely ignored in many cases.
+                console.warn("Audio playback failed, likely due to browser autoplay policy. User interaction is required to enable sound.", error);
+            });
+        }
+    }, [playTrigger]);
+
+    return <audio ref={audioRef} src={notificationSoundUrl} preload="auto" />;
 };
 
 
@@ -126,6 +145,7 @@ export default function DashboardLayout({
 
   return (
     <NotificationProvider companyData={companyData}>
+      <SoundPlayer />
       <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
         <div className="hidden border-r bg-background md:block">
           <div className="flex h-full max-h-screen flex-col gap-2">
