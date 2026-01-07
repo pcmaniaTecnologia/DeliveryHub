@@ -31,7 +31,7 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
             toast({
                 variant: "destructive",
                 title: "Erro ao tocar som",
-                description: "Não foi possível reproduzir o som de notificação."
+                description: "Não foi possível reproduzir o som de notificação. A interação do usuário pode ser necessária."
             });
         });
     };
@@ -80,12 +80,17 @@ export const NotificationProvider = ({ children, companyData }: { children: Reac
                         processedOrderIds.current.add(order.id);
                         
                         console.log("New order detected:", order.id);
+
+                        if (companyData?.soundNotificationEnabled) {
+                            playSoundOnClick();
+                        }
+
                         toast({
                             title: "Novo Pedido Recebido!",
                             description: `Pedido de ${order.customerName || 'um cliente'}.`,
-                            action: (
+                            action: companyData?.soundNotificationEnabled ? (
                                 <Button onClick={playSoundOnClick}>Tocar Som</Button>
-                            ),
+                            ) : undefined,
                             duration: 20000 // Keep toast longer
                         });
                         
