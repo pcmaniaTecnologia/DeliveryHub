@@ -86,13 +86,12 @@ const statusMap: { [key: string]: Order['status'][] } = {
   "Finalizados": ["Entregue", "Cancelado"],
 }
 
-let whatsappWindow: Window | null = null;
-
 export default function OrdersPage() {
     const { user, isUserLoading } = useUser();
     const firestore = useFirestore();
     const { toast } = useToast();
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+    const whatsappWindowRef = useRef<Window | null>(null);
 
     const companyRef = useMemoFirebase(() => {
       if (!firestore || !user?.uid) return null;
@@ -147,11 +146,11 @@ export default function OrdersPage() {
 
             const whatsappUrl = `https://wa.me/55${order.customerPhone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
             
-            if (whatsappWindow && !whatsappWindow.closed) {
-                whatsappWindow.location.href = whatsappUrl;
-                whatsappWindow.focus();
+            if (whatsappWindowRef.current && !whatsappWindowRef.current.closed) {
+                whatsappWindowRef.current.location.href = whatsappUrl;
+                whatsappWindowRef.current.focus();
             } else {
-                whatsappWindow = window.open(whatsappUrl, 'whatsapp_notification');
+                whatsappWindowRef.current = window.open(whatsappUrl, 'whatsapp_notification');
             }
 
         }).catch(serverError => {
@@ -375,5 +374,7 @@ const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order; co
         </Dialog>
     );
 };
+
+    
 
     
