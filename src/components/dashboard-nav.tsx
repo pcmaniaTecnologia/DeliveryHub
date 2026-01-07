@@ -11,7 +11,7 @@ export function DashboardNav({ newOrdersCount = 0, isAdmin = false }: { newOrder
   const pathname = usePathname();
 
   const navItems = [
-    { href: '/dashboard', label: 'Painel', icon: Home },
+    { href: '/dashboard', label: 'não esta funcionando', icon: Home },
     { href: '/dashboard/orders', label: 'Pedidos', icon: ShoppingCart, badge: newOrdersCount > 0 ? newOrdersCount.toString() : undefined },
     { href: '/dashboard/products', label: 'Produtos', icon: Package },
     { href: '/dashboard/coupons', label: 'Cupons', icon: Ticket },
