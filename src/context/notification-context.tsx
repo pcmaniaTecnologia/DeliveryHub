@@ -8,7 +8,7 @@ import type { Order } from '@/app/dashboard/orders/page';
 import { generateOrderPrintHtml } from '@/lib/print-utils';
 import { useToast } from '@/hooks/use-toast';
 
-const notificationSoundUrl = "https://actions.google.com/sounds/v1/alarms/doorbell_ring.ogg";
+const notificationSoundUrl = "https://storage.googleapis.com/starlit-id-prod.appspot.com/public-assets/notification.mp3";
 
 interface NotificationContextType {
     isEnabled: boolean;
