@@ -8,7 +8,7 @@ import { collection, doc } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { PlaceHolderImages, type ImagePlaceholder } from '@/lib/placeholder-images';
 import { Button } from '@/components/ui/button';
-import { Clock, Plus } from 'lucide-react';
+import { Clock, Plus, Pizza, Hamburger, GlassWater, Cake, Sandwich, LeafyGreen, IceCream, UtensilsCrossed, type LucideIcon } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCart, type SelectedVariant } from '@/context/cart-context';
 import {
@@ -65,6 +65,33 @@ type Category = {
     name: string;
     companyId: string;
 };
+
+// Function to get an icon for a category
+const getCategoryIcon = (categoryName: string): LucideIcon => {
+    const normalizedName = categoryName.toLowerCase();
+    
+    const iconMap: { [key: string]: LucideIcon } = {
+        'pizzas': Pizza,
+        'hambúrgueres': Hamburger,
+        'burgers': Hamburger,
+        'bebidas': GlassWater,
+        'refrigerantes': GlassWater,
+        'sucos': GlassWater,
+        'sobremesas': Cake,
+        'doces': Cake,
+        'lanches': Sandwich,
+        'sanduíches': Sandwich,
+        'saladas': LeafyGreen,
+        'açaí': IceCream,
+        'porções': UtensilsCrossed,
+        'entradas': UtensilsCrossed,
+    };
+
+    const foundKey = Object.keys(iconMap).find(key => normalizedName.includes(key));
+    
+    return foundKey ? iconMap[foundKey] : UtensilsCrossed;
+};
+
 
 const OptionsDialog = ({ product, open, onOpenChange, onAddToCart }: { product: Product, open: boolean, onOpenChange: (open: boolean) => void, onAddToCart: (product: Product, quantity: number, notes?: string, variants?: SelectedVariant[]) => void }) => {
     const [selectedVariants, setSelectedVariants] = useState<SelectedVariant[]>([]);
@@ -387,16 +414,22 @@ export default function MenuPage() {
                 </div>
             ))
         ) : Object.keys(productsByCategory).length > 0 ? (
-          Object.entries(productsByCategory).map(([category, productList], idx) => (
-            <section key={category}>
-              <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl mb-8">{category}</h2>
-              <div className="grid grid-cols-1 gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {productList.map((product, pIdx) => (
-                  <ProductCard key={product.id} product={product} index={idx * 10 + pIdx} />
-                ))}
-              </div>
-            </section>
-          ))
+          Object.entries(productsByCategory).map(([category, productList], idx) => {
+            const Icon = getCategoryIcon(category);
+            return (
+                <section key={category}>
+                    <div className="flex items-center gap-3 mb-8">
+                        <Icon className="h-8 w-8 text-primary" />
+                        <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">{category}</h2>
+                    </div>
+                    <div className="grid grid-cols-1 gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                        {productList.map((product, pIdx) => (
+                        <ProductCard key={product.id} product={product} index={idx * 10 + pIdx} />
+                        ))}
+                    </div>
+                </section>
+            )
+          })
         ) : (
             <div className="text-center py-16">
                 <p className="text-xl text-muted-foreground">Nenhum produto encontrado.</p>
