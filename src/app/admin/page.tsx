@@ -61,14 +61,21 @@ export default function AdminDashboardPage() {
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        if (!firestore) return;
+        if (!firestore || !user) return;
 
         const fetchData = async () => {
             setIsLoading(true);
             try {
                 // 1. Fetch all companies
                 const companiesQuery = collection(firestore, 'companies');
-                const companiesSnapshot = await getDocs(companiesQuery);
+                const companiesSnapshot = await getDocs(companiesQuery).catch(serverError => {
+                    const permissionError = new FirestorePermissionError({
+                        path: 'companies',
+                        operation: 'list',
+                    });
+                    errorEmitter.emit('permission-error', permissionError);
+                    throw permissionError;
+                });
                 const companies = companiesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Company));
 
                 // 2. Fetch all orders
@@ -113,7 +120,7 @@ export default function AdminDashboardPage() {
         };
 
         fetchData();
-    }, [firestore]);
+    }, [firestore, user]);
 
     if (isLoading || isUserLoading) {
         return <p>Carregando dashboard do administrador...</p>;
