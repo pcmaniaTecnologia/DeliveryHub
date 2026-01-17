@@ -1,9 +1,6 @@
-
 'use client';
 
-import { useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
 import {
   Home,
   ShieldCheck,
@@ -17,6 +14,7 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { UserNav } from '@/components/user-nav';
 import { useUser } from '@/firebase';
 import { Menu } from 'lucide-react';
+import { usePathname } from 'next/navigation';
 
 function AdminNav() {
     const pathname = usePathname();
@@ -50,8 +48,7 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user, isUserLoading } = useUser();
-  const router = useRouter();
+  const { user } = useUser();
   const firestore = useFirestore();
 
   const adminRef = useMemoFirebase(() => {
@@ -59,43 +56,8 @@ export default function AdminLayout({
     return doc(firestore, 'roles_admin', user.uid);
   }, [firestore, user?.uid]);
 
-  const { data: adminData, isLoading: isLoadingAdmin } = useDoc(adminRef);
+  const { data: adminData } = useDoc(adminRef);
 
-  useEffect(() => {
-    const isCheckingPermissions = isUserLoading || isLoadingAdmin;
-
-    // Se ainda estiver verificando, não faça nada.
-    if (isCheckingPermissions) {
-      return;
-    }
-
-    // Após a verificação, se o usuário não tiver dados de admin, redirecione.
-    if (!adminData) {
-      router.push('/dashboard');
-    }
-  }, [user, isUserLoading, adminData, isLoadingAdmin, router]);
-  
-  const isCheckingPermissions = isUserLoading || isLoadingAdmin;
-
-  // Enquanto verifica, mostre um estado de carregamento.
-  if (isCheckingPermissions) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p>Verificando permissões de administrador...</p>
-      </div>
-    );
-  }
-  
-  // Se, após a verificação, não for admin, mostre um estado de redirecionamento (ou nada).
-  if (!adminData) {
-     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p>Acesso negado. Redirecionando...</p>
-      </div>
-    );
-  }
-
-  // Se for admin, renderize o layout.
   return (
     <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
       <div className="hidden border-r bg-background md:block">
@@ -137,7 +99,7 @@ export default function AdminLayout({
             </SheetContent>
           </Sheet>
           <div className="w-full flex-1" />
-          <UserNav isAdmin={true} />
+          <UserNav isAdmin={!!adminData} />
         </header>
         <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8 bg-muted/20">
           {children}
