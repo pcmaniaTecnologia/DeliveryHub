@@ -287,6 +287,18 @@ service cloud.firestore {
       allow update: if isSuperAdmin() && resource != null;
       allow delete: if isSuperAdmin() && resource != null;
     }
+    
+    /**
+     * @description Global platform settings. Readable by anyone (to get PIX key), writable only by super admins.
+     * @path /platform_settings/{settingsId}
+     * @allow (read) Any user can read the platform PIX key to pay for a subscription.
+     * @deny (write) A non-admin user tries to change the platform's PIX key.
+     * @principle Secures global configuration while exposing necessary public data for core business logic (payments).
+     */
+    match /platform_settings/{settingsId} {
+      allow read: if true;
+      allow create, update, delete: if isSuperAdmin();
+    }
 
     /**
      * @description Manages global super admin roles. Only other super admins can view or modify this collection.
@@ -305,3 +317,5 @@ service cloud.firestore {
     }
   }
 }
+
+    
