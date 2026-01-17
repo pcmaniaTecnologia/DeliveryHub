@@ -28,7 +28,7 @@ type CompanyData = {
     autoPrintEnabled?: boolean;
     isActive?: boolean;
     planId?: string;
-    subscriptionEndDate?: any;
+    subscriptionEndDate?: Timestamp;
     name?: string;
 };
 

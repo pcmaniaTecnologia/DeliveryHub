@@ -28,7 +28,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useUser, useFirestore, useCollection, useMemoFirebase, updateDocument, deleteDocument } from '@/firebase';
-import { collection, doc } from 'firebase/firestore';
+import { collection, doc, type Timestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -51,7 +51,7 @@ type Company = {
   email?: string;
   phone?: string;
   isActive?: boolean;
-  subscriptionEndDate?: any; 
+  subscriptionEndDate?: Timestamp; 
 };
 
 
