@@ -41,7 +41,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { format } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import { Switch } from '@/components/ui/switch';
 
 
@@ -71,11 +71,20 @@ export default function ManageCompaniesPage() {
     if (!firestore) return;
     const companyDocRef = doc(firestore, 'companies', companyId);
     
-    updateDocument(companyDocRef, { isActive: !currentStatus });
+    const updateData: { isActive: boolean, subscriptionEndDate?: Date } = { 
+        isActive: !currentStatus 
+    };
+
+    // When activating the company, set a 30-day subscription period.
+    if (!currentStatus) {
+        updateData.subscriptionEndDate = addDays(new Date(), 30);
+    }
+    
+    updateDocument(companyDocRef, updateData);
     
     toast({
         title: 'Status da Empresa Atualizado!',
-        description: `A empresa foi ${!currentStatus ? 'ativada' : 'desativada'}.`,
+        description: `A empresa foi ${!currentStatus ? 'ativada' : 'desativada'}. ${!currentStatus ? 'A assinatura é válida por 30 dias.' : ''}`,
     });
   };
 
