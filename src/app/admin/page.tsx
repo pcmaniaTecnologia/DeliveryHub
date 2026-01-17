@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Building, DollarSign, ShoppingCart } from 'lucide-react';
@@ -26,6 +25,7 @@ import { useState, useEffect } from 'react';
 type Company = {
     id: string;
     name: string;
+    isActive?: boolean;
 };
 
 type Order = {
@@ -74,7 +74,8 @@ export default function AdminDashboardPage() {
                 errorEmitter.emit('permission-error', permissionError);
                 throw permissionError;
             });
-            const companies = companiesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Company));
+            const allCompanies = companiesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Company));
+            const activeCompanies = allCompanies.filter(c => c.isActive);
 
             // 2. Fetch all orders
             const ordersQuery = query(collectionGroup(firestore, 'orders'));
@@ -90,8 +91,8 @@ export default function AdminDashboardPage() {
             const allOrders = ordersSnapshot.docs.map(doc => doc.data() as Order);
             const successfulOrders = allOrders.filter(order => order.status !== 'Cancelado');
 
-            // 3. Process data
-            const salesByCompany = companies.map(company => {
+            // 3. Process data for active companies
+            const salesByCompany = activeCompanies.map(company => {
                 const companyOrders = successfulOrders.filter(order => order.companyId === company.id);
                 const totalSales = companyOrders.reduce((sum, order) => sum + order.totalAmount, 0);
                 return {
@@ -105,7 +106,7 @@ export default function AdminDashboardPage() {
             // 4. Set state
             setStats({
                 totalRevenue: totalRevenue,
-                totalCompanies: companies.length,
+                totalCompanies: allCompanies.length,
                 totalOrders: successfulOrders.length,
                 salesByCompany: salesByCompany,
             });
@@ -134,12 +135,12 @@ export default function AdminDashboardPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Faturamento Total</CardTitle>
+            <CardTitle className="text-sm font-medium">Faturamento Total (Lojas Ativas)</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">R${stats.totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-            <p className="text-xs text-muted-foreground">de todas as lojas</p>
+            <p className="text-xs text-muted-foreground">de todas as lojas ativas</p>
           </CardContent>
         </Card>
         <Card>
@@ -166,7 +167,7 @@ export default function AdminDashboardPage() {
 
        <Card>
           <CardHeader>
-            <CardTitle>Faturamento por Loja</CardTitle>
+            <CardTitle>Faturamento por Loja (Ativas)</CardTitle>
           </CardHeader>
           <CardContent className="pl-2">
             <ChartContainer config={chartConfig} className="h-[400px] w-full">
