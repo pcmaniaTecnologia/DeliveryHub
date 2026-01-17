@@ -337,6 +337,7 @@ export default function DashboardPage() {
                 </CardHeader>
                 <CardContent>
                     <p>Use o painel do administrador para gerenciar todas as empresas, visualizar relatórios globais e supervisionar a plataforma.</p>
+                    <p className="text-sm text-destructive/90 mt-2">Logado como: <strong>{user?.email}</strong></p>
                 </CardContent>
                 <CardFooter>
                     <Link href="/admin">
@@ -516,5 +517,7 @@ export default function DashboardPage() {
       </div>
   );
 }
+
+    
 
     
