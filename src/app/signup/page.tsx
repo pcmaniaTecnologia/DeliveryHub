@@ -1,11 +1,11 @@
 
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Package2 } from 'lucide-react';
-import { useUser, useAuth, initiateEmailSignUp, setDocument, initializeFirebase } from '@/firebase';
+import { useUser, useAuth, initiateEmailSignUp, setDocument, useFirestore } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -66,15 +66,7 @@ export default function SignupPage() {
   const router = useRouter();
   const auth = useAuth();
   const { toast } = useToast();
-  
-  // Lazily get firestore instance only when needed
-  const firestoreInstanceRef = useRef<any | null>(null);
-  if (!firestoreInstanceRef.current) {
-    // This check is to avoid calling initializeFirebase on every render
-    const { firestore } = initializeFirebase(); 
-    firestoreInstanceRef.current = firestore;
-  }
-  const firestore = firestoreInstanceRef.current;
+  const firestore = useFirestore();
 
 
   const [email, setEmail] = useState('');
