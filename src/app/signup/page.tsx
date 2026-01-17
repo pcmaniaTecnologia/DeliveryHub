@@ -137,8 +137,13 @@ export default function SignupPage() {
           title: 'E-mail já cadastrado',
           description: 'Este e-mail já está em uso. Tente fazer login ou use um e-mail diferente.',
         });
+      } else if (error instanceof FirebaseError && error.code === 'auth/weak-password') {
+        toast({
+            variant: 'destructive',
+            title: 'Senha muito fraca',
+            description: 'A senha deve ter pelo menos 6 caracteres.',
+        });
       } else {
-        console.error('Falha no cadastro:', error);
         toast({
           variant: 'destructive',
           title: 'Erro de cadastro',
@@ -221,5 +226,3 @@ export default function SignupPage() {
     </div>
   );
 }
-
-    
