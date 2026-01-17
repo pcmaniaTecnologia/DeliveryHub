@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -101,13 +100,14 @@ export default function ManageCompaniesPage() {
     <Card>
       <CardHeader>
         <CardTitle>Gerenciar Empresas</CardTitle>
-        <CardDescription>Visualize, ative, desative ou exclua as lojas da plataforma.</CardDescription>
+        <CardDescription>Visualize os emails, ative, desative ou exclua as lojas da plataforma.</CardDescription>
       </CardHeader>
       <CardContent>
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Nome da Empresa</TableHead>
+              <TableHead>Email</TableHead>
               <TableHead>Contato</TableHead>
               <TableHead>Validade da Assinatura</TableHead>
               <TableHead>Status</TableHead>
@@ -117,12 +117,13 @@ export default function ManageCompaniesPage() {
           <TableBody>
              {isLoading && (
               <TableRow>
-                <TableCell colSpan={5} className="text-center">Carregando empresas...</TableCell>
+                <TableCell colSpan={6} className="text-center">Carregando empresas...</TableCell>
               </TableRow>
             )}
             {!isLoading && companies?.map((company) => (
               <TableRow key={company.id}>
                 <TableCell className="font-medium">{company.name}</TableCell>
+                <TableCell>{company.email || 'Não informado'}</TableCell>
                 <TableCell>{company.phone || 'Não informado'}</TableCell>
                 <TableCell>
                   {company.subscriptionEndDate ? format(company.subscriptionEndDate.toDate(), 'dd/MM/yyyy') : 'N/A'}
@@ -166,7 +167,7 @@ export default function ManageCompaniesPage() {
             ))}
              {!isLoading && companies?.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center">Nenhuma empresa encontrada.</TableCell>
+                  <TableCell colSpan={6} className="text-center">Nenhuma empresa encontrada.</TableCell>
                 </TableRow>
               )}
           </TableBody>
