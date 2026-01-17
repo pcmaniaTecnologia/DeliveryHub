@@ -1,6 +1,7 @@
 
 'use client';
-import { Banknote, CreditCard, DollarSign, Package, PieChart, Landmark, ShoppingCart, Users, Calendar as CalendarIcon, Printer } from 'lucide-react';
+import { Banknote, CreditCard, DollarSign, Package, PieChart, Landmark, ShoppingCart, Users, Calendar as CalendarIcon, Printer, ShieldCheck } from 'lucide-react';
+import Link from 'next/link';
 import {
   Card,
   CardContent,
@@ -29,8 +30,8 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart';
-import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, type Timestamp } from 'firebase/firestore';
+import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
+import { collection, type Timestamp, doc } from 'firebase/firestore';
 import { useState, useMemo } from 'react';
 import { subDays, format, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -110,6 +111,12 @@ export default function DashboardPage() {
     }, [firestore, user?.uid]);
     
     const { data: orders, isLoading: isLoadingOrders } = useCollection<Order>(ordersRef);
+
+    const adminRef = useMemoFirebase(() => {
+        if (!firestore || !user?.uid) return null;
+        return doc(firestore, 'roles_admin', user.uid);
+    }, [firestore, user?.uid]);
+    const { data: adminData, isLoading: isLoadingAdmin } = useDoc(adminRef);
 
     const [activePreset, setActivePreset] = useState<'today' | 'week' | 'month' | null>('today');
     const [dateRange, setDateRange] = useState<DateRange | undefined>({
@@ -250,7 +257,7 @@ export default function DashboardPage() {
 
     }, [orders, dateRange]);
     
-    const isLoading = isUserLoading || isLoadingOrders;
+    const isLoading = isUserLoading || isLoadingOrders || isLoadingAdmin;
     
     const dateRangeLabel = useMemo(() => {
         if (!dateRange?.from) return '';
@@ -316,7 +323,30 @@ export default function DashboardPage() {
     }
   
   return (
-      <div className="space-y-4">
+      <div className="space-y-6">
+        {adminData && (
+            <Card className="bg-destructive/10 border-destructive">
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-destructive">
+                        <ShieldCheck />
+                        Acesso de Administrador
+                    </CardTitle>
+                    <CardDescription className="text-destructive/80">
+                        Você tem acesso ao painel de administração da plataforma.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <p>Use o painel do administrador para gerenciar todas as empresas, visualizar relatórios globais e supervisionar a plataforma.</p>
+                </CardContent>
+                <CardFooter>
+                    <Link href="/admin">
+                        <Button variant="destructive">
+                            Ir para o Painel do Admin
+                        </Button>
+                    </Link>
+                </CardFooter>
+            </Card>
+        )}
         <div>
             <div className="flex items-center justify-between space-y-2">
                 <h2 className="text-3xl font-bold tracking-tight">Painel</h2>
@@ -364,7 +394,7 @@ export default function DashboardPage() {
                 </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mt-4">
                 <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Total de Vendas {dateRangeLabel}</CardTitle>
@@ -486,3 +516,5 @@ export default function DashboardPage() {
       </div>
   );
 }
+
+    
