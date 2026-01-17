@@ -18,7 +18,7 @@ export function DashboardNav({ newOrdersCount = 0, isAdmin = false }: { newOrder
     { href: '/dashboard/settings', label: 'Configurações', icon: SettingsIcon },
   ];
 
-  const adminNavItem = { href: '/admin', label: 'ainda não esta funcionando', icon: ShieldCheck };
+  const adminNavItem = { href: '/admin', label: 'Painel Do Administrador', icon: ShieldCheck };
 
   return (
     <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
