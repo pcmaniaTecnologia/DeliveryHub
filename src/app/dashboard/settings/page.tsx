@@ -25,7 +25,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { BellRing, Clock, DollarSign, PlusCircle, Trash2, Copy, Printer, Crown, AlertTriangle } from 'lucide-react';
-import { useFirestore, useDoc, setDocument, useMemoFirebase, useUser, useCollection, addDocument, deleteDocument, updateDocument } from '@/firebase';
+import { useFirestore, useDoc, setDocument, useMemoFirebase, useUser, useCollection, addDocument, deleteDocument, updateDocument, useAuth } from '@/firebase';
 import { doc, collection, Timestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -97,6 +97,7 @@ export default function SettingsPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
   const { user, isUserLoading: isUserLoadingAuth } = useUser();
+  const auth = useAuth();
   const router = useRouter();
 
   // Dialog state for adding new delivery zone
@@ -362,28 +363,27 @@ export default function SettingsPage() {
   };
 
   const handleDeleteStore = async () => {
-    if (!companyRef || !user) {
+    if (!companyRef || !user || !auth) {
         toast({
             variant: 'destructive',
             title: 'Erro',
-            description: 'Não foi possível identificar a empresa. Faça login novamente.',
+            description: 'Não foi possível identificar a empresa ou autenticação. Faça login novamente.',
         });
         return;
     }
 
     try {
-        // Here we would ideally delete all subcollections first.
         // This is a simplified example. For a real app, use a Cloud Function
         // to recursively delete all subcollections (products, orders, etc.).
         await deleteDocument(companyRef);
         
         toast({
             title: 'Loja Excluída',
-            description: 'Sua loja e todos os dados foram excluídos com sucesso.',
+            description: 'Sua loja e seus dados foram excluídos. Você será desconectado.',
         });
         
         // Log the user out and redirect to home page
-        await user.delete();
+        await auth.signOut();
         router.push('/');
 
     } catch (error: any) {
@@ -391,7 +391,7 @@ export default function SettingsPage() {
         toast({
             variant: 'destructive',
             title: 'Erro ao excluir a loja',
-            description: 'Você precisa ter feito login recentemente para realizar esta ação. ' + error.message,
+            description: 'Ocorreu um erro ao tentar excluir a loja. ' + error.message,
         });
     }
 };
@@ -861,4 +861,5 @@ export default function SettingsPage() {
     
 
     
+
 
