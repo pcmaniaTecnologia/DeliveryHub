@@ -295,7 +295,7 @@ service cloud.firestore {
      * @principle Secures global configuration while exposing necessary public data for core business logic (payments).
      */
     match /platform_settings/{settingsId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow create, update, delete: if isSuperAdmin();
     }
 
@@ -317,5 +317,3 @@ service cloud.firestore {
     }
   }
 }
-
-    
