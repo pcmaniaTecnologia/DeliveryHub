@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -25,15 +24,6 @@ import type { User } from 'firebase/auth';
 async function createInitialDocuments(firestore: any, user: User, firstName: string, lastName: string) {
     if (!user || !firestore || !firstName || !lastName) return;
     
-    // This is the critical part for making the first user a super admin.
-    // The path MUST be 'roles_admin' to match firestore.rules
-    const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
-    const adminRoleData = {
-        email: user.email,
-        grantedAt: new Date(),
-        name: `${firstName} ${lastName}`,
-    };
-    
     const companyRef = doc(firestore, 'companies', user.uid);
     const companyData = {
         id: user.uid,
@@ -56,7 +46,6 @@ async function createInitialDocuments(firestore: any, user: User, firstName: str
     };
     
     await Promise.all([
-        setDocument(adminRoleRef, adminRoleData), // Add user to super admins
         setDocument(companyRef, companyData, { merge: true }),
         setDocument(companyUserRef, companyUserData, { merge: true }),
     ]);
@@ -125,7 +114,7 @@ export default function SignupPage() {
        
       toast({
         title: 'Conta criada com sucesso!',
-        description: 'Bem-vindo ao DeliveryHub! Sua conta de administrador foi ativada.',
+        description: 'Bem-vindo ao DeliveryHub! Sua loja foi criada e está pronta para ser configurada.',
       });
 
       // The redirect is handled by the useEffect hook watching the user state.
