@@ -1,6 +1,7 @@
 
 'use client';
-import { Banknote, Building, DollarSign, PieChart, ShoppingCart } from 'lucide-react';
+
+import { Building, DollarSign, ShoppingCart } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -17,9 +18,10 @@ import {
   Legend,
 } from 'recharts';
 import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart';
-import { useUser, useFirestore, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
-import { collection, collectionGroup, getDocs, query, where, Timestamp } from 'firebase/firestore';
-import { useMemo, useState, useEffect } from 'react';
+import { useUser, useFirestore, errorEmitter, FirestorePermissionError } from '@/firebase';
+import { collection, collectionGroup, getDocs, query } from 'firebase/firestore';
+import { useState, useEffect } from 'react';
+
 
 type Company = {
     id: string;
@@ -45,58 +47,45 @@ const chartConfig = {
   },
 };
 
+
 export default function AdminDashboardPage() {
     const { user, isUserLoading } = useUser();
     const firestore = useFirestore();
 
-    const companiesRef = useMemoFirebase(() => {
-        if (!firestore) return null;
-        return collection(firestore, 'companies');
-    }, [firestore]);
-
-    const { data: companies, isLoading: isLoadingCompanies } = useCollection<Company>(companiesRef);
-
-    const [salesData, setSalesData] = useState<CompanySales[]>([]);
-    const [isLoadingSales, setIsLoadingSales] = useState(true);
-    const [totalOrders, setTotalOrders] = useState(0);
+    const [stats, setStats] = useState({
+        totalRevenue: 0,
+        totalCompanies: 0,
+        totalOrders: 0,
+        salesByCompany: [] as CompanySales[],
+    });
+    const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        const fetchSales = async () => {
-            if (!firestore || !companies) {
-                setIsLoadingSales(false);
-                setSalesData([]);
-                setTotalOrders(0);
-                return;
-            };
+        if (!firestore) return;
 
-            setIsLoadingSales(true);
-            
+        const fetchData = async () => {
+            setIsLoading(true);
             try {
+                // 1. Fetch all companies
+                const companiesQuery = collection(firestore, 'companies');
+                const companiesSnapshot = await getDocs(companiesQuery);
+                const companies = companiesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Company));
+
+                // 2. Fetch all orders
                 const ordersQuery = query(collectionGroup(firestore, 'orders'));
-                
                 const ordersSnapshot = await getDocs(ordersQuery).catch(serverError => {
                     const permissionError = new FirestorePermissionError({
                         path: 'orders',
                         operation: 'list',
                     });
                     errorEmitter.emit('permission-error', permissionError);
-                    // Return a fake empty snapshot to prevent further errors down the chain
-                    return { docs: [], empty: true } as any; 
+                    throw permissionError; // throw to be caught by outer try/catch
                 });
-
-                if (ordersSnapshot.empty) {
-                    setSalesData([]);
-                    setTotalOrders(0);
-                    setIsLoadingSales(false);
-                    return;
-                }
-
+                
                 const allOrders = ordersSnapshot.docs.map(doc => doc.data() as Order);
-
                 const successfulOrders = allOrders.filter(order => order.status !== 'Cancelado');
 
-                setTotalOrders(successfulOrders.length);
-
+                // 3. Process data
                 const salesByCompany = companies.map(company => {
                     const companyOrders = successfulOrders.filter(order => order.companyId === company.id);
                     const totalSales = companyOrders.reduce((sum, order) => sum + order.totalAmount, 0);
@@ -106,39 +95,27 @@ export default function AdminDashboardPage() {
                     };
                 });
                 
-                setSalesData(salesByCompany);
+                const totalRevenue = salesByCompany.reduce((sum, company) => sum + company.Vendas, 0);
+
+                // 4. Set state
+                setStats({
+                    totalRevenue: totalRevenue,
+                    totalCompanies: companies.length,
+                    totalOrders: successfulOrders.length,
+                    salesByCompany: salesByCompany,
+                });
+
             } catch (error) {
-                 // This will catch other potential errors, though the permission error is handled above
-                 console.error("An unexpected error occurred while fetching sales data:", error);
-                 setSalesData([]);
-                 setTotalOrders(0);
+                 console.error("An unexpected error occurred while fetching admin dashboard data:", error);
             } finally {
-                setIsLoadingSales(false);
+                setIsLoading(false);
             }
         };
 
-        if (!isLoadingCompanies) {
-            fetchSales();
-        }
-    // We stringify `companies` to prevent re-running the effect on every render
-    // just because the array reference is new. This is a pragmatic way to
-    // deep-compare the dependency.
-    }, [firestore, isLoadingCompanies, JSON.stringify(companies)]);
+        fetchData();
+    }, [firestore]);
 
-    const { totalRevenue, totalCompanies } = useMemo(() => {
-        if (!salesData || !companies) {
-            return { totalRevenue: 0, totalCompanies: 0 };
-        }
-        const totalRevenue = salesData.reduce((sum, company) => sum + company.Vendas, 0);
-        return {
-            totalRevenue,
-            totalCompanies: companies.length,
-        };
-    }, [salesData, companies]);
-
-    const isLoading = isUserLoading || isLoadingCompanies || isLoadingSales;
-    
-    if (isLoading && salesData.length === 0) {
+    if (isLoading || isUserLoading) {
         return <p>Carregando dashboard do administrador...</p>;
     }
 
@@ -152,7 +129,7 @@ export default function AdminDashboardPage() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">R${totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            <div className="text-2xl font-bold">R${stats.totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
             <p className="text-xs text-muted-foreground">de todas as lojas</p>
           </CardContent>
         </Card>
@@ -162,7 +139,7 @@ export default function AdminDashboardPage() {
             <Building className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">+{totalCompanies}</div>
+            <div className="text-2xl font-bold">+{stats.totalCompanies}</div>
              <p className="text-xs text-muted-foreground">lojas ativas e inativas</p>
           </CardContent>
         </Card>
@@ -172,7 +149,7 @@ export default function AdminDashboardPage() {
             <ShoppingCart className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalOrders}</div>
+            <div className="text-2xl font-bold">{stats.totalOrders}</div>
             <p className="text-xs text-muted-foreground">contagem de todos os pedidos</p>
           </CardContent>
         </Card>
@@ -185,7 +162,7 @@ export default function AdminDashboardPage() {
           <CardContent className="pl-2">
             <ChartContainer config={chartConfig} className="h-[400px] w-full">
               <ResponsiveContainer>
-                <BarChart data={salesData} layout="vertical" margin={{ left: 20, right: 20 }}>
+                <BarChart data={stats.salesByCompany} layout="vertical" margin={{ left: 20, right: 20 }}>
                   <XAxis type="number" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `R$${value}`}/>
                   <YAxis type="category" dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} width={120} />
                   <Tooltip content={<ChartTooltipContent />} />
