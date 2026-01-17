@@ -5,6 +5,8 @@ import {
   Home,
   ShieldCheck,
   Building,
+  DollarSign,
+  Settings,
 } from 'lucide-react';
 import { useDoc, useFirestore, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
@@ -21,6 +23,8 @@ function AdminNav() {
     const navItems = [
         { href: '/admin', label: 'Dashboard', icon: Home },
         { href: '/admin/companies', label: 'Empresas', icon: Building },
+        { href: '/admin/plans', label: 'Planos', icon: DollarSign },
+        { href: '/admin/settings', label: 'Configurações', icon: Settings },
     ];
 
     return (
@@ -108,3 +112,5 @@ export default function AdminLayout({
     </div>
   );
 }
+
+    

@@ -24,9 +24,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { BellRing, Clock, DollarSign, PlusCircle, Trash2, Copy, Printer, Crown, AlertTriangle } from 'lucide-react';
+import { BellRing, Clock, DollarSign, PlusCircle, Trash2, Copy, Printer, Crown, AlertTriangle, CheckCircle, Send } from 'lucide-react';
 import { useFirestore, useDoc, setDocument, useMemoFirebase, useUser, useCollection, addDocument, deleteDocument, updateDocument, useAuth } from '@/firebase';
-import { doc, collection, Timestamp } from 'firebase/firestore';
+import { doc, collection } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -91,8 +91,108 @@ type Plan = {
     price: number;
     productLimit: number;
     orderLimit: number;
+    duration: 'monthly' | 'annual';
 }
 
+type PlatformSettings = {
+    pixKey?: string;
+};
+
+// --- Subscription View Component ---
+const SubscriptionView = () => {
+    const firestore = useFirestore();
+    const { toast } = useToast();
+    const { data: plans, isLoading: isLoadingPlans } = useCollection<Plan>(collection(firestore, 'plans'));
+    const { data: platformSettings, isLoading: isLoadingSettings } = useDoc<PlatformSettings>(doc(firestore, 'platform_settings', 'main'));
+    const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
+
+    const handleSelectPlan = (plan: Plan) => {
+        setSelectedPlan(plan);
+    };
+
+    const handleCopyPixKey = () => {
+        if (platformSettings?.pixKey) {
+            navigator.clipboard.writeText(platformSettings.pixKey);
+            toast({ title: "Chave PIX copiada!" });
+        }
+    };
+    
+    if (isLoadingPlans || isLoadingSettings) {
+        return <p>Carregando planos de assinatura...</p>
+    }
+
+    if (!selectedPlan) {
+        return (
+            <div className="space-y-6">
+                 <div className="text-center">
+                    <h2 className="text-3xl font-bold tracking-tight">Escolha seu Plano</h2>
+                    <p className="text-muted-foreground mt-2">Selecione o plano que melhor se adapta ao seu negócio para começar a vender.</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {plans?.map((plan) => (
+                        <Card key={plan.id} className="flex flex-col">
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2"><Crown className="text-primary"/> {plan.name}</CardTitle>
+                                <p className="text-4xl font-bold">R${plan.price}<span className="text-lg font-normal text-muted-foreground">/{plan.duration === 'monthly' ? 'mês' : 'ano'}</span></p>
+                            </CardHeader>
+                            <CardContent className="flex-grow">
+                                <ul className="space-y-2 text-muted-foreground">
+                                    <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-500" /> {plan.productLimit === 0 ? 'Produtos ilimitados' : `${plan.productLimit} produtos`}</li>
+                                    <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-500" /> {plan.orderLimit === 0 ? 'Pedidos ilimitados' : `${plan.orderLimit} pedidos/mês`}</li>
+                                    <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-500" /> Painel de gerenciamento</li>
+                                    <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-500" /> Cardápio online</li>
+                                </ul>
+                            </CardContent>
+                            <CardFooter>
+                                <Button className="w-full" onClick={() => handleSelectPlan(plan)}>Selecionar Plano</Button>
+                            </CardFooter>
+                        </Card>
+                    ))}
+                </div>
+            </div>
+        )
+    }
+
+     return (
+        <div className="space-y-6">
+            <div className="text-center">
+                <h2 className="text-3xl font-bold tracking-tight">Finalizar Pagamento</h2>
+                <p className="text-muted-foreground mt-2">Para ativar sua loja, realize o pagamento via PIX.</p>
+            </div>
+            <Card className="max-w-lg mx-auto">
+                <CardHeader>
+                    <CardTitle>Pagamento via PIX</CardTitle>
+                    <CardDescription>Você selecionou o plano: <span className="font-bold text-primary">{selectedPlan.name}</span></CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="flex justify-between items-center border p-4 rounded-lg">
+                        <span className="text-lg">Total a pagar:</span>
+                        <span className="text-2xl font-bold">R${selectedPlan.price.toFixed(2)}</span>
+                    </div>
+                    <div>
+                        <Label>Chave PIX para pagamento:</Label>
+                        <div className="flex items-center gap-2 mt-1">
+                            <Input value={platformSettings?.pixKey || 'Chave não configurada'} readOnly />
+                            <Button variant="outline" size="icon" onClick={handleCopyPixKey}><Copy className="h-4 w-4" /></Button>
+                        </div>
+                    </div>
+                     <Alert>
+                        <Send className="h-4 w-4" />
+                        <AlertTitle>Próximos Passos</AlertTitle>
+                        <AlertDescription>
+                            Após realizar o pagamento, por favor, aguarde. Sua conta será ativada manualmente pela administração assim que o pagamento for confirmado.
+                        </AlertDescription>
+                    </Alert>
+                </CardContent>
+                <CardFooter>
+                    <Button variant="outline" onClick={() => setSelectedPlan(null)}>Voltar e escolher outro plano</Button>
+                </CardFooter>
+            </Card>
+        </div>
+    )
+}
+
+// --- Main Settings Page Component ---
 export default function SettingsPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -408,17 +508,16 @@ export default function SettingsPage() {
     { key: 'saturday', label: 'Sábado' },
   ];
 
+  if (isLoading) {
+    return <p>Carregando configurações...</p>
+  }
+  
+  if (companyData && companyData.isActive === false) {
+    return <SubscriptionView />;
+  }
+
   return (
     <div className="space-y-6">
-      {companyData?.isActive === false && (
-          <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>Acesso Bloqueado</AlertTitle>
-              <AlertDescription>
-                  Sua assinatura expirou ou há um problema com seu pagamento. Por favor, regularize sua situação para reativar o acesso ao painel.
-              </AlertDescription>
-          </Alert>
-      )}
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Configurações</h2>
         <p className="text-muted-foreground">
@@ -427,12 +526,13 @@ export default function SettingsPage() {
       </div>
 
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-5">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-6">
           <TabsTrigger value="profile">Empresa</TabsTrigger>
           <TabsTrigger value="hours">Horários</TabsTrigger>
           <TabsTrigger value="delivery">Entrega</TabsTrigger>
           <TabsTrigger value="payments">Pagamentos</TabsTrigger>
           <TabsTrigger value="notifications">Mensagens</TabsTrigger>
+          <TabsTrigger value="subscription">Assinatura</TabsTrigger>
         </TabsList>
 
         <TabsContent value="profile">
@@ -853,13 +953,29 @@ export default function SettingsPage() {
             </CardFooter>
           </Card>
         </TabsContent>
+         <TabsContent value="subscription">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Plano e Assinatura</CardTitle>
+                    <CardDescription>Visualize os detalhes do seu plano atual.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {isLoadingPlan && <p>Carregando seu plano...</p>}
+                    {!isLoadingPlan && planData && (
+                        <div className="space-y-4">
+                             <p>Plano Atual: <span className="font-bold text-primary">{planData.name}</span></p>
+                             <p>Sua assinatura é válida até: <span className="font-bold">{companyData?.subscriptionEndDate ? format(companyData.subscriptionEndDate.toDate(), 'dd/MM/yyyy') : 'N/A'}</span></p>
+                        </div>
+                    )}
+                     {!isLoadingPlan && !planData && (
+                        <p>Você não está inscrito em nenhum plano no momento.</p>
+                     )}
+                </CardContent>
+            </Card>
+        </TabsContent>
       </Tabs>
     </div>
   );
 }
 
     
-
-    
-
-

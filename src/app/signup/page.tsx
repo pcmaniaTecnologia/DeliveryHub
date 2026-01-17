@@ -40,7 +40,9 @@ async function createInitialDocuments(firestore: any, user: User, firstName: str
         ownerId: user.uid,
         name: `${firstName}'s Store`,
         email: user.email,
-        isActive: true, // Set to true on creation
+        isActive: false, // New companies start as inactive until they subscribe.
+        planId: null,
+        subscriptionEndDate: null,
     };
 
     const companyUserRef = doc(firestore, 'companies', user.uid, 'users', user.uid);
@@ -219,3 +221,5 @@ export default function SignupPage() {
     </div>
   );
 }
+
+    
