@@ -64,63 +64,65 @@ export default function AdminDashboardPage() {
         if (!firestore || !user) return;
 
         const fetchData = async () => {
-            setIsLoading(true);
-            try {
-                // 1. Fetch all companies
-                const companiesQuery = collection(firestore, 'companies');
-                const companiesSnapshot = await getDocs(companiesQuery).catch(serverError => {
-                    const permissionError = new FirestorePermissionError({
-                        path: 'companies',
-                        operation: 'list',
-                    });
-                    errorEmitter.emit('permission-error', permissionError);
-                    throw permissionError;
+            // 1. Fetch all companies
+            const companiesQuery = collection(firestore, 'companies');
+            const companiesSnapshot = await getDocs(companiesQuery).catch(serverError => {
+                const permissionError = new FirestorePermissionError({
+                    path: 'companies',
+                    operation: 'list',
                 });
-                const companies = companiesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Company));
+                errorEmitter.emit('permission-error', permissionError);
+                throw permissionError;
+            });
+            const companies = companiesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Company));
 
-                // 2. Fetch all orders
-                const ordersQuery = query(collectionGroup(firestore, 'orders'));
-                const ordersSnapshot = await getDocs(ordersQuery).catch(serverError => {
-                    const permissionError = new FirestorePermissionError({
-                        path: 'orders',
-                        operation: 'list',
-                    });
-                    errorEmitter.emit('permission-error', permissionError);
-                    throw permissionError; // throw to be caught by outer try/catch
+            // 2. Fetch all orders
+            const ordersQuery = query(collectionGroup(firestore, 'orders'));
+            const ordersSnapshot = await getDocs(ordersQuery).catch(serverError => {
+                const permissionError = new FirestorePermissionError({
+                    path: 'orders',
+                    operation: 'list',
                 });
-                
-                const allOrders = ordersSnapshot.docs.map(doc => doc.data() as Order);
-                const successfulOrders = allOrders.filter(order => order.status !== 'Cancelado');
+                errorEmitter.emit('permission-error', permissionError);
+                throw permissionError; 
+            });
+            
+            const allOrders = ordersSnapshot.docs.map(doc => doc.data() as Order);
+            const successfulOrders = allOrders.filter(order => order.status !== 'Cancelado');
 
-                // 3. Process data
-                const salesByCompany = companies.map(company => {
-                    const companyOrders = successfulOrders.filter(order => order.companyId === company.id);
-                    const totalSales = companyOrders.reduce((sum, order) => sum + order.totalAmount, 0);
-                    return {
-                        name: company.name,
-                        Vendas: totalSales,
-                    };
-                });
-                
-                const totalRevenue = salesByCompany.reduce((sum, company) => sum + company.Vendas, 0);
+            // 3. Process data
+            const salesByCompany = companies.map(company => {
+                const companyOrders = successfulOrders.filter(order => order.companyId === company.id);
+                const totalSales = companyOrders.reduce((sum, order) => sum + order.totalAmount, 0);
+                return {
+                    name: company.name,
+                    Vendas: totalSales,
+                };
+            });
+            
+            const totalRevenue = salesByCompany.reduce((sum, company) => sum + company.Vendas, 0);
 
-                // 4. Set state
-                setStats({
-                    totalRevenue: totalRevenue,
-                    totalCompanies: companies.length,
-                    totalOrders: successfulOrders.length,
-                    salesByCompany: salesByCompany,
-                });
-
-            } catch (error) {
-                 console.error("An unexpected error occurred while fetching admin dashboard data:", error);
-            } finally {
-                setIsLoading(false);
-            }
+            // 4. Set state
+            setStats({
+                totalRevenue: totalRevenue,
+                totalCompanies: companies.length,
+                totalOrders: successfulOrders.length,
+                salesByCompany: salesByCompany,
+            });
         };
 
-        fetchData();
+        setIsLoading(true);
+        fetchData()
+            .catch(error => {
+                // Errors are thrown by FirebaseErrorListener, so we don't need to log here.
+                // We just need to ensure the loading state is correct.
+            })
+            .finally(() => {
+                setIsLoading(false);
+            });
+            
     }, [firestore, user]);
+
 
     if (isLoading || isUserLoading) {
         return <p>Carregando dashboard do administrador...</p>;
