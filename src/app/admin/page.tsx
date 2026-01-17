@@ -63,7 +63,9 @@ export default function AdminDashboardPage() {
     useEffect(() => {
         const fetchSales = async () => {
             if (!firestore || !companies) {
-                 if (companies && companies.length === 0) setIsLoadingSales(false);
+                setIsLoadingSales(false);
+                setSalesData([]);
+                setTotalOrders(0);
                 return;
             };
 
@@ -83,6 +85,8 @@ export default function AdminDashboardPage() {
                 });
 
                 if (ordersSnapshot.empty) {
+                    setSalesData([]);
+                    setTotalOrders(0);
                     setIsLoadingSales(false);
                     return;
                 }
@@ -106,15 +110,20 @@ export default function AdminDashboardPage() {
             } catch (error) {
                  // This will catch other potential errors, though the permission error is handled above
                  console.error("An unexpected error occurred while fetching sales data:", error);
+                 setSalesData([]);
+                 setTotalOrders(0);
             } finally {
                 setIsLoadingSales(false);
             }
         };
 
-        if (companies) {
+        if (!isLoadingCompanies) {
             fetchSales();
         }
-    }, [firestore, companies]);
+    // We stringify `companies` to prevent re-running the effect on every render
+    // just because the array reference is new. This is a pragmatic way to
+    // deep-compare the dependency.
+    }, [firestore, isLoadingCompanies, JSON.stringify(companies)]);
 
     const { totalRevenue, totalCompanies } = useMemo(() => {
         if (!salesData || !companies) {
