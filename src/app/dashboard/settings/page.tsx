@@ -102,8 +102,19 @@ type PlatformSettings = {
 const SubscriptionView = () => {
     const firestore = useFirestore();
     const { toast } = useToast();
-    const { data: plans, isLoading: isLoadingPlans } = useCollection<Plan>(collection(firestore, 'plans'));
-    const { data: platformSettings, isLoading: isLoadingSettings } = useDoc<PlatformSettings>(doc(firestore, 'platform_settings', 'main'));
+    
+    const plansRef = useMemoFirebase(() => {
+        if (!firestore) return null;
+        return collection(firestore, 'plans');
+    }, [firestore]);
+    const { data: plans, isLoading: isLoadingPlans } = useCollection<Plan>(plansRef);
+
+    const platformSettingsRef = useMemoFirebase(() => {
+        if (!firestore) return null;
+        return doc(firestore, 'platform_settings', 'main');
+    }, [firestore]);
+    const { data: platformSettings, isLoading: isLoadingSettings } = useDoc<PlatformSettings>(platformSettingsRef);
+
     const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
 
     const handleSelectPlan = (plan: Plan) => {
@@ -977,5 +988,3 @@ export default function SettingsPage() {
     </div>
   );
 }
-
-    
