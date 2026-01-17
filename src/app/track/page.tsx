@@ -2,7 +2,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useFirestore } from '@/firebase';
+import { useFirestore, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { collection, getDocs, query, where, Timestamp, orderBy, limit } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -44,7 +44,7 @@ export default function TrackOrderPage() {
   const searchParams = useSearchParams();
   const companyId = searchParams.get('companyId');
   
-  const handleSearch = async (e: React.FormEvent) => {
+  const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (!customerName.trim()) {
       setError('Por favor, insira o seu nome.');
@@ -60,30 +60,35 @@ export default function TrackOrderPage() {
     setSelectedOrder(null);
     setSearched(true);
 
-    try {
-      const ordersRef = collection(firestore, 'companies', companyId, 'orders');
-      const q = query(
-        ordersRef, 
-        where('companyId', '==', companyId),
-        where('customerName', '==', customerName.trim()),
-        orderBy('orderDate', 'desc'),
-        limit(10)
-      );
-      
-      const querySnapshot = await getDocs(q);
+    const ordersRef = collection(firestore, 'companies', companyId, 'orders');
+    const q = query(
+      ordersRef,
+      where('companyId', '==', companyId),
+      where('customerName', '==', customerName.trim()),
+      orderBy('orderDate', 'desc'),
+      limit(10)
+    );
 
-      if (querySnapshot.empty) {
-        setError('Nenhum pedido encontrado para este nome. Verifique se o nome está correto.');
-      } else {
-        const orders = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
-        setFoundOrders(orders);
-      }
-    } catch (err) {
-      console.error("Error searching for orders:", err);
-      setError('Ocorreu um erro ao buscar seus pedidos. Tente novamente mais tarde.');
-    } finally {
-      setIsLoading(false);
-    }
+    getDocs(q)
+      .then((querySnapshot) => {
+        if (querySnapshot.empty) {
+          setError('Nenhum pedido encontrado para este nome. Verifique se o nome está correto.');
+        } else {
+          const orders = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
+          setFoundOrders(orders);
+        }
+      })
+      .catch((err) => {
+        const permissionError = new FirestorePermissionError({
+          path: `companies/${companyId}/orders`,
+          operation: 'list',
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        setError('Ocorreu um erro ao buscar seus pedidos. Tente novamente mais tarde.');
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
   };
 
   const getStatusConfig = () => {
