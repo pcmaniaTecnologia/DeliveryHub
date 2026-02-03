@@ -2,8 +2,6 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
 import {
   Home,
   ShieldCheck,
@@ -18,6 +16,8 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { UserNav } from '@/components/user-nav';
+import { useRouter } from 'next/navigation';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 
 function AdminNav() {
     const pathname = usePathname();
@@ -36,7 +36,7 @@ function AdminNav() {
             href={item.href}
             className={cn(
                 'flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary',
-                { 'bg-muted text-primary': item.href === '/admin' ? pathname === item.href : pathname.startsWith(item.href) }
+                pathname.startsWith(item.href) && 'bg-muted text-primary'
             )}
             >
             <item.icon className="h-4 w-4" />
@@ -64,25 +64,53 @@ export default function AdminLayout({
 
   const { data: adminData, isLoading: isLoadingAdmin } = useDoc(adminRef);
 
-  useEffect(() => {
-    if (isUserLoading || isLoadingAdmin) {
-      return; // Wait until we know the user's status
-    }
-    if (!user) {
-      router.replace('/'); // Not logged in, redirect to login
-    } else if (!adminData) {
-      router.replace('/dashboard'); // Logged in but not an admin, redirect to user dashboard
-    }
-  }, [user, isUserLoading, adminData, isLoadingAdmin, router]);
-
-
-  if (isUserLoading || isLoadingAdmin || !user || !adminData) {
+  if (isUserLoading || isLoadingAdmin) {
       return (
         <div className="flex min-h-screen items-center justify-center">
             <p>Verificando permissões de administrador...</p>
         </div>
     );
   }
+
+  if (!user) {
+    router.replace('/');
+    return (
+       <div className="flex min-h-screen items-center justify-center">
+            <p>Redirecionando para o login...</p>
+        </div>
+    );
+  }
+  
+  if (!adminData) {
+       return (
+        <div className="flex min-h-screen items-center justify-center bg-muted p-4">
+            <Card className="max-w-lg text-center">
+                 <CardHeader>
+                    <CardTitle className="text-destructive">Acesso Negado</CardTitle>
+                    <CardDescription>
+                        Você não tem permissão para acessar o painel de super administrador.
+                    </CardDescription>
+                 </CardHeader>
+                 <CardContent className="space-y-4">
+                    <p>Sua conta não foi encontrada no registro de administradores da plataforma. Se você acredita que isso é um erro, por favor, verifique se o documento de permissão foi criado corretamente no Firestore.</p>
+                    <div className="text-left space-y-2 rounded-lg border bg-background p-4">
+                        <p className="text-sm font-medium">Instruções para correção:</p>
+                        <p className="text-sm text-muted-foreground">1. Acesse seu banco de dados Firestore.</p>
+                        <p className="text-sm text-muted-foreground">2. Crie (ou verifique) uma coleção chamada: <code className="bg-muted p-1 rounded-sm">roles_admin</code></p>
+                        <p className="text-sm text-muted-foreground">3. Dentro dela, crie um documento com o ID abaixo:</p>
+                        <code className="block w-full truncate rounded-md bg-muted p-2 text-sm">{user.uid}</code>
+                    </div>
+                 </CardContent>
+                 <CardFooter className="flex justify-center gap-2">
+                    <Link href="/dashboard">
+                        <Button>Ir para o Painel da Loja</Button>
+                    </Link>
+                 </CardFooter>
+            </Card>
+        </div>
+    );
+  }
+
 
   return (
     <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
