@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Building, DollarSign, ShoppingCart } from 'lucide-react';
@@ -74,7 +75,11 @@ export default function AdminDashboardPage() {
                 errorEmitter.emit('permission-error', permissionError);
                 throw permissionError;
             });
-            const allCompanies = companiesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Company));
+            // Add a filter to ensure company documents have a name, preventing chart errors
+            const allCompanies = companiesSnapshot.docs
+                .map(doc => ({ id: doc.id, ...doc.data() } as Company))
+                .filter(company => company.name);
+                
             const activeCompanies = allCompanies.filter(c => c.isActive);
 
             // 2. Fetch all orders
@@ -94,14 +99,15 @@ export default function AdminDashboardPage() {
             // 3. Process data for active companies
             const salesByCompany = activeCompanies.map(company => {
                 const companyOrders = successfulOrders.filter(order => order.companyId === company.id);
-                const totalSales = companyOrders.reduce((sum, order) => sum + order.totalAmount, 0);
+                // Add a fallback for totalAmount to prevent NaN values
+                const totalSales = companyOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
                 return {
                     name: company.name,
                     Vendas: totalSales,
                 };
             });
             
-            const totalRevenue = salesByCompany.reduce((sum, company) => sum + company.Vendas, 0);
+            const totalRevenue = salesByCompany.reduce((sum, company) => sum + (company.Vendas || 0), 0);
 
             // 4. Set state
             setStats({
