@@ -182,7 +182,7 @@ export default function ProductsPage() {
 
   const { data: categories, isLoading: isLoadingCategories } = useCollection<Category>(categoriesRef);
 
-  const onSubmit = async (values: z.infer<typeof productFormSchema>) => {
+  const onSubmit = (values: z.infer<typeof productFormSchema>) => {
     if (!user || !firestore) return;
 
     const productData = {
@@ -191,37 +191,27 @@ export default function ProductsPage() {
       imageUrls: values.imageUrl ? [values.imageUrl] : [],
     };
     
-    try {
-      if (editingProduct) {
-        const productDocRef = doc(firestore, `companies/${user.uid}/products/${editingProduct.id}`);
-        await updateDocument(productDocRef, productData);
-        toast({
-          title: 'Produto Atualizado!',
-          description: `${values.name} foi atualizado com sucesso.`,
-        });
-      } else {
-         if (!productsRef) return;
-        await addDocument(productsRef, { 
+    let promise;
+    if (editingProduct) {
+      const productDocRef = doc(firestore, `companies/${user.uid}/products/${editingProduct.id}`);
+      promise = updateDocument(productDocRef, productData);
+    } else {
+       if (!productsRef) return;
+       promise = addDocument(productsRef, { 
             ...productData, 
             stock: 0, // Default stock
         });
-        toast({
-          title: 'Produto Adicionado!',
-          description: `${values.name} foi adicionado ao seu catálogo.`,
-        });
-      }
-      
-      form.reset();
-      setIsDialogOpen(false);
-      setEditingProduct(null);
-    } catch (error) {
-       console.error("Failed to save product:", error);
-       toast({
-          variant: 'destructive',
-          title: 'Erro ao salvar',
-          description: 'Não foi possível salvar o produto. Verifique suas permissões.',
-       });
     }
+
+    promise.then(() => {
+        toast({
+            title: editingProduct ? 'Produto Atualizado!' : 'Produto Adicionado!',
+            description: `${values.name} foi salvo com sucesso.`,
+        });
+        form.reset();
+        setIsDialogOpen(false);
+        setEditingProduct(null);
+    });
   };
 
   const handleOpenDialog = (product: Product | null = null) => {
@@ -229,27 +219,19 @@ export default function ProductsPage() {
     setIsDialogOpen(true);
   };
   
-  const handleDeleteProduct = async (productId: string) => {
+  const handleDeleteProduct = (productId: string) => {
     if (!firestore || !user) return;
     const productDocRef = doc(firestore, `companies/${user.uid}/products/${productId}`);
-    try {
-      await deleteDocument(productDocRef);
-      toast({
-        title: 'Produto Excluído',
-        description: 'O produto foi removido do seu catálogo.',
-        variant: 'destructive'
-      });
-    } catch (error) {
-       console.error("Failed to delete product:", error);
-       toast({
-          variant: 'destructive',
-          title: 'Erro ao excluir',
-          description: 'Não foi possível remover o produto.',
-       });
-    }
+    deleteDocument(productDocRef).then(() => {
+        toast({
+            title: 'Produto Excluído',
+            description: 'O produto foi removido do seu catálogo.',
+            variant: 'destructive'
+        });
+    });
   }
 
-    const handleDuplicateProduct = async (product: Product) => {
+    const handleDuplicateProduct = (product: Product) => {
     if (!productsRef) return;
     
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -259,36 +241,25 @@ export default function ProductsPage() {
         name: `${product.name} (Cópia)`,
     };
 
-    try {
-      await addDocument(productsRef, duplicatedData);
-      toast({
-        title: 'Produto Duplicado!',
-        description: `Uma cópia de "${product.name}" foi criada.`,
-      });
-    } catch (error) {
-      console.error("Failed to duplicate product:", error);
-      toast({
-        variant: 'destructive',
-        title: 'Erro ao duplicar',
-        description: 'Não foi possível duplicar o produto.',
-      });
-    }
+    addDocument(productsRef, duplicatedData).then(() => {
+        toast({
+            title: 'Produto Duplicado!',
+            description: `Uma cópia de "${product.name}" foi criada.`,
+        });
+    });
   };
 
-  const handleAddCategory = async () => {
+  const handleAddCategory = () => {
     if (!newCategoryName.trim()) {
         toast({ variant: "destructive", title: "Nome da categoria é obrigatório." });
         return;
     }
     if (!categoriesRef) return;
-    try {
-        await addDocument(categoriesRef, { name: newCategoryName, companyId: user?.uid });
+    addDocument(categoriesRef, { name: newCategoryName, companyId: user?.uid }).then(() => {
         toast({ title: "Categoria adicionada!" });
         setNewCategoryName('');
         setIsCategoryDialogOpen(false);
-    } catch (error) {
-        toast({ variant: "destructive", title: "Erro ao adicionar categoria." });
-    }
+    });
   };
 
   const isLoading = isUserLoading || isLoadingProducts || isLoadingCategories;
@@ -699,5 +670,3 @@ function VariantItemsArray({ groupIndex, control }: { groupIndex: number; contro
     </div>
   )
 }
-
-    

@@ -132,7 +132,7 @@ export default function CouponsPage() {
 
   const { data: coupons, isLoading: isLoadingCoupons } = useCollection<Coupon>(couponsRef);
 
-  const onSubmit = async (values: z.infer<typeof couponFormSchema>) => {
+  const onSubmit = (values: z.infer<typeof couponFormSchema>) => {
     if (!user) return;
 
     const couponData = {
@@ -140,62 +140,46 @@ export default function CouponsPage() {
       companyId: user.uid,
     };
 
-    try {
-      if (editingCoupon) {
-        if (!firestore) return;
-        const couponDocRef = doc(firestore, `companies/${user.uid}/coupons/${editingCoupon.id}`);
-        await updateDocument(couponDocRef, {
-            ...couponData,
-            isActive: editingCoupon.isActive,
-            usageCount: editingCoupon.usageCount ?? 0,
-        });
-        toast({
-            title: 'Cupom Atualizado!',
-            description: `O cupom ${values.name} foi atualizado com sucesso.`,
-        });
-      } else {
-        if (!couponsRef) return;
-        await addDocument(couponsRef, {
-            ...couponData,
-            isActive: true,
-            usageCount: 0,
-        });
-        toast({
-            title: 'Cupom Adicionado!',
-            description: `O cupom ${values.name} foi criado com sucesso.`,
-        });
-      }
+    let promise;
+
+    if (editingCoupon) {
+      if (!firestore) return;
+      const couponDocRef = doc(firestore, `companies/${user.uid}/coupons/${editingCoupon.id}`);
+      promise = updateDocument(couponDocRef, {
+          ...couponData,
+          isActive: editingCoupon.isActive,
+          usageCount: editingCoupon.usageCount ?? 0,
+      });
+    } else {
+      if (!couponsRef) return;
+      promise = addDocument(couponsRef, {
+          ...couponData,
+          isActive: true,
+          usageCount: 0,
+      });
+    }
+
+    promise.then(() => {
+      toast({
+          title: editingCoupon ? 'Cupom Atualizado!' : 'Cupom Adicionado!',
+          description: `O cupom ${values.name} foi salvo com sucesso.`,
+      });
       form.reset();
       setIsDialogOpen(false);
       setEditingCoupon(null);
-    } catch (error) {
-      console.error("Failed to save coupon:", error);
-      toast({
-        variant: 'destructive',
-        title: 'Erro ao salvar',
-        description: 'Não foi possível salvar o cupom.',
-      });
-    }
+    });
   };
 
-  const handleDeleteCoupon = async (couponId: string) => {
+  const handleDeleteCoupon = (couponId: string) => {
     if (!firestore || !user) return;
     const couponDocRef = doc(firestore, `companies/${user.uid}/coupons/${couponId}`);
-    try {
-      await deleteDocument(couponDocRef);
-      toast({
-        title: 'Cupom Excluído',
-        description: 'O cupom foi removido com sucesso.',
-        variant: 'destructive'
-      });
-    } catch (error) {
-      console.error("Failed to delete coupon:", error);
-       toast({
-        variant: 'destructive',
-        title: 'Erro ao excluir',
-        description: 'Não foi possível remover o cupom.',
-      });
-    }
+    deleteDocument(couponDocRef).then(() => {
+        toast({
+            title: 'Cupom Excluído',
+            description: 'O cupom foi removido com sucesso.',
+            variant: 'destructive'
+        });
+    });
   };
   
   const handleOpenDialog = (coupon: Coupon | null = null) => {
@@ -414,7 +398,3 @@ export default function CouponsPage() {
     </Card>
   );
 }
-
-    
-
-    

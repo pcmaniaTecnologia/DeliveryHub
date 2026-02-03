@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -18,7 +19,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { doc } from 'firebase/firestore';
 import { FirebaseError } from 'firebase/app';
-import type { User } from 'firebase/auth';
+import type { User, UserCredential } from 'firebase/auth';
 
 
 async function createInitialDocuments(firestore: any, user: User, firstName: string, lastName: string) {
@@ -45,6 +46,7 @@ async function createInitialDocuments(firestore: any, user: User, firstName: str
         role: 'admin', // The user is an admin of their own company
     };
     
+    // The setDocument function from @/firebase will handle emitting contextual errors
     await Promise.all([
         setDocument(companyRef, companyData, { merge: true }),
         setDocument(companyUserRef, companyUserData, { merge: true }),
@@ -102,46 +104,53 @@ export default function SignupPage() {
     }
 
     setIsLoading(true);
-    try {
-      const userCredential = await initiateEmailSignUp(auth, email, password);
-      
-      // Ensure firestore instance is available before proceeding
-      if (firestore && userCredential.user) {
-         await createInitialDocuments(firestore, userCredential.user, firstName, lastName);
-      } else {
-         throw new Error("Não foi possível inicializar o banco de dados para criar os documentos iniciais.");
-      }
-       
-      toast({
-        title: 'Conta criada com sucesso!',
-        description: 'Bem-vindo ao DeliveryHub! Sua loja foi criada e está pronta para ser configurada.',
-      });
 
-      // The redirect is handled by the useEffect hook watching the user state.
-      
+    let userCredential: UserCredential;
+    try {
+      userCredential = await initiateEmailSignUp(auth, email, password);
     } catch (error: any) {
-      if (error instanceof FirebaseError && error.code === 'auth/email-already-in-use') {
-        toast({
-          variant: 'destructive',
-          title: 'E-mail já cadastrado',
-          description: 'Este e-mail já está em uso. Tente fazer login ou use um e-mail diferente.',
-        });
-      } else if (error instanceof FirebaseError && error.code === 'auth/weak-password') {
+        if (error instanceof FirebaseError && error.code === 'auth/email-already-in-use') {
+            toast({
+            variant: 'destructive',
+            title: 'E-mail já cadastrado',
+            description: 'Este e-mail já está em uso. Tente fazer login ou use um e-mail diferente.',
+            });
+        } else if (error instanceof FirebaseError && error.code === 'auth/weak-password') {
+            toast({
+                variant: 'destructive',
+                title: 'Senha muito fraca',
+                description: 'A senha deve ter pelo menos 6 caracteres.',
+            });
+        } else {
+            toast({
+            variant: 'destructive',
+            title: 'Erro de autenticação',
+            description: error.message || 'Ocorreu um erro ao tentar criar a conta.',
+            });
+      }
+      setIsLoading(false);
+      return;
+    }
+
+    // If auth succeeds, proceed to create documents.
+    // Errors here will now be thrown and caught by the global error handler.
+    if (firestore && userCredential.user) {
+        await createInitialDocuments(firestore, userCredential.user, firstName, lastName);
+    } else {
         toast({
             variant: 'destructive',
-            title: 'Senha muito fraca',
-            description: 'A senha deve ter pelo menos 6 caracteres.',
+            title: 'Erro de sistema',
+            description: 'Não foi possível inicializar o banco de dados para criar os documentos iniciais.',
         });
-      } else {
-        toast({
-          variant: 'destructive',
-          title: 'Erro de cadastro',
-          description: error.message || 'Ocorreu um erro ao tentar criar a conta.',
-        });
-      }
-    } finally {
         setIsLoading(false);
+        return;
     }
+       
+    toast({
+      title: 'Conta criada com sucesso!',
+      description: 'Bem-vindo ao DeliveryHub! Sua loja foi criada e está pronta para ser configurada.',
+    });
+    // Let the useEffect handle redirect, setIsLoading(false) is not strictly needed
   };
 
 

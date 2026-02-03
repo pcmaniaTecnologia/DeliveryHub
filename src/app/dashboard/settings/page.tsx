@@ -325,7 +325,7 @@ export default function SettingsPage() {
     });
   };
 
-  const handleSaveChanges = async () => {
+  const handleSaveChanges = () => {
     if (!companyRef || !user) return;
 
     const themeColors = JSON.stringify({
@@ -344,15 +344,12 @@ export default function SettingsPage() {
         averagePrepTime: averagePrepTime,
     };
 
-    try {
-        await updateDocument(companyRef, updatedData);
+    updateDocument(companyRef, updatedData).then(() => {
         toast({
             title: 'Sucesso!',
             description: 'As configurações da sua empresa foram salvas.',
         });
-    } catch (error) {
-        console.error("Failed to save company settings:", error);
-    }
+    });
   };
 
   const handlePaymentMethodChange = (method: keyof Omit<PaymentMethods, 'cashAskForChange'>, checked: boolean) => {
@@ -363,17 +360,14 @@ export default function SettingsPage() {
     setPaymentMethods(prev => ({ ...prev, cashAskForChange: checked }));
   };
 
-  const handleSavePayments = async () => {
+  const handleSavePayments = () => {
     if (!companyRef) return;
-     try {
-        await updateDocument(companyRef, { paymentMethods });
+    updateDocument(companyRef, { paymentMethods }).then(() => {
         toast({
-          title: 'Sucesso!',
-          description: 'Métodos de pagamento salvos.',
+            title: 'Sucesso!',
+            description: 'Métodos de pagamento salvos.',
         });
-    } catch(error) {
-        console.error("Failed to save payment methods:", error);
-    }
+    });
   };
   
     const handleHoursChange = (day: keyof BusinessHours, field: keyof DayHours, value: string | boolean) => {
@@ -386,21 +380,18 @@ export default function SettingsPage() {
     }));
   };
 
-  const handleSaveHours = async () => {
+  const handleSaveHours = () => {
     if (!companyRef) return;
     const businessHoursString = JSON.stringify(businessHours);
-    try {
-        await updateDocument(companyRef, { businessHours: businessHoursString });
+    updateDocument(companyRef, { businessHours: businessHoursString }).then(() => {
         toast({
-          title: 'Sucesso!',
-          description: 'Horários de funcionamento salvos.',
+            title: 'Sucesso!',
+            description: 'Horários de funcionamento salvos.',
         });
-    } catch (error) {
-        console.error("Failed to save business hours:", error);
-    }
+    });
   };
 
-  const handleAddZone = async () => {
+  const handleAddZone = () => {
     if (!deliveryZonesRef || !newNeighborhood || !newFee || !newTime) {
       toast({
         variant: 'destructive',
@@ -418,62 +409,48 @@ export default function SettingsPage() {
       companyId: user?.uid,
     };
 
-    try {
-        await addDocument(deliveryZonesRef, newZone);
+    addDocument(deliveryZonesRef, newZone).then(() => {
         toast({
-          title: 'Sucesso!',
-          description: `Bairro ${newNeighborhood} adicionado.`,
+            title: 'Sucesso!',
+            description: `Bairro ${newNeighborhood} adicionado.`,
         });
         // Reset form and close dialog
         setNewNeighborhood('');
         setNewFee('');
         setNewTime('');
         setIsZoneDialogOpen(false);
-    } catch(error) {
-        console.error("Failed to add delivery zone:", error);
-    }
+    });
   };
   
-  const handleDeleteZone = async (zoneId: string) => {
+  const handleDeleteZone = (zoneId: string) => {
     if (!firestore || !user) return;
     const zoneRef = doc(firestore, 'companies', user.uid, 'deliveryZones', zoneId);
-    try {
-        await deleteDocument(zoneRef);
+    deleteDocument(zoneRef).then(() => {
         toast({
             title: 'Sucesso!',
             description: 'Bairro removido.',
         });
-    } catch (error) {
-        console.error("Failed to delete delivery zone:", error);
-    }
+    });
   };
 
-  const handleZoneIsActiveChange = async (zone: DeliveryZone, isActive: boolean) => {
+  const handleZoneIsActiveChange = (zone: DeliveryZone, isActive: boolean) => {
     if (!firestore || !user) return;
     const zoneRef = doc(firestore, 'companies', user.uid, 'deliveryZones', zone.id);
-    try {
-        await updateDocument(zoneRef, { isActive });
-    } catch (error) {
-        console.error("Failed to update delivery zone status:", error);
-    }
+    updateDocument(zoneRef, { isActive });
   }
 
-  const handleSaveMessages = async () => {
+  const handleSaveMessages = () => {
     if (!companyRef) return;
     const whatsappTemplatesString = JSON.stringify(whatsappTemplates);
-    try {
-        await updateDocument(companyRef, { whatsappTemplates: whatsappTemplatesString });
+    updateDocument(companyRef, { whatsappTemplates: whatsappTemplatesString }).then(() => {
         toast({
             title: 'Sucesso!',
             description: 'Mensagens do WhatsApp salvas.',
         });
-    } catch(error) {
-        console.error("Failed to save whatsapp templates:", error);
-        toast({ variant: 'destructive', title: 'Erro ao salvar mensagens' });
-    }
+    });
   };
 
-  const handleDeleteStore = async () => {
+  const handleDeleteStore = () => {
     if (!companyRef || !user || !auth) {
         toast({
             variant: 'destructive',
@@ -483,28 +460,20 @@ export default function SettingsPage() {
         return;
     }
 
-    try {
-        // This is a simplified example. For a real app, use a Cloud Function
-        // to recursively delete all subcollections (products, orders, etc.).
-        await deleteDocument(companyRef);
-        
+    // This is a simplified example. For a real app, use a Cloud Function
+    // to recursively delete all subcollections (products, orders, etc.).
+    deleteDocument(companyRef).then(() => {
         toast({
             title: 'Loja Excluída',
             description: 'Sua loja e seus dados foram excluídos. Você será desconectado.',
         });
         
         // Log the user out and redirect to home page
-        await auth.signOut();
+        if (auth) {
+          auth.signOut();
+        }
         router.push('/');
-
-    } catch (error: any) {
-        console.error("Failed to delete store:", error);
-        toast({
-            variant: 'destructive',
-            title: 'Erro ao excluir a loja',
-            description: 'Ocorreu um erro ao tentar excluir a loja. ' + error.message,
-        });
-    }
+    });
 };
 
   const isLoading = isUserLoadingAuth || isLoadingCompany || isLoadingZones || isLoadingPlan;

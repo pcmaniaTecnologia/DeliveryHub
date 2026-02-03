@@ -109,55 +109,38 @@ export default function PlansPage() {
 
   const { data: plans, isLoading: isLoadingPlans } = useCollection<Plan>(plansRef);
 
-  const onSubmit = async (values: z.infer<typeof planFormSchema>) => {
-    try {
-      if (editingPlan) {
-        if (!firestore) return;
-        const planDocRef = doc(firestore, 'plans', editingPlan.id);
-        await updateDocument(planDocRef, values);
-        toast({
-            title: 'Plano Atualizado!',
-            description: `O plano ${values.name} foi atualizado com sucesso.`,
-        });
-      } else {
-        if (!plansRef) return;
-        await addDocument(plansRef, values);
-        toast({
-            title: 'Plano Criado!',
-            description: `O plano ${values.name} foi criado com sucesso.`,
-        });
-      }
+  const onSubmit = (values: z.infer<typeof planFormSchema>) => {
+    let promise;
+    if (editingPlan) {
+      if (!firestore) return;
+      const planDocRef = doc(firestore, 'plans', editingPlan.id);
+      promise = updateDocument(planDocRef, values);
+    } else {
+      if (!plansRef) return;
+      promise = addDocument(plansRef, values);
+    }
+
+    promise.then(() => {
+      toast({
+        title: editingPlan ? 'Plano Atualizado!' : 'Plano Criado!',
+        description: `O plano ${values.name} foi salvo com sucesso.`,
+      });
       form.reset();
       setIsDialogOpen(false);
       setEditingPlan(null);
-    } catch (error) {
-      console.error("Failed to save plan:", error);
-      toast({
-        variant: 'destructive',
-        title: 'Erro ao salvar',
-        description: 'Não foi possível salvar o plano. Verifique suas permissões de administrador.',
-      });
-    }
+    });
   };
 
-  const handleDeletePlan = async (planId: string) => {
+  const handleDeletePlan = (planId: string, planName: string) => {
     if (!firestore || !user) return;
     const planDocRef = doc(firestore, 'plans', planId);
-    try {
-      await deleteDocument(planDocRef);
-      toast({
-        title: 'Plano Excluído',
-        description: 'O plano foi removido com sucesso.',
-        variant: 'destructive'
-      });
-    } catch (error) {
-      console.error("Failed to delete plan:", error);
-       toast({
-        variant: 'destructive',
-        title: 'Erro ao excluir',
-        description: 'Não foi possível remover o plano.',
-      });
-    }
+    deleteDocument(planDocRef).then(() => {
+        toast({
+            title: 'Plano Excluído',
+            description: `O plano ${planName} foi removido com sucesso.`,
+            variant: 'destructive'
+        });
+    });
   };
   
   const handleOpenDialog = (plan: Plan | null = null) => {
@@ -273,7 +256,7 @@ export default function PlansPage() {
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                               <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleDeletePlan(plan.id)} className="bg-destructive hover:bg-destructive/90">
+                              <AlertDialogAction onClick={() => handleDeletePlan(plan.id, plan.name)} className="bg-destructive hover:bg-destructive/90">
                                 Excluir
                               </AlertDialogAction>
                             </AlertDialogFooter>
@@ -293,5 +276,3 @@ export default function PlansPage() {
     </Card>
   );
 }
-
-    

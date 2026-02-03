@@ -42,26 +42,20 @@ export default function AdminSettingsPage() {
     }
   }, [settingsData]);
 
-  const handleSaveChanges = async () => {
+  const handleSaveChanges = () => {
     if (!settingsRef) return;
 
     setIsSaving(true);
-    try {
-        await setDocument(settingsRef, { pixKey });
+    setDocument(settingsRef, { pixKey })
+      .then(() => {
         toast({
             title: 'Sucesso!',
             description: 'As configurações da plataforma foram salvas.',
         });
-    } catch (error) {
-        console.error("Failed to save platform settings:", error);
-        toast({
-            variant: 'destructive',
-            title: 'Erro ao Salvar',
-            description: 'Você não tem permissão para alterar estas configurações.',
-        });
-    } finally {
+      })
+      .finally(() => {
         setIsSaving(false);
-    }
+      });
   };
 
   const isLoading = isUserLoading || isLoadingSettings;
@@ -97,5 +91,3 @@ export default function AdminSettingsPage() {
     </Card>
   );
 }
-
-    
