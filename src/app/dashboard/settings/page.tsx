@@ -337,7 +337,6 @@ export default function SettingsPage() {
         name: storeName,
         phone: phone,
         themeColors: themeColors,
-        ownerId: user.uid,
         soundNotificationEnabled: soundNotificationEnabled,
         autoPrintEnabled: autoPrintEnabled,
         closedMessage: closedMessage,
