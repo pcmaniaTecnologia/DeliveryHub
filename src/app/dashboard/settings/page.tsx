@@ -341,6 +341,7 @@ export default function SettingsPage() {
         autoPrintEnabled: autoPrintEnabled,
         closedMessage: closedMessage,
         averagePrepTime: averagePrepTime,
+        ownerId: user.uid,
     };
 
     setDocument(companyRef, updatedData, { merge: true });
@@ -355,8 +356,8 @@ export default function SettingsPage() {
   };
 
   const handleSavePayments = () => {
-    if (!companyRef) return;
-    setDocument(companyRef, { paymentMethods }, { merge: true });
+    if (!companyRef || !user) return;
+    setDocument(companyRef, { paymentMethods, ownerId: user.uid }, { merge: true });
   };
   
     const handleHoursChange = (day: keyof BusinessHours, field: keyof DayHours, value: string | boolean) => {
@@ -370,9 +371,9 @@ export default function SettingsPage() {
   };
 
   const handleSaveHours = () => {
-    if (!companyRef) return;
+    if (!companyRef || !user) return;
     const businessHoursString = JSON.stringify(businessHours);
-    setDocument(companyRef, { businessHours: businessHoursString }, { merge: true });
+    setDocument(companyRef, { businessHours: businessHoursString, ownerId: user.uid }, { merge: true });
   };
 
   const handleAddZone = () => {
@@ -419,9 +420,9 @@ export default function SettingsPage() {
   }
 
   const handleSaveMessages = () => {
-    if (!companyRef) return;
+    if (!companyRef || !user) return;
     const whatsappTemplatesString = JSON.stringify(whatsappTemplates);
-    setDocument(companyRef, { whatsappTemplates: whatsappTemplatesString }, { merge: true });
+    setDocument(companyRef, { whatsappTemplates: whatsappTemplatesString, ownerId: user.uid }, { merge: true });
   };
 
   const handleDeleteStore = async () => {
