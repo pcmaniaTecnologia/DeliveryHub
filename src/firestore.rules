@@ -133,7 +133,7 @@ service cloud.firestore {
       allow list: if isSuperAdmin();
       allow create: if isCreatingOwnCompany(companyId);
       // Allow update if the requesting user's ID matches the ownerId on the existing document.
-      allow update: if isOwner(resource.data.ownerId) || isSuperAdmin();
+      allow update: if (isOwner(resource.data.ownerId) || isSuperAdmin()) && resource != null;
       allow delete: if isSuperAdmin() && resource != null;
     }
 
@@ -307,7 +307,7 @@ service cloud.firestore {
      */
     match /roles_admin/{userId} {
       // A user can read their own admin role document. Super admins can list all roles.
-      allow get: if isOwner(userId);
+      allow get: if isSignedIn();
       allow list: if isSuperAdmin();
       // A user can create their own admin role document, or a super admin can create one for another user.
       allow create: if isOwner(userId) || isSuperAdmin();
