@@ -90,16 +90,37 @@ export default function ManageCompaniesPage() {
 
   const handleDeleteCompany = (companyId: string) => {
     if (!firestore) return;
-    // Note: This only deletes the company document. Deleting all sub-collections (products, orders, etc.)
-    // should ideally be handled by a Firebase Cloud Function for atomicity and completeness.
-    const companyDocRef = doc(firestore, 'companies', companyId);
     
-    deleteDocument(companyDocRef);
+    const companyDocRef = doc(firestore, 'companies', companyId);
+    // The owner's user document is in a subcollection where the userId is the same as the companyId
+    const companyUserDocRef = doc(firestore, 'companies', companyId, 'users', companyId);
 
     toast({
-      title: 'Empresa Excluída',
-      description: 'A empresa foi removida com sucesso. Sub-coleções podem precisar de exclusão manual ou via script.',
-      variant: 'destructive'
+      title: 'Excluindo empresa...',
+      description: 'Aguarde enquanto os dados da empresa são removidos.',
+    });
+
+    // Deleting the company and user profile docs.
+    // The auth user must be deleted manually in the Firebase Console.
+    Promise.all([
+        deleteDocument(companyDocRef),
+        deleteDocument(companyUserDocRef) // Assuming owner uid is the companyId
+    ]).then(() => {
+        toast({
+            title: 'Empresa Excluída!',
+            description: 'Para liberar o e-mail para um novo cadastro, exclua o usuário na aba de Autenticação do Firebase Console.',
+            variant: 'destructive',
+            duration: 10000,
+        });
+    }).catch(error => {
+        console.error("Erro ao excluir empresa:", error);
+        // The individual deleteDocument calls will emit contextual errors if they fail.
+        // This is a fallback toast.
+        toast({
+            title: 'Erro ao Excluir',
+            description: 'Não foi possível excluir todos os dados da empresa. Verifique as permissões e tente novamente.',
+            variant: 'destructive'
+        });
     });
   };
   
@@ -159,7 +180,7 @@ export default function ManageCompaniesPage() {
                             <AlertDialogHeader>
                               <AlertDialogTitle>Excluir {company.name}?</AlertDialogTitle>
                               <AlertDialogDescription>
-                                Essa ação não pode ser desfeita. Isso excluirá permanentemente a empresa e seus dados associados.
+                                Essa ação não pode ser desfeita. Isso excluirá permanentemente os dados da empresa no banco de dados, mas a conta de autenticação precisará ser removida manualmente.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
