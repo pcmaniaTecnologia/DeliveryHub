@@ -46,10 +46,16 @@ async function createInitialDocuments(firestore: any, user: User, firstName: str
         role: 'admin', // The user is an admin of their own company
     };
     
+    const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
+    const adminRoleData = {
+        email: user.email,
+    };
+
     // The setDocument function from @/firebase will handle emitting contextual errors
     await Promise.all([
         setDocument(companyRef, companyData, { merge: true }),
         setDocument(companyUserRef, companyUserData, { merge: true }),
+        setDocument(adminRoleRef, adminRoleData, { merge: true }),
     ]);
 }
 
