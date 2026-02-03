@@ -74,10 +74,10 @@ export default function AdminDashboardPage() {
                 errorEmitter.emit('permission-error', permissionError);
                 throw permissionError;
             });
-            // Add a filter to ensure company documents have a name, preventing chart errors
+            
             const allCompanies = companiesSnapshot.docs
                 .map(doc => ({ id: doc.id, ...doc.data() } as Company))
-                .filter(company => company.name);
+                .filter(company => company && company.name);
                 
             const activeCompanies = allCompanies.filter(c => c.isActive);
 
@@ -93,18 +93,24 @@ export default function AdminDashboardPage() {
             });
             
             const allOrders = ordersSnapshot.docs.map(doc => doc.data() as Order);
-            const successfulOrders = allOrders.filter(order => order && order.status !== 'Cancelado');
+
+            // Filter for successful orders and ensure totalAmount is a valid number
+            const successfulOrders = allOrders.filter(order => 
+                order && 
+                order.status !== 'Cancelado' &&
+                order.totalAmount !== undefined &&
+                !isNaN(Number(order.totalAmount))
+            );
 
             // 3. Process data for active companies
             const salesByCompany = activeCompanies.map(company => {
                 const companyOrders = successfulOrders.filter(order => order.companyId === company.id);
-                // Ensure totalAmount is treated as a number to prevent chart errors
-                const totalSales = companyOrders.reduce((sum, order) => sum + (Number(order.totalAmount) || 0), 0);
+                const totalSales = companyOrders.reduce((sum, order) => sum + Number(order.totalAmount), 0);
                 return {
                     name: company.name,
                     Vendas: totalSales,
                 };
-            });
+            }).filter(sale => sale.name && !isNaN(sale.Vendas)); // Final safety filter
             
             const totalRevenue = salesByCompany.reduce((sum, company) => sum + company.Vendas, 0);
 
