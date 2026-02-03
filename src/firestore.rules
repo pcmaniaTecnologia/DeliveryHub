@@ -132,8 +132,8 @@ service cloud.firestore {
       allow get: if true;
       allow list: if isSuperAdmin();
       allow create: if isCreatingOwnCompany(companyId);
-      // Allow update if the user's UID matches the companyId from the path (owner) OR if the user is a super admin.
-      allow update: if (request.auth.uid == companyId || isSuperAdmin()) && resource != null;
+      // Allow update only if the user's UID matches the companyId from the path. This confirms ownership.
+      allow update: if request.auth.uid == companyId && resource != null;
       allow delete: if isSuperAdmin() && resource != null;
     }
 
