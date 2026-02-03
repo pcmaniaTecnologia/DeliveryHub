@@ -132,10 +132,8 @@ service cloud.firestore {
       allow get: if true;
       allow list: if isSuperAdmin();
       allow create: if isCreatingOwnCompany(companyId);
-      // Allow update if user's UID matches the companyId from the path,
-      // OR if it matches the ownerId field in the document,
-      // OR if the user is a super admin.
-      allow update: if (isOwner(companyId) || isOwner(resource.data.ownerId) || isSuperAdmin()) && resource != null;
+      // Allow update if the user's UID matches the companyId from the path (owner) OR if the user is a super admin.
+      allow update: if (request.auth.uid == companyId || isSuperAdmin()) && resource != null;
       allow delete: if isSuperAdmin() && resource != null;
     }
 
@@ -319,5 +317,3 @@ service cloud.firestore {
     }
   }
 }
-
-    
