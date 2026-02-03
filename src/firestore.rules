@@ -73,6 +73,7 @@ service cloud.firestore {
      * This requires a document read and should be used for role-specific permissions.
      */
     function isCompanyAdmin(companyId) {
+      // Note: This involves a read. Use isCompanyMember for simple membership checks.
       return get(/databases/$(database)/documents/companies/$(companyId)/users/$(request.auth.uid)).data.role == 'admin';
     }
 
@@ -88,16 +89,10 @@ service cloud.firestore {
      * Ensures the incoming document on company creation has an ownerId and id matching the user's UID.
      */
     function isCreatingOwnCompany(companyId) {
+      // On create, resource is null. We check the incoming data in request.resource.
       return isOwner(companyId) && request.resource.data.ownerId == request.auth.uid;
     }
-
-    /**
-     * Ensures the `ownerId` of an existing document matches the user.
-     */
-    function isCompanyOwner(companyId) {
-        return request.auth.uid == get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId;
-    }
-
+    
     /**
      * Ensures an ownership field is not changed during an update.
      * This allows partial updates while maintaining ownership integrity.
@@ -126,9 +121,10 @@ service cloud.firestore {
     // ------------------------------------------------------------------------
 
     /**
-     * @description Manages company profiles. Publicly readable, but only writable by company admins or super admins.
+     * @description Manages company profiles. Publicly readable, but only writable by company owners or super admins.
      * @path /companies/{companyId}
      * @allow (get) Any user, authenticated or not, can read a company's profile.
+     * @allow (update) The owner of the company updates their profile.
      * @deny (update) A regular member of the company tries to update the company profile.
      * @principle Enforces role-based access for company management while allowing public read access for storefronts.
      */
@@ -136,7 +132,9 @@ service cloud.firestore {
       allow get: if true;
       allow list: if isSuperAdmin();
       allow create: if isCreatingOwnCompany(companyId);
-      allow update: if isCompanyOwner(companyId) || isSuperAdmin();
+      // Allow update if the requesting user's ID matches the ownerId on the existing document.
+      // This avoids a `get` call on the same document being updated, which is not allowed.
+      allow update: if (request.auth.uid == resource.data.ownerId) || isSuperAdmin();
       allow delete: if isSuperAdmin() && resource != null;
     }
 
