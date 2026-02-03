@@ -1,22 +1,22 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 import {
   Home,
   ShieldCheck,
   Building,
   DollarSign,
   Settings,
+  Menu,
 } from 'lucide-react';
-import { useDoc, useFirestore, useMemoFirebase } from '@/firebase';
+import { useDoc, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { UserNav } from '@/components/user-nav';
-import { useUser } from '@/firebase';
-import { Menu } from 'lucide-react';
-import { usePathname } from 'next/navigation';
 
 function AdminNav() {
     const pathname = usePathname();
@@ -52,15 +52,36 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
+  const router = useRouter();
 
   const adminRef = useMemoFirebase(() => {
     if (!firestore || !user?.uid) return null;
     return doc(firestore, 'roles_admin', user.uid);
   }, [firestore, user?.uid]);
 
-  const { data: adminData } = useDoc(adminRef);
+  const { data: adminData, isLoading: isLoadingAdmin } = useDoc(adminRef);
+
+  useEffect(() => {
+    if (isUserLoading || isLoadingAdmin) {
+      return; // Wait until we know the user's status
+    }
+    if (!user) {
+      router.replace('/'); // Not logged in, redirect to login
+    } else if (!adminData) {
+      router.replace('/dashboard'); // Logged in but not an admin, redirect to user dashboard
+    }
+  }, [user, isUserLoading, adminData, isLoadingAdmin, router]);
+
+
+  if (isUserLoading || isLoadingAdmin || !user || !adminData) {
+      return (
+        <div className="flex min-h-screen items-center justify-center">
+            <p>Verificando permissões de administrador...</p>
+        </div>
+    );
+  }
 
   return (
     <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
@@ -112,5 +133,3 @@ export default function AdminLayout({
     </div>
   );
 }
-
-    
