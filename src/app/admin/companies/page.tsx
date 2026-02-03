@@ -2,7 +2,7 @@
 'use client';
 
 import { useState } from 'react';
-import { MoreHorizontal, ToggleLeft, ToggleRight, Trash2 } from 'lucide-react';
+import { MoreHorizontal, Info, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { format, addDays } from 'date-fns';
 import { Switch } from '@/components/ui/switch';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 
 type Company = {
@@ -129,6 +130,13 @@ export default function ManageCompaniesPage() {
         <CardDescription>Visualize os emails, ative, desative ou exclua as lojas da plataforma.</CardDescription>
       </CardHeader>
       <CardContent>
+        <Alert className="mb-4">
+            <Info className="h-4 w-4" />
+            <AlertTitle>Entendendo esta lista</AlertTitle>
+            <AlertDescription>
+                Esta página mostra todas as empresas cadastradas no <strong className="font-semibold">banco de dados (Firestore)</strong>. Se você vê uma empresa aqui, mas não encontra o usuário correspondente na aba "Authentication" do Console do Firebase, significa que a conta de login foi removida, mas os dados da empresa permaneceram. Você pode remover com segurança os dados da empresa desta lista clicando no ícone da lixeira.
+            </AlertDescription>
+        </Alert>
         <Table>
           <TableHeader>
             <TableRow>
@@ -176,7 +184,7 @@ export default function ManageCompaniesPage() {
                             <AlertDialogHeader>
                               <AlertDialogTitle>Excluir {company.name}?</AlertDialogTitle>
                               <AlertDialogDescription>
-                                Essa ação não pode ser desfeita. Isso excluirá permanentemente os dados da empresa no <strong>banco de dados (Firestore)</strong>. A conta de <strong>autenticação do usuário (login)</strong> não será afetada e precisará ser removida manualmente no Firebase Console para liberar o e-mail.
+                                Essa ação não pode ser desfeita. Isso excluirá permanentemente os dados da empresa no <strong>banco de dados (Firestore)</strong>. A conta de <strong>autenticação do usuário (login)</strong> não será afetada e precisará ser removida manually no Firebase Console para liberar o e-mail.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
