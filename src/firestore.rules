@@ -133,8 +133,7 @@ service cloud.firestore {
       allow list: if isSuperAdmin();
       allow create: if isCreatingOwnCompany(companyId);
       // Allow update if the requesting user's ID matches the ownerId on the existing document.
-      // This avoids a `get` call on the same document being updated, which is not allowed.
-      allow update: if (request.auth.uid == resource.data.ownerId) || isSuperAdmin();
+      allow update: if isOwner(resource.data.ownerId) || isSuperAdmin();
       allow delete: if isSuperAdmin() && resource != null;
     }
 
@@ -301,15 +300,18 @@ service cloud.firestore {
     /**
      * @description Manages global super admin roles. Only other super admins can view or modify this collection.
      * @path /roles_admin/{userId}
-     * @allow (get, create, update, delete) A super admin manages the roles of another user.
+     * @allow (get) A user can read their own admin role document.
+     * @allow (create) A user can create their own admin role document, or a super admin can create one for another user.
      * @deny (get, create, update, delete) Any user who is not a super admin tries to access this collection.
-     * @principle Secures the highest level of administrative access,
-    ensuring only authorized personnel can manage roles.
+     * @principle Secures the highest level of administrative access, ensuring only authorized personnel can manage roles.
      */
     match /roles_admin/{userId} {
-      allow get: if isOwner(userId) || isSuperAdmin();
+      // A user can read their own admin role document. Super admins can list all roles.
+      allow get: if isOwner(userId);
       allow list: if isSuperAdmin();
+      // A user can create their own admin role document, or a super admin can create one for another user.
       allow create: if isOwner(userId) || isSuperAdmin();
+      // Only super admins can modify or delete roles for other users.
       allow update: if isSuperAdmin() && resource != null;
       allow delete: if isSuperAdmin() && resource != null;
     }
