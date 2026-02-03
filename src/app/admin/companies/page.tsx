@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -27,7 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useUser, useFirestore, useCollection, useMemoFirebase, updateDocument, deleteDocument } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase, updateDocument, deleteDocument, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { collection, doc, type Timestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -80,7 +81,9 @@ export default function ManageCompaniesPage() {
         updateData.subscriptionEndDate = addDays(new Date(), 30);
     }
     
-    updateDocument(companyDocRef, updateData);
+    updateDocument(companyDocRef, updateData).catch(error => {
+       // This will be caught by the global error listener
+    });
     
     toast({
         title: 'Status da Empresa Atualizado!',
@@ -113,14 +116,7 @@ export default function ManageCompaniesPage() {
             duration: 10000,
         });
     }).catch(error => {
-        console.error("Erro ao excluir empresa:", error);
-        // The individual deleteDocument calls will emit contextual errors if they fail.
-        // This is a fallback toast.
-        toast({
-            title: 'Erro ao Excluir',
-            description: 'Não foi possível excluir todos os dados da empresa. Verifique as permissões e tente novamente.',
-            variant: 'destructive'
-        });
+        // This will be caught by the global error listener
     });
   };
   
@@ -166,7 +162,7 @@ export default function ManageCompaniesPage() {
                 <TableCell className="text-center">
                     <div className="flex items-center justify-center gap-2">
                          <Switch
-                            checked={company.isActive}
+                            checked={!!company.isActive}
                             onCheckedChange={() => handleToggleActive(company.id, !!company.isActive)}
                             aria-label={`Ativar ou desativar ${company.name}`}
                         />
@@ -180,7 +176,7 @@ export default function ManageCompaniesPage() {
                             <AlertDialogHeader>
                               <AlertDialogTitle>Excluir {company.name}?</AlertDialogTitle>
                               <AlertDialogDescription>
-                                Essa ação não pode ser desfeita. Isso excluirá permanentemente os dados da empresa no banco de dados, mas a conta de autenticação precisará ser removida manualmente.
+                                Essa ação não pode ser desfeita. Isso excluirá permanentemente os dados da empresa no <strong>banco de dados (Firestore)</strong>. A conta de <strong>autenticação do usuário (login)</strong> não será afetada e precisará ser removida manualmente no Firebase Console para liberar o e-mail.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
