@@ -121,20 +121,20 @@ service cloud.firestore {
     // ------------------------------------------------------------------------
 
     /**
-     * @description Manages company profiles. Publicly readable, but only writable by company owners or super admins.
+     * @description Manages company profiles. Publicly readable, but only writable by its owner or super admins.
      * @path /companies/{companyId}
-     * @allow (get) Any user, authenticated or not, can read a company's profile.
-     * @allow (update) The owner of the company updates their profile.
-     * @deny (update) A regular member of the company tries to update the company profile.
+     * @allow (get) Any user, authenticated or not, can read a company's profile for the menu.
+     * @allow (write) The owner of the company or a super admin can create, update, or delete their company profile.
+     * @deny (list) Regular users cannot list all companies in the system.
      * @principle Enforces role-based access for company management while allowing public read access for storefronts.
      */
     match /companies/{companyId} {
+      // Public can read a single company's profile (for menu pages).
       allow get: if true;
+      // Only super admins can list all companies (for the main admin dashboard).
       allow list: if isSuperAdmin();
-      allow create: if isCreatingOwnCompany(companyId);
-      // Allow update only if the user's UID matches the companyId from the path. This confirms ownership.
-      allow update: if request.auth.uid == companyId && resource != null;
-      allow delete: if isSuperAdmin() && resource != null;
+      // The owner of the company or a super admin can create, update, or delete it.
+      allow write: if isOwner(companyId) || isSuperAdmin();
     }
 
     /**

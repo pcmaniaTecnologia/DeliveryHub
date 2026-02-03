@@ -343,7 +343,7 @@ export default function SettingsPage() {
         averagePrepTime: averagePrepTime,
     };
 
-    updateDocument(companyRef, updatedData);
+    setDocument(companyRef, updatedData, { merge: true });
   };
 
   const handlePaymentMethodChange = (method: keyof Omit<PaymentMethods, 'cashAskForChange'>, checked: boolean) => {
@@ -356,7 +356,7 @@ export default function SettingsPage() {
 
   const handleSavePayments = () => {
     if (!companyRef) return;
-    updateDocument(companyRef, { paymentMethods });
+    setDocument(companyRef, { paymentMethods }, { merge: true });
   };
   
     const handleHoursChange = (day: keyof BusinessHours, field: keyof DayHours, value: string | boolean) => {
@@ -372,7 +372,7 @@ export default function SettingsPage() {
   const handleSaveHours = () => {
     if (!companyRef) return;
     const businessHoursString = JSON.stringify(businessHours);
-    updateDocument(companyRef, { businessHours: businessHoursString });
+    setDocument(companyRef, { businessHours: businessHoursString }, { merge: true });
   };
 
   const handleAddZone = () => {
@@ -421,7 +421,7 @@ export default function SettingsPage() {
   const handleSaveMessages = () => {
     if (!companyRef) return;
     const whatsappTemplatesString = JSON.stringify(whatsappTemplates);
-    updateDocument(companyRef, { whatsappTemplates: whatsappTemplatesString });
+    setDocument(companyRef, { whatsappTemplates: whatsappTemplatesString }, { merge: true });
   };
 
   const handleDeleteStore = async () => {
