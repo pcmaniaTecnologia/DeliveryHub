@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Building, DollarSign, ShoppingCart } from 'lucide-react';
@@ -94,20 +93,20 @@ export default function AdminDashboardPage() {
             });
             
             const allOrders = ordersSnapshot.docs.map(doc => doc.data() as Order);
-            const successfulOrders = allOrders.filter(order => order.status !== 'Cancelado');
+            const successfulOrders = allOrders.filter(order => order && order.status !== 'Cancelado');
 
             // 3. Process data for active companies
             const salesByCompany = activeCompanies.map(company => {
                 const companyOrders = successfulOrders.filter(order => order.companyId === company.id);
-                // Add a fallback for totalAmount to prevent NaN values
-                const totalSales = companyOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
+                // Ensure totalAmount is treated as a number to prevent chart errors
+                const totalSales = companyOrders.reduce((sum, order) => sum + (Number(order.totalAmount) || 0), 0);
                 return {
                     name: company.name,
                     Vendas: totalSales,
                 };
             });
             
-            const totalRevenue = salesByCompany.reduce((sum, company) => sum + (company.Vendas || 0), 0);
+            const totalRevenue = salesByCompany.reduce((sum, company) => sum + company.Vendas, 0);
 
             // 4. Set state
             setStats({
