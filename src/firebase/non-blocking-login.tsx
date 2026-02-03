@@ -6,6 +6,8 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   UserCredential,
+  deleteUser,
+  type User,
 } from 'firebase/auth';
 
 /** Initiate anonymous sign-in (non-blocking). */
@@ -21,4 +23,9 @@ export function initiateEmailSignUp(authInstance: Auth, email: string, password:
 /** Initiate email/password sign-in (blocking to get user credential). */
 export function initiateEmailSignIn(authInstance: Auth, email: string, password: string): Promise<UserCredential> {
   return signInWithEmailAndPassword(authInstance, email, password);
+}
+
+/** Deletes a user account from Firebase Authentication. */
+export function deleteAuthUser(user: User): Promise<void> {
+  return deleteUser(user);
 }

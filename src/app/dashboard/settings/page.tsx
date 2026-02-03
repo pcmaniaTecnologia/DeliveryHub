@@ -25,7 +25,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { BellRing, Clock, DollarSign, PlusCircle, Trash2, Copy, Printer, Crown, AlertTriangle, CheckCircle, Send } from 'lucide-react';
-import { useFirestore, useDoc, setDocument, useMemoFirebase, useUser, useCollection, addDocument, deleteDocument, updateDocument, useAuth } from '@/firebase';
+import { useFirestore, useDoc, setDocument, useMemoFirebase, useUser, useCollection, addDocument, deleteDocument, updateDocument, useAuth, deleteAuthUser } from '@/firebase';
 import { doc, collection } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -344,12 +344,7 @@ export default function SettingsPage() {
         averagePrepTime: averagePrepTime,
     };
 
-    updateDocument(companyRef, updatedData).then(() => {
-        toast({
-            title: 'Sucesso!',
-            description: 'As configurações da sua empresa foram salvas.',
-        });
-    });
+    updateDocument(companyRef, updatedData);
   };
 
   const handlePaymentMethodChange = (method: keyof Omit<PaymentMethods, 'cashAskForChange'>, checked: boolean) => {
@@ -362,12 +357,7 @@ export default function SettingsPage() {
 
   const handleSavePayments = () => {
     if (!companyRef) return;
-    updateDocument(companyRef, { paymentMethods }).then(() => {
-        toast({
-            title: 'Sucesso!',
-            description: 'Métodos de pagamento salvos.',
-        });
-    });
+    updateDocument(companyRef, { paymentMethods });
   };
   
     const handleHoursChange = (day: keyof BusinessHours, field: keyof DayHours, value: string | boolean) => {
@@ -383,12 +373,7 @@ export default function SettingsPage() {
   const handleSaveHours = () => {
     if (!companyRef) return;
     const businessHoursString = JSON.stringify(businessHours);
-    updateDocument(companyRef, { businessHours: businessHoursString }).then(() => {
-        toast({
-            title: 'Sucesso!',
-            description: 'Horários de funcionamento salvos.',
-        });
-    });
+    updateDocument(companyRef, { businessHours: businessHoursString });
   };
 
   const handleAddZone = () => {
@@ -425,12 +410,7 @@ export default function SettingsPage() {
   const handleDeleteZone = (zoneId: string) => {
     if (!firestore || !user) return;
     const zoneRef = doc(firestore, 'companies', user.uid, 'deliveryZones', zoneId);
-    deleteDocument(zoneRef).then(() => {
-        toast({
-            title: 'Sucesso!',
-            description: 'Bairro removido.',
-        });
-    });
+    deleteDocument(zoneRef);
   };
 
   const handleZoneIsActiveChange = (zone: DeliveryZone, isActive: boolean) => {
@@ -442,15 +422,10 @@ export default function SettingsPage() {
   const handleSaveMessages = () => {
     if (!companyRef) return;
     const whatsappTemplatesString = JSON.stringify(whatsappTemplates);
-    updateDocument(companyRef, { whatsappTemplates: whatsappTemplatesString }).then(() => {
-        toast({
-            title: 'Sucesso!',
-            description: 'Mensagens do WhatsApp salvas.',
-        });
-    });
+    updateDocument(companyRef, { whatsappTemplates: whatsappTemplatesString });
   };
 
-  const handleDeleteStore = () => {
+  const handleDeleteStore = async () => {
     if (!companyRef || !user || !auth) {
         toast({
             variant: 'destructive',
@@ -460,21 +435,49 @@ export default function SettingsPage() {
         return;
     }
 
-    // This is a simplified example. For a real app, use a Cloud Function
-    // to recursively delete all subcollections (products, orders, etc.).
-    deleteDocument(companyRef).then(() => {
+    try {
+        // This is a simplified example. For a real app, a Cloud Function should be used
+        // to recursively delete all subcollections (products, orders, etc.).
+        await deleteDocument(companyRef);
+
+        const currentUser = auth.currentUser;
+        if (!currentUser) {
+            throw new Error("Usuário não encontrado para exclusão.");
+        }
+
+        await deleteAuthUser(currentUser);
+
         toast({
-            title: 'Loja Excluída',
-            description: 'Sua loja e seus dados foram excluídos. Você será desconectado.',
+            title: 'Loja e Conta Excluídas',
+            description: 'Sua loja e sua conta de usuário foram excluídas com sucesso.',
         });
         
-        // Log the user out and redirect to home page
-        if (auth) {
-          auth.signOut();
-        }
+        // Deleting the user automatically signs them out.
+        // Redirecting to home page.
         router.push('/');
-    });
-};
+
+    } catch (error: any) {
+         console.error("Error deleting store and account:", error);
+         if (error.code === 'auth/requires-recent-login') {
+            toast({
+                variant: 'destructive',
+                title: 'Ação Requer Autenticação Recente',
+                description: 'Por segurança, faça o login novamente antes de tentar excluir sua conta.',
+                duration: 10000
+            });
+            // Force sign out to make the user log in again
+            auth.signOut();
+            router.push('/');
+         } else {
+            toast({
+                variant: 'destructive',
+                title: 'Erro ao Excluir',
+                description: error.message || 'Não foi possível excluir a loja e a conta. Tente fazer login novamente.',
+                duration: 10000
+            });
+         }
+    }
+  };
 
   const isLoading = isUserLoadingAuth || isLoadingCompany || isLoadingZones || isLoadingPlan;
 
