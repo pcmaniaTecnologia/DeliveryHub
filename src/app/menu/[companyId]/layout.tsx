@@ -75,9 +75,6 @@ export default function MenuLayout({
                 <Package2 className="h-6 w-6 text-primary" />
                 <span className="sr-only">Menu</span>
             </Link>
-             <Link href={`/track?companyId=${companyId}`} className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
-                Acompanhar Pedido
-            </Link>
             </nav>
         </header>
         <main>{children}</main>
