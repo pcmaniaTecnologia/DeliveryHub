@@ -55,6 +55,8 @@ type PaymentMethods = {
 
 type CompanyData = {
     paymentMethods?: PaymentMethods;
+    phone?: string;
+    name?: string;
 };
 
 type DeliveryZone = {
@@ -146,7 +148,14 @@ export default function CartSheet({ companyId }: { companyId: string}) {
   }, [cashAmount, totalPrice]);
 
   const handlePlaceOrder = async () => {
-    if (!firestore || !companyId) return;
+    if (!firestore || !companyId || !companyData) {
+        toast({
+            variant: 'destructive',
+            title: 'Erro de sistema',
+            description: 'Não foi possível carregar os dados da loja. Tente recarregar a página.',
+        });
+        return;
+    };
 
     if (!selectedPayment) {
       toast({
@@ -206,7 +215,35 @@ export default function CartSheet({ companyId }: { companyId: string}) {
     };
     
     try {
-        await addDocument(ordersRef, orderData);
+        const docRef = await addDocument(ordersRef, orderData);
+        
+        // --- WhatsApp Integration ---
+        if (companyData.phone) {
+            const itemsSummary = cartItems.map(item => 
+                `- ${item.quantity}x ${item.product.name} (R$ ${item.finalPrice.toFixed(2)})${item.selectedVariants && item.selectedVariants.length > 0 ? `\n  (${item.selectedVariants.map(v => v.itemName).join(', ')})` : ''}${item.notes ? `\n  Obs: ${item.notes}`: ''}`
+            ).join('\n');
+
+            const message = `*Novo Pedido no DeliveryHub!* 🎉\n\n` +
+                            `*Pedido ID:* ${docRef.id.substring(0, 6).toUpperCase()}\n` +
+                            `*Cliente:* ${customerName}\n` +
+                            `*Contato:* ${customerPhone}\n\n` +
+                            `--- *Itens* ---\n${itemsSummary}\n\n` +
+                            `*Total:* *R$ ${totalPrice.toFixed(2)}*\n` +
+                            `*Pagamento:* ${paymentMethodsStr}\n` +
+                            `*Entrega:* ${deliveryType}\n` +
+                            `${deliveryType === 'Delivery' ? `*Endereço:* ${fullAddress}\n` : ''}` +
+                            `\n` +
+                            `Acesse o painel para gerenciar: ${window.location.origin}/dashboard/orders`;
+
+            const whatsappNumber = companyData.phone.replace(/\D/g, '');
+            const fullWhatsappNumber = whatsappNumber.startsWith('55') ? whatsappNumber : `55${whatsappNumber}`;
+            
+            const whatsappUrl = `https://wa.me/${fullWhatsappNumber}?text=${encodeURIComponent(message)}`;
+            
+            window.open(whatsappUrl, '_blank');
+        }
+        // --- End WhatsApp Integration ---
+
         setIsOrderFinished(true);
         clearCart();
         // Reset local form state
