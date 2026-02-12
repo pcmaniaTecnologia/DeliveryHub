@@ -163,7 +163,7 @@ export default function CartSheet({ companyId }: { companyId: string}) {
         paymentMethodsStr = `Dinheiro (troco para R$ ${parseFloat(cashAmount).toFixed(2)})`;
     }
 
-    let isFormValid = customerName && customerPhone;
+    let isFormValid = !!(customerName && customerPhone);
     if (deliveryType === 'Delivery' && (!addressStreet || !addressNumber || !addressNeighborhood)) {
       isFormValid = false;
     }
