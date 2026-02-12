@@ -2,29 +2,27 @@
 
 import { firebaseConfig } from '@/firebase/config';
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore'
+import { getAuth, Auth } from 'firebase/auth';
+import { getFirestore, Firestore } from 'firebase/firestore';
 
-// IMPORTANT: DO NOT MODIFY THIS FUNCTION
-export function initializeFirebase() {
+// Define a type for the services object to handle potential nulls
+type FirebaseServices = {
+  firebaseApp: FirebaseApp | null;
+  auth: Auth | null;
+  firestore: Firestore | null;
+};
+
+// This function now returns the FirebaseServices object
+export function initializeFirebase(): FirebaseServices {
+  // Check if essential config values are present.
+  // This is crucial for environments like Vercel where env vars are needed.
+  if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
+    // Return nulls if config is missing. The UI will handle this.
+    return { firebaseApp: null, auth: null, firestore: null };
+  }
+
   if (!getApps().length) {
-    // Important! initializeApp() is called without any arguments because Firebase App Hosting
-    // integrates with the initializeApp() function to provide the environment variables needed to
-    // populate the FirebaseOptions in production. It is critical that we attempt to call initializeApp()
-    // without arguments.
-    let firebaseApp;
-    try {
-      // Attempt to initialize via Firebase App Hosting environment variables
-      firebaseApp = initializeApp();
-    } catch (e) {
-      // Only warn in production because it's normal to use the firebaseConfig to initialize
-      // during development
-      if (process.env.NODE_ENV === "production") {
-        console.warn('Automatic initialization failed. Falling back to firebase config object.', e);
-      }
-      firebaseApp = initializeApp(firebaseConfig);
-    }
-
+    const firebaseApp = initializeApp(firebaseConfig);
     return getSdks(firebaseApp);
   }
 
@@ -32,13 +30,15 @@ export function initializeFirebase() {
   return getSdks(getApp());
 }
 
-export function getSdks(firebaseApp: FirebaseApp) {
+// getSdks should also conform to the FirebaseServices type (without nulls)
+export function getSdks(firebaseApp: FirebaseApp): Required<FirebaseServices> {
   return {
     firebaseApp,
     auth: getAuth(firebaseApp),
     firestore: getFirestore(firebaseApp)
   };
 }
+
 
 export * from './provider';
 export * from './client-provider';
