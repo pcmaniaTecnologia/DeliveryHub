@@ -2,6 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
+import { useEffect } from "react";
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
@@ -19,13 +20,24 @@ const firebaseConfig = {
 // ✅ Inicializa apenas se ainda não existir
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-// ✅ Serviços
-export const auth = getAuth(app);
-export const firestore = getFirestore(app);
-export const storage = getStorage(app);
+// ✅ Serviços (NÃO exportar mais)
+const auth = getAuth(app);
+const firestore = getFirestore(app);
+const storage = getStorage(app);
 
-// ✅ Hooks auxiliares (opcional, se você usa useFirestore)
-export const useFirestore = () => firestore;
-export const useAuth = () => auth;
+export default function TrackPage() {
+  useEffect(() => {
+    console.log("Firebase inicializado:", {
+      auth,
+      firestore,
+      storage,
+    });
+  }, []);
 
-export default app;
+  return (
+    <div style={{ padding: 40, textAlign: "center" }}>
+      <h1>Rastreamento de Pedido</h1>
+      <p>Página carregada com Firebase inicializado com sucesso.</p>
+    </div>
+  );
+}
