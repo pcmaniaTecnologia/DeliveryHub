@@ -1,9 +1,8 @@
-
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc, updateDocument, errorEmitter, FirestorePermissionError } from '@/firebase';
-import { collection, doc, getDoc, type Timestamp } from 'firebase/firestore';
+import { collection, doc, type Timestamp } from 'firebase/firestore';
 import {
   Card,
   CardContent,
@@ -30,7 +29,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, Package, Printer, Truck } from 'lucide-react';
+import { MoreHorizontal, Printer } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
@@ -45,18 +44,16 @@ type Company = {
     whatsappMessageTemplates?: string;
 };
 
-type Customer = {
-    phone: string;
-};
-
 type OrderItem = {
   id: string;
   orderId: string;
   productId: string;
   quantity: number;
   unitPrice: number;
+  finalPrice?: number;
   notes?: string;
   productName?: string;
+  selectedVariants?: { groupName: string; itemName: string; price: number }[];
 };
 
 export type Order = {
@@ -91,7 +88,6 @@ export default function OrdersPage() {
     const firestore = useFirestore();
     const { toast } = useToast();
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-    const whatsappWindowRef = useRef<Window | null>(null);
 
     const companyRef = useMemoFirebase(() => {
       if (!firestore || !user?.uid) return null;
@@ -126,40 +122,30 @@ export default function OrdersPage() {
                     messageTemplate = templates.received || "Olá {cliente}, seu pedido nº {pedido_id} foi recebido e já estamos preparando tudo! 🍔";
                     break;
                 case 'Saiu para entrega':
-                    messageTemplate = templates.delivery || "Boas notícias, {cliente}! Seu pedido nº {pedido_id} acabou de sair para entrega e logo chegará até você! 🛵";
+                    messageTemplate = templates.delivery || "Boas notícias, {cliente}! Seu pedido nº {pedido_id} acabou de sair para entrega! 🛵";
                     break;
                 case 'Pronto para retirada':
-                    messageTemplate = templates.ready || "Ei, {cliente}! Seu pedido nº {pedido_id} está prontinho te esperando para retirada. 😊";
+                    messageTemplate = templates.ready || "Ei, {cliente}! Seu pedido nº {pedido_id} está pronto para retirada. 😊";
                     break;
                 default:
                     return; 
             }
 
-            if (!order.customerPhone) {
-                console.warn('Cliente não possui telefone para notificação via WhatsApp.');
-                return;
-            }
+            if (!order.customerPhone) return;
             
             const message = messageTemplate
                 .replace('{cliente}', order.customerName || 'Cliente')
                 .replace('{pedido_id}', order.id.substring(0, 6).toUpperCase());
 
             const whatsappUrl = `https://wa.me/55${order.customerPhone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
-            
-            if (whatsappWindowRef.current && !whatsappWindowRef.current.closed) {
-                whatsappWindowRef.current.location.href = whatsappUrl;
-                whatsappWindowRef.current.focus();
-            } else {
-                whatsappWindowRef.current = window.open(whatsappUrl, 'whatsapp_notification');
-            }
+            window.open(whatsappUrl, 'whatsapp_window');
 
         }).catch(serverError => {
-            const permissionError = new FirestorePermissionError({
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
                 path: orderDocRef.path,
                 operation: 'update',
                 requestResourceData: newStatus,
-            });
-            errorEmitter.emit('permission-error', permissionError);
+            }));
         });
     };
     
@@ -169,16 +155,12 @@ export default function OrdersPage() {
     <>
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
-            <div>
-                <CardTitle>Pedidos</CardTitle>
-                <CardDescription>Gerencie seus pedidos e visualize o status de cada um.</CardDescription>
-            </div>
-        </div>
+        <CardTitle>Pedidos</CardTitle>
+        <CardDescription>Gerencie seus pedidos em tempo real.</CardDescription>
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="Todos">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-5">
+          <TabsList className="grid w-full grid-cols-5">
             {Object.keys(statusMap).map(status => (
               <TabsTrigger key={status} value={status}>{status}</TabsTrigger>
             ))}
@@ -190,9 +172,8 @@ export default function OrdersPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="hidden sm:table-cell">Pedido</TableHead>
+                        <TableHead>Pedido</TableHead>
                         <TableHead>Cliente</TableHead>
-                        <TableHead className="hidden sm:table-cell">Tipo</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="text-right">Total</TableHead>
                         <TableHead className="text-right">Ações</TableHead>
@@ -200,46 +181,28 @@ export default function OrdersPage() {
                     </TableHeader>
                     <TableBody>
                      {isLoading ? (
-                        <TableRow>
-                          <TableCell colSpan={6} className="text-center">Carregando pedidos...</TableCell>
-                        </TableRow>
+                        <TableRow><TableCell colSpan={5} className="text-center">Carregando...</TableCell></TableRow>
                       ) : (
                       orders?.filter(order => statuses.includes(order.status)).sort((a, b) => b.orderDate.toMillis() - a.orderDate.toMillis()).map(order => (
                         <TableRow key={order.id}>
-                          <TableCell className="hidden sm:table-cell">
-                            <div className="font-medium">{order.id.substring(0, 6).toUpperCase()}</div>
-                            <div className="text-xs text-muted-foreground">{order.orderDate.toDate().toLocaleDateString('pt-BR')}</div>
-                          </TableCell>
-                          <TableCell>{order.customerName || order.customerId.substring(0,10)}</TableCell>
-                          <TableCell className="hidden sm:table-cell">
-                            <Badge variant="outline" className="flex items-center gap-1 w-fit">
-                              {order.deliveryType === 'Delivery' ? <Truck className="h-3 w-3" /> : <Package className="h-3 w-3" />}
-                              {order.deliveryType}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={order.status === 'Cancelado' ? 'destructive' : 'default'} className="whitespace-nowrap">{order.status}</Badge>
-                          </TableCell>
+                          <TableCell className="font-medium">{order.id.substring(0, 6).toUpperCase()}</TableCell>
+                          <TableCell>{order.customerName}</TableCell>
+                          <TableCell><Badge>{order.status}</Badge></TableCell>
                           <TableCell className="text-right">R${order.totalAmount.toFixed(2)}</TableCell>
                           <TableCell className="text-right">
                             <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon">
-                                  <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
+                              <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Ações</DropdownMenuLabel>
                                 <DropdownMenuItem onClick={() => setSelectedOrder(order)}>Ver Detalhes</DropdownMenuItem>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuLabel>Alterar Status</DropdownMenuLabel>
-                                <DropdownMenuItem onClick={() => handleUpdateStatus(order, 'Em preparo')}>Em preparo</DropdownMenuItem>
-                                {order.deliveryType === 'Delivery' ?
-                                    <DropdownMenuItem onClick={() => handleUpdateStatus(order, 'Saiu para entrega')}>Saiu para entrega</DropdownMenuItem>
-                                    :
-                                    <DropdownMenuItem onClick={() => handleUpdateStatus(order, 'Pronto para retirada')}>Pronto para retirada</DropdownMenuItem>
-                                }
-                                <DropdownMenuItem onClick={() => handleUpdateStatus(order, 'Entregue')}>Entregue</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleUpdateStatus(order, 'Em preparo')}>Mudar para Preparo</DropdownMenuItem>
+                                {order.deliveryType === 'Delivery' ? (
+                                    <DropdownMenuItem onClick={() => handleUpdateStatus(order, 'Saiu para entrega')}>Saiu para Entrega</DropdownMenuItem>
+                                ) : (
+                                    <DropdownMenuItem onClick={() => handleUpdateStatus(order, 'Pronto para retirada')}>Pronto para Retirada</DropdownMenuItem>
+                                )}
+                                <DropdownMenuItem onClick={() => handleUpdateStatus(order, 'Entregue')}>Finalizar/Entregue</DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem onClick={() => handleUpdateStatus(order, 'Cancelado')} className="text-destructive">Cancelar</DropdownMenuItem>
                               </DropdownMenuContent>
@@ -247,11 +210,6 @@ export default function OrdersPage() {
                           </TableCell>
                         </TableRow>
                       ))
-                      )}
-                      {!isLoading && orders?.filter(order => statuses.includes(order.status)).length === 0 && (
-                        <TableRow>
-                            <TableCell colSpan={6} className="text-center">Nenhum pedido encontrado nesta categoria.</TableCell>
-                        </TableRow>
                       )}
                     </TableBody>
                   </Table>
@@ -274,107 +232,90 @@ export default function OrdersPage() {
 }
 
 const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order; company?: Company; onOpenChange: (isOpen: boolean) => void; }) => {
-    
+    const firestore = useFirestore();
+    const { user } = useUser();
+
      const handlePrint = () => {
-        if (!order) return;
+        if (!order || !firestore || !user) return;
         const printHtml = generateOrderPrintHtml(order, company);
         const printWindow = window.open('', '_blank', 'width=300,height=500');
         if (printWindow) {
             printWindow.document.write(printHtml);
             printWindow.document.close();
         }
+
+        if (order.status === 'Novo' || order.status === 'Aguardando pagamento') {
+            const orderRef = doc(firestore, `companies/${user.uid}/orders`, order.id);
+            updateDocument(orderRef, { status: 'Em preparo' }).catch(() => {});
+        }
     };
+
+    const subtotal = order.totalAmount - (order.deliveryFee || 0);
 
     return (
         <Dialog open={!!order} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-md">
-                <DialogHeader>
-                    <DialogTitle>Detalhes do Pedido #{order.id.substring(0, 6).toUpperCase()}</DialogTitle>
-                </DialogHeader>
-                <div className="p-6">
+                <DialogHeader><DialogTitle>Pedido #{order.id.substring(0, 6).toUpperCase()}</DialogTitle></DialogHeader>
+                <div className="p-4 space-y-4">
                     <div className="text-center">
-                        <h2 className="text-2xl font-bold">{company?.name || 'Seu Restaurante'}</h2>
-                        <p className="text-sm text-gray-500">Pedido: {order.id.substring(0, 6).toUpperCase()}</p>
-                        <p className="text-sm text-gray-500">{order.orderDate.toDate().toLocaleString('pt-BR')}</p>
+                        <h2 className="text-xl font-bold">{company?.name}</h2>
+                        <p className="text-xs text-muted-foreground">{order.orderDate.toDate().toLocaleString()}</p>
                     </div>
-                    <Separator className="my-4" />
-                    <div className="space-y-4">
-                        <div className="space-y-1">
-                            <h3 className="font-semibold">Cliente</h3>
-                            <p>{order.customerName || 'Cliente anônimo'}</p>
-                            {order.customerPhone && <p className="text-sm text-muted-foreground">{order.customerPhone}</p>}
-                            {order.deliveryType === 'Delivery' && <p className="text-gray-500">{order.deliveryAddress}</p>}
-                        </div>
-                        <Separator />
-                        <div>
-                            <h3 className="font-semibold mb-2">Itens do Pedido</h3>
-                            <table className="w-full text-sm">
-                                <thead>
-                                    <tr className="border-b">
-                                        <th className="text-left py-2">Produto</th>
-                                        <th className="text-center py-2">Qtd.</th>
-                                        <th className="text-right py-2">Preço</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {order.orderItems.map((item, index) => (
-                                        <tr key={index} className="border-b">
-                                            <td className="py-2">
-                                                {item.productName || item.productId}
-                                                {item.notes && <p className="text-xs text-muted-foreground">OBS: {item.notes}</p>}
-                                            </td>
-                                            <td className="text-center py-2">{item.quantity}</td>
-                                            <td className="text-right py-2">R${(item.unitPrice * item.quantity).toFixed(2)}</td>
-                                        </tr>
+                    <Separator />
+                    <div className="text-sm">
+                        <p><strong>Cliente:</strong> {order.customerName}</p>
+                        <p><strong>Tel:</strong> {order.customerPhone}</p>
+                        <p><strong>Endereço:</strong> {order.deliveryAddress}</p>
+                    </div>
+                    <Separator />
+                    <div className="space-y-2">
+                        {order.orderItems.map((item, idx) => {
+                            const groupedVariants: { [key: string]: { name: string; price: number }[] } = {};
+                            if (item.selectedVariants) {
+                                item.selectedVariants.forEach(v => {
+                                    if (!groupedVariants[v.groupName]) groupedVariants[v.groupName] = [];
+                                    groupedVariants[v.groupName].push({ name: v.itemName, price: v.price });
+                                });
+                            }
+
+                            return (
+                                <div key={idx} className="text-sm">
+                                    <div className="flex justify-between font-medium">
+                                        <span>{item.quantity}x {item.productName}</span>
+                                        <span>R${(item.finalPrice || item.unitPrice).toFixed(2)}</span>
+                                    </div>
+                                    {Object.entries(groupedVariants).map(([group, items], vIdx) => (
+                                        <p key={vIdx} className="text-xs text-muted-foreground ml-2">
+                                            • <strong>{group}:</strong> {items.map(i => `${i.name}${i.price > 0 ? ` (+R$${i.price.toFixed(2)})` : ''}`).join(', ')}
+                                        </p>
                                     ))}
-                                </tbody>
-                            </table>
-                        </div>
-                         {order.notes && (
-                            <>
-                                <Separator />
-                                <div className="space-y-1">
-                                    <h3 className="font-semibold">Observações do Pedido</h3>
-                                    <p className="text-sm text-muted-foreground">{order.notes}</p>
+                                    {item.notes && <p className="text-xs italic text-muted-foreground ml-2">Obs: {item.notes}</p>}
                                 </div>
-                            </>
+                            );
+                        })}
+                    </div>
+                    <Separator />
+                    <div className="space-y-1">
+                        <div className="flex justify-between text-sm">
+                            <span>Subtotal</span>
+                            <span>R$ {subtotal.toFixed(2)}</span>
+                        </div>
+                        {order.deliveryFee && order.deliveryFee > 0 && (
+                            <div className="flex justify-between text-sm">
+                                <span>Taxa de Entrega</span>
+                                <span>R$ {order.deliveryFee.toFixed(2)}</span>
+                            </div>
                         )}
-                        <Separator />
-                        <div className="space-y-2">
-                            <div className="flex justify-between">
-                                <span>Subtotal</span>
-                                <span>R$${order.totalAmount.toFixed(2)}</span>
-                            </div>
-                            {order.deliveryFee && (
-                                <div className="flex justify-between">
-                                    <span>Taxa de Entrega</span>
-                                    <span>R$${order.deliveryFee.toFixed(2)}</span>
-                                </div>
-                            )}
-                            <div className="flex justify-between font-bold text-lg">
-                                <span>Total</span>
-                                <span>R$${(order.totalAmount + (order.deliveryFee || 0)).toFixed(2)}</span>
-                            </div>
-                        </div>
-                        <Separator />
-                        <div className="space-y-1">
-                            <h3 className="font-semibold">Pagamento</h3>
-                            <p>Forma de Pagamento: ${order.paymentMethod}</p>
-                            <p>Tipo de Entrega: ${order.deliveryType}</p>
+                        <div className="flex justify-between font-bold text-lg pt-2">
+                            <span>Total</span>
+                            <span>R$ {order.totalAmount.toFixed(2)}</span>
                         </div>
                     </div>
                 </div>
                  <DialogFooter>
-                    <Button variant="outline" onClick={handlePrint}>
-                        <Printer className="mr-2 h-4 w-4" />
-                        Imprimir
-                    </Button>
+                    <Button variant="outline" className="w-full" onClick={handlePrint}><Printer className="mr-2 h-4 w-4" /> Imprimir e Começar Preparo</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
     );
 };
-
-    
-
-    

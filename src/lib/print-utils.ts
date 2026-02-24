@@ -1,4 +1,3 @@
-
 import type { Order } from '@/app/dashboard/orders/page';
 
 type Company = {
@@ -7,19 +6,42 @@ type Company = {
 };
 
 export function generateOrderPrintHtml(order: Order, company?: Company) {
-    const itemsHtml = order.orderItems.map(item => `
-        <tr>
-            <td colspan="3" style="padding-top: 5px;">
-                ${item.productName || item.productId}
-                ${item.notes ? `<br><small style="color: #555; padding-left: 10px;">OBS: ${item.notes}</small>` : ''}
-            </td>
-        </tr>
-        <tr>
-            <td style="padding-bottom: 5px;">&nbsp;</td>
-            <td style="text-align: center; padding-bottom: 5px;">${item.quantity} x R$${item.unitPrice.toFixed(2)}</td>
-            <td style="text-align: right; padding-bottom: 5px;">R$${(item.unitPrice * item.quantity).toFixed(2)}</td>
-        </tr>
-    `).join('');
+    const itemsHtml = order.orderItems.map(item => {
+        const groupedVariants: { [key: string]: { name: string; price: number }[] } = {};
+        if (item.selectedVariants) {
+            item.selectedVariants.forEach(v => {
+                if (!groupedVariants[v.groupName]) groupedVariants[v.groupName] = [];
+                groupedVariants[v.groupName].push({ name: v.itemName, price: v.price });
+            });
+        }
+
+        const variantsText = Object.entries(groupedVariants).map(([group, items]) => {
+            const itemsText = items.map(i => {
+                const priceLabel = i.price > 0 ? ` (+R$${i.price.toFixed(2)})` : '';
+                return `${i.name}${priceLabel}`;
+            }).join(', ');
+            return `<br><small style="color: #333; padding-left: 10px;"><strong>${group}:</strong> ${itemsText}</small>`;
+        }).join('');
+        
+        const priceToUse = item.finalPrice || item.unitPrice;
+
+        return `
+            <tr>
+                <td colspan="3" style="padding-top: 5px;">
+                    <strong>${item.quantity}x ${item.productName || item.productId}</strong>
+                    ${variantsText}
+                    ${item.notes ? `<br><small style="color: #555; padding-left: 10px; font-style: italic;">OBS: ${item.notes}</small>` : ''}
+                </td>
+            </tr>
+            <tr>
+                <td style="padding-bottom: 5px;">&nbsp;</td>
+                <td style="text-align: center; padding-bottom: 5px;">R$${priceToUse.toFixed(2)}</td>
+                <td style="text-align: right; padding-bottom: 5px;">R$${(priceToUse * item.quantity).toFixed(2)}</td>
+            </tr>
+        `;
+    }).join('');
+
+    const subtotal = order.totalAmount - (order.deliveryFee || 0);
 
     return `
         <html>
@@ -47,7 +69,7 @@ export function generateOrderPrintHtml(order: Order, company?: Company) {
                 <hr />
                 <div class="section">
                     <p class="section-title">Cliente:</p>
-                    <p>${order.customerName || 'Cliente anônimo'}</p>
+                    <p>${order.customerName || 'Anônimo'}</p>
                     ${order.customerPhone ? `<p>Tel: ${order.customerPhone}</p>` : ''}
                     ${order.deliveryType === 'Delivery' ? `<p>${order.deliveryAddress}</p>` : ''}
                 </div>
@@ -56,25 +78,21 @@ export function generateOrderPrintHtml(order: Order, company?: Company) {
                     <thead>
                         <tr>
                             <th>Item</th>
-                            <th style="text-align: center;">Qtd x Valor</th>
+                            <th style="text-align: center;">V. Unit</th>
                             <th style="text-align: right;">Total</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        ${itemsHtml}
-                    </tbody>
+                    <tbody>${itemsHtml}</tbody>
                 </table>
                 <hr />
-                ${order.notes ? `<div class="section"><p class="section-title">Observações do Pedido:</p><p>${order.notes}</p></div><hr />` : ''}
                 <div class="totals">
-                    <p>Subtotal: R$${order.totalAmount.toFixed(2)}</p>
-                    ${order.deliveryFee ? `<p>Taxa de Entrega: R$${order.deliveryFee.toFixed(2)}</p>` : ''}
-                    <strong>Total: R$${(order.totalAmount + (order.deliveryFee || 0)).toFixed(2)}</strong>
+                    <p>Subtotal: R$${subtotal.toFixed(2)}</p>
+                    ${order.deliveryFee && order.deliveryFee > 0 ? `<p>Taxa de Entrega: R$${order.deliveryFee.toFixed(2)}</p>` : ''}
+                    <strong>Total: R$${order.totalAmount.toFixed(2)}</strong>
                 </div>
                  <hr />
-                <p style="text-align: left;">Forma de Pagamento: ${order.paymentMethod}</p>
-                <p style="text-align: left;">Tipo de Entrega: ${order.deliveryType}</p>
-                
+                <p style="text-align: left;">Pagamento: ${order.paymentMethod}</p>
+                <p style="text-align: left;">Entrega: ${order.deliveryType}</p>
                 <script>
                     window.print();
                     window.onafterprint = () => window.close();

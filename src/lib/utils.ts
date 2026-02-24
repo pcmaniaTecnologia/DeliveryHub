@@ -35,3 +35,44 @@ export function hexToHsl(hex: string): { h: number; s: number; l: number } | nul
     l: Math.round(l * 100)
   };
 }
+
+/**
+ * Verifica se a loja está aberta com base no JSON de horários.
+ */
+export function isStoreOpen(businessHoursStr?: string): { isOpen: boolean; message?: string } {
+  if (!businessHoursStr) return { isOpen: true };
+  
+  try {
+    const hours = JSON.parse(businessHoursStr);
+    const now = new Date();
+    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const dayName = days[now.getDay()];
+    const config = hours[dayName];
+
+    if (!config || !config.isOpen) {
+      return { isOpen: false };
+    }
+
+    const currentTime = now.getHours() * 60 + now.getMinutes();
+    const [openH, openM] = config.openTime.split(':').map(Number);
+    const [closeH, closeM] = config.closeTime.split(':').map(Number);
+
+    const openMinutes = openH * 60 + openM;
+    const closeMinutes = closeH * 60 + closeM;
+
+    if (closeMinutes < openMinutes) {
+        if (currentTime >= openMinutes || currentTime < closeMinutes) {
+            return { isOpen: true };
+        }
+    } else {
+        if (currentTime >= openMinutes && currentTime < closeMinutes) {
+            return { isOpen: true };
+        }
+    }
+
+    return { isOpen: false };
+  } catch (e) {
+    console.error("Erro ao validar horário:", e);
+    return { isOpen: true }; 
+  }
+}

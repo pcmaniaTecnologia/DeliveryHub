@@ -1,8 +1,7 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
-import { MoreHorizontal, PlusCircle } from 'lucide-react';
+import { PlusCircle, MoreHorizontal } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -59,7 +58,7 @@ type Plan = {
   price: number;
   productLimit: number;
   orderLimit: number;
-  duration: 'monthly' | 'annual';
+  duration: 'monthly' | 'trial';
 };
 
 const planFormSchema = z.object({
@@ -67,7 +66,7 @@ const planFormSchema = z.object({
   price: z.coerce.number().min(0, { message: 'O preço não pode ser negativo.' }),
   productLimit: z.coerce.number().int().min(0, { message: 'O limite de produtos deve ser 0 ou mais.' }),
   orderLimit: z.coerce.number().int().min(0, { message: 'O limite de pedidos deve ser 0 ou mais.' }),
-  duration: z.enum(['monthly', 'annual'], { required_error: 'A duração é obrigatória.' }),
+  duration: z.enum(['monthly', 'trial'], { required_error: 'A duração é obrigatória.' }),
 });
 
 export default function PlansPage() {
@@ -195,8 +194,8 @@ export default function PlansPage() {
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                            <FormControl><SelectTrigger><SelectValue placeholder="Selecione a duração" /></SelectTrigger></FormControl>
                           <SelectContent>
+                            <SelectItem value="trial">5 dias (Teste)</SelectItem>
                             <SelectItem value="monthly">Mensal</SelectItem>
-                            <SelectItem value="annual">Anual</SelectItem>
                           </SelectContent>
                         </Select>
                       <FormMessage />
@@ -231,7 +230,9 @@ export default function PlansPage() {
                 <TableCell>R${plan.price.toFixed(2)}</TableCell>
                 <TableCell>{plan.productLimit === 0 ? 'Ilimitado' : plan.productLimit}</TableCell>
                 <TableCell>{plan.orderLimit === 0 ? 'Ilimitado' : plan.orderLimit}</TableCell>
-                <TableCell>{plan.duration === 'monthly' ? 'Mensal' : 'Anual'}</TableCell>
+                <TableCell>
+                    {plan.duration === 'trial' ? '5 dias (Teste)' : 'Mensal'}
+                </TableCell>
                 <TableCell>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>

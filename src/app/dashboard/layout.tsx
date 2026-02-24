@@ -1,15 +1,15 @@
-
 'use client';
 
-import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   Menu,
   Package2,
+  VolumeX,
 } from 'lucide-react';
 import { useCollection, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, doc, onSnapshot, query, where, Timestamp } from 'firebase/firestore';
+import { collection, doc, type Timestamp } from 'firebase/firestore';
 
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -19,8 +19,10 @@ import { useUser } from '@/firebase';
 import { hexToHsl } from '@/lib/utils';
 import type { Order } from './orders/page';
 import { NotificationProvider, useNotifications } from '@/context/notification-context';
+import { useToast } from '@/hooks/use-toast';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
-const notificationSoundUrl = "https://storage.googleapis.com/starlit-id-prod.appspot.com/public-assets/notification.mp3";
+const notificationSoundUrl = "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3";
 
 type CompanyData = {
     themeColors?: string;
@@ -32,22 +34,62 @@ type CompanyData = {
     name?: string;
 };
 
-// A component to handle sound playback, to be used inside the layout
 const SoundPlayer = () => {
     const { playTrigger } = useNotifications();
     const audioRef = useRef<HTMLAudioElement>(null);
+    const [isAudioBlocked, setIsAudioBlocked] = useState(false);
+    const { toast } = useToast();
 
     useEffect(() => {
-        if (playTrigger > 0 && audioRef.current) {
-            audioRef.current.play().catch(error => {
-                // This error is expected if the user hasn't interacted with the page yet.
-                // It can be safely ignored in many cases.
-                console.warn("Audio playback failed, likely due to browser autoplay policy. User interaction is required to enable sound.", error);
-            });
-        }
+        const playSound = async () => {
+            if (playTrigger > 0 && audioRef.current) {
+                try {
+                    audioRef.current.currentTime = 0;
+                    await audioRef.current.play();
+                    setIsAudioBlocked(false);
+                } catch (error) {
+                    console.warn("Audio playback blocked by browser.");
+                    setIsAudioBlocked(true);
+                }
+            }
+        };
+        playSound();
     }, [playTrigger]);
 
-    return <audio ref={audioRef} src={notificationSoundUrl} preload="auto" />;
+    useEffect(() => {
+        const unlockAudio = () => {
+            if (isAudioBlocked && audioRef.current) {
+                audioRef.current.play().then(() => {
+                    audioRef.current?.pause();
+                    setIsAudioBlocked(false);
+                    toast({
+                        title: "Sons Ativados!",
+                        description: "A campainha de novos pedidos está pronta.",
+                    });
+                }).catch(() => {});
+            }
+        };
+
+        window.addEventListener('click', unlockAudio);
+        return () => window.removeEventListener('click', unlockAudio);
+    }, [isAudioBlocked, toast]);
+
+    return (
+        <>
+            <audio ref={audioRef} src={notificationSoundUrl} preload="auto" />
+            {isAudioBlocked && (
+                <div className="fixed bottom-4 left-4 z-50 max-w-sm">
+                    <Alert variant="destructive" className="bg-destructive text-destructive-foreground animate-pulse cursor-pointer shadow-lg" onClick={() => setIsAudioBlocked(false)}>
+                        <VolumeX className="h-4 w-4" />
+                        <AlertTitle>Som Requer Ativação</AlertTitle>
+                        <AlertDescription>
+                            Clique aqui para ativar os alertas sonoros de novos pedidos.
+                        </AlertDescription>
+                    </Alert>
+                </div>
+            )}
+        </>
+    );
 };
 
 
@@ -75,7 +117,6 @@ export default function DashboardLayout({
 
   const { data: adminData, isLoading: isLoadingAdmin } = useDoc(adminRef);
 
-  // This collection hook is just for the badge count.
   const allOrdersRef = useMemoFirebase(() => {
     if (!firestore || !user?.uid) return null;
     return collection(firestore, `companies/${user.uid}/orders`);
@@ -96,9 +137,15 @@ export default function DashboardLayout({
   }, [user, isUserLoading, router]);
 
    useEffect(() => {
-    if (!isLoadingCompany && companyData && companyData.isActive === false) {
-        if (pathname !== '/dashboard/settings') {
-            router.push('/dashboard/settings');
+    if (!isLoadingCompany && companyData) {
+        const now = new Date();
+        const endDate = companyData.subscriptionEndDate?.toDate();
+        const isExpired = endDate && now > endDate;
+
+        if (companyData.isActive === false || isExpired) {
+            if (pathname !== '/dashboard/settings') {
+                router.push('/dashboard/settings');
+            }
         }
     }
   }, [companyData, isLoadingCompany, router, pathname]);
@@ -121,7 +168,7 @@ export default function DashboardLayout({
                  }
             }
         } catch (error) {
-            console.error("Failed to parse or apply theme colors:", error);
+            console.error("Erro ao aplicar cores do tema:", error);
         }
     }
 }, [companyData]);
@@ -133,14 +180,6 @@ export default function DashboardLayout({
         <p>Carregando...</p>
       </div>
     );
-  }
-
-  if (companyData?.isActive === false && pathname !== '/dashboard/settings') {
-     return (
-        <div className="flex min-h-screen items-center justify-center">
-            <p>Verificando sua assinatura...</p>
-        </div>
-     )
   }
 
   return (

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -43,7 +42,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Separator } from '@/components/ui/separator';
 import { useRouter } from 'next/navigation';
-import { format } from 'date-fns';
+import { format, isAfter } from 'date-fns';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 
@@ -91,15 +90,14 @@ type Plan = {
     price: number;
     productLimit: number;
     orderLimit: number;
-    duration: 'monthly' | 'annual';
+    duration: 'monthly' | 'trial';
 }
 
 type PlatformSettings = {
     pixKey?: string;
 };
 
-// --- Subscription View Component ---
-const SubscriptionView = () => {
+const SubscriptionView = ({ isExpired, trialEndDate }: { isExpired?: boolean, trialEndDate?: Date }) => {
     const firestore = useFirestore();
     const { toast } = useToast();
     
@@ -134,28 +132,47 @@ const SubscriptionView = () => {
 
     if (!selectedPlan) {
         return (
-            <div className="space-y-6">
-                 <div className="text-center">
+            <div className="space-y-6 p-4">
+                 <div className="text-center max-w-2xl mx-auto space-y-4">
+                    {isExpired ? (
+                        <Alert variant="destructive" className="bg-destructive/10">
+                            <AlertTriangle className="h-5 w-5" />
+                            <AlertTitle>Seu período de acesso expirou!</AlertTitle>
+                            <AlertDescription>
+                                Para continuar vendendo e acessando seu painel, selecione um plano abaixo. Seus dados estão salvos.
+                            </AlertDescription>
+                        </Alert>
+                    ) : (
+                        <div className="bg-primary/10 p-4 rounded-lg">
+                            <h2 className="text-2xl font-bold text-primary">Você está no Período de Teste!</h2>
+                            <p className="text-muted-foreground mt-1">Seu acesso gratuito vai até: <strong className="text-foreground">{trialEndDate ? format(trialEndDate, 'dd/MM/yyyy') : '--/--'}</strong></p>
+                        </div>
+                    )}
                     <h2 className="text-3xl font-bold tracking-tight">Escolha seu Plano</h2>
-                    <p className="text-muted-foreground mt-2">Selecione o plano que melhor se adapta ao seu negócio para começar a vender.</p>
+                    <p className="text-muted-foreground">Selecione o plano que melhor se adapta ao seu negócio para ativar sua loja permanentemente.</p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {plans?.map((plan) => (
-                        <Card key={plan.id} className="flex flex-col">
+                        <Card key={plan.id} className="flex flex-col border-2 hover:border-primary transition-all">
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2"><Crown className="text-primary"/> {plan.name}</CardTitle>
-                                <p className="text-4xl font-bold">R${plan.price}<span className="text-lg font-normal text-muted-foreground">/{plan.duration === 'monthly' ? 'mês' : 'ano'}</span></p>
+                                <div className="mt-2">
+                                    <span className="text-4xl font-bold">R${plan.price.toFixed(2)}</span>
+                                    <span className="text-muted-foreground ml-1">
+                                        {plan.duration === 'monthly' ? '/mês' : '/5 dias'}
+                                    </span>
+                                </div>
                             </CardHeader>
                             <CardContent className="flex-grow">
-                                <ul className="space-y-2 text-muted-foreground">
+                                <ul className="space-y-2 text-sm text-muted-foreground">
                                     <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-500" /> {plan.productLimit === 0 ? 'Produtos ilimitados' : `${plan.productLimit} produtos`}</li>
                                     <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-500" /> {plan.orderLimit === 0 ? 'Pedidos ilimitados' : `${plan.orderLimit} pedidos/mês`}</li>
-                                    <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-500" /> Painel de gerenciamento</li>
-                                    <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-500" /> Cardápio online</li>
+                                    <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-500" /> Painel de gerenciamento completo</li>
+                                    <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-500" /> Cardápio online personalizado</li>
                                 </ul>
                             </CardContent>
                             <CardFooter>
-                                <Button className="w-full" onClick={() => handleSelectPlan(plan)}>Selecionar Plano</Button>
+                                <Button className="w-full" onClick={() => handleSelectPlan(plan)}>Assinar Agora</Button>
                             </CardFooter>
                         </Card>
                     ))}
@@ -167,43 +184,42 @@ const SubscriptionView = () => {
      return (
         <div className="space-y-6">
             <div className="text-center">
-                <h2 className="text-3xl font-bold tracking-tight">Finalizar Pagamento</h2>
-                <p className="text-muted-foreground mt-2">Para ativar sua loja, realize o pagamento via PIX.</p>
+                <h2 className="text-3xl font-bold tracking-tight">Finalizar Assinatura</h2>
+                <p className="text-muted-foreground mt-2">Ative sua loja agora mesmo realizando o pagamento.</p>
             </div>
-            <Card className="max-w-lg mx-auto">
+            <Card className="max-w-lg mx-auto shadow-xl">
                 <CardHeader>
                     <CardTitle>Pagamento via PIX</CardTitle>
-                    <CardDescription>Você selecionou o plano: <span className="font-bold text-primary">{selectedPlan.name}</span></CardDescription>
+                    <CardDescription>Plano selecionado: <span className="font-bold text-primary">{selectedPlan.name}</span></CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <div className="flex justify-between items-center border p-4 rounded-lg">
-                        <span className="text-lg">Total a pagar:</span>
-                        <span className="text-2xl font-bold">R${selectedPlan.price.toFixed(2)}</span>
+                    <div className="flex justify-between items-center border-2 border-primary/20 p-6 rounded-xl bg-primary/5">
+                        <span className="text-lg font-medium">Valor da Assinatura:</span>
+                        <span className="text-3xl font-bold text-primary">R${selectedPlan.price.toFixed(2)}</span>
                     </div>
-                    <div>
-                        <Label>Chave PIX para pagamento:</Label>
-                        <div className="flex items-center gap-2 mt-1">
-                            <Input value={platformSettings?.pixKey || 'Chave não configurada'} readOnly />
+                    <div className="space-y-2">
+                        <Label>Copie a Chave PIX abaixo:</Label>
+                        <div className="flex items-center gap-2">
+                            <Input value={platformSettings?.pixKey || 'Chave não configurada'} readOnly className="font-mono" />
                             <Button variant="outline" size="icon" onClick={handleCopyPixKey}><Copy className="h-4 w-4" /></Button>
                         </div>
                     </div>
-                     <Alert>
-                        <Send className="h-4 w-4" />
-                        <AlertTitle>Próximos Passos</AlertTitle>
-                        <AlertDescription>
-                            Após realizar o pagamento, por favor, aguarde. Sua conta será ativada manualmente pela administração assim que o pagamento for confirmado.
+                     <Alert className="bg-yellow-50 border-yellow-200">
+                        <Send className="h-4 w-4 text-yellow-600" />
+                        <AlertTitle className="text-yellow-800 font-bold">Aviso de Ativação</AlertTitle>
+                        <AlertDescription className="text-yellow-700">
+                            Após o pagamento, sua conta será ativada manualmente pela nossa equipe em até 24 horas. Envie o comprovante para nosso suporte se desejar agilizar!
                         </AlertDescription>
                     </Alert>
                 </CardContent>
-                <CardFooter>
-                    <Button variant="outline" onClick={() => setSelectedPlan(null)}>Voltar e escolher outro plano</Button>
+                <CardFooter className="flex flex-col gap-3">
+                    <Button variant="outline" className="w-full" onClick={() => setSelectedPlan(null)}>Escolher outro plano</Button>
                 </CardFooter>
             </Card>
         </div>
     )
 }
 
-// --- Main Settings Page Component ---
 export default function SettingsPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -211,7 +227,6 @@ export default function SettingsPage() {
   const auth = useAuth();
   const router = useRouter();
 
-  // Dialog state for adding new delivery zone
   const [isZoneDialogOpen, setIsZoneDialogOpen] = useState(false);
   const [newNeighborhood, setNewNeighborhood] = useState('');
   const [newFee, setNewFee] = useState('');
@@ -233,7 +248,7 @@ export default function SettingsPage() {
   const { data: deliveryZones, isLoading: isLoadingZones } = useCollection<DeliveryZone>(deliveryZonesRef);
   
   const planRef = useMemoFirebase(() => {
-    if (!firestore || !companyData?.planId) return null;
+    if (!firestore || !companyData?.planId || companyData.planId === 'trial') return null;
     return doc(firestore, 'plans', companyData.planId);
   }, [firestore, companyData?.planId]);
 
@@ -344,7 +359,12 @@ export default function SettingsPage() {
         ownerId: user.uid,
     };
 
-    setDocument(companyRef, updatedData, { merge: true });
+    setDocument(companyRef, updatedData, { merge: true }).then(() => {
+        toast({
+            title: 'Perfil Atualizado!',
+            description: 'As informações da sua loja foram salvas com sucesso.',
+        });
+    });
   };
 
   const handlePaymentMethodChange = (method: keyof Omit<PaymentMethods, 'cashAskForChange'>, checked: boolean) => {
@@ -357,7 +377,12 @@ export default function SettingsPage() {
 
   const handleSavePayments = () => {
     if (!companyRef || !user) return;
-    setDocument(companyRef, { paymentMethods, ownerId: user.uid }, { merge: true });
+    setDocument(companyRef, { paymentMethods, ownerId: user.uid }, { merge: true }).then(() => {
+        toast({
+            title: 'Pagamentos Salvos!',
+            description: 'Suas formas de pagamento foram atualizadas.',
+        });
+    });
   };
   
     const handleHoursChange = (day: keyof BusinessHours, field: keyof DayHours, value: string | boolean) => {
@@ -373,7 +398,12 @@ export default function SettingsPage() {
   const handleSaveHours = () => {
     if (!companyRef || !user) return;
     const businessHoursString = JSON.stringify(businessHours);
-    setDocument(companyRef, { businessHours: businessHoursString, ownerId: user.uid }, { merge: true });
+    setDocument(companyRef, { businessHours: businessHoursString, ownerId: user.uid }, { merge: true }).then(() => {
+        toast({
+            title: 'Horários Salvos!',
+            description: 'Seus horários de funcionamento foram atualizados com sucesso.',
+        });
+    });
   };
 
   const handleAddZone = () => {
@@ -399,7 +429,6 @@ export default function SettingsPage() {
             title: 'Sucesso!',
             description: `Bairro ${newNeighborhood} adicionado.`,
         });
-        // Reset form and close dialog
         setNewNeighborhood('');
         setNewFee('');
         setNewTime('');
@@ -422,61 +451,12 @@ export default function SettingsPage() {
   const handleSaveMessages = () => {
     if (!companyRef || !user) return;
     const whatsappTemplatesString = JSON.stringify(whatsappTemplates);
-    setDocument(companyRef, { whatsappTemplates: whatsappTemplatesString, ownerId: user.uid }, { merge: true });
-  };
-
-  const handleDeleteStore = async () => {
-    if (!companyRef || !user || !auth) {
+    setDocument(companyRef, { whatsappTemplates: whatsappTemplatesString, ownerId: user.uid }, { merge: true }).then(() => {
         toast({
-            variant: 'destructive',
-            title: 'Erro',
-            description: 'Não foi possível identificar a empresa ou autenticação. Faça login novamente.',
+            title: 'Mensagens Salvas!',
+            description: 'Seus modelos de WhatsApp foram atualizados.',
         });
-        return;
-    }
-
-    try {
-        // This is a simplified example. For a real app, a Cloud Function should be used
-        // to recursively delete all subcollections (products, orders, etc.).
-        await deleteDocument(companyRef);
-
-        const currentUser = auth.currentUser;
-        if (!currentUser) {
-            throw new Error("Usuário não encontrado para exclusão.");
-        }
-
-        await deleteAuthUser(currentUser);
-
-        toast({
-            title: 'Loja e Conta Excluídas',
-            description: 'Sua loja e sua conta de usuário foram excluídas com sucesso.',
-        });
-        
-        // Deleting the user automatically signs them out.
-        // Redirecting to home page.
-        router.push('/');
-
-    } catch (error: any) {
-         console.error("Error deleting store and account:", error);
-         if (error.code === 'auth/requires-recent-login') {
-            toast({
-                variant: 'destructive',
-                title: 'Ação Requer Autenticação Recente',
-                description: 'Por segurança, faça o login novamente antes de tentar excluir sua conta.',
-                duration: 10000
-            });
-            // Force sign out to make the user log in again
-            auth.signOut();
-            router.push('/');
-         } else {
-            toast({
-                variant: 'destructive',
-                title: 'Erro ao Excluir',
-                description: error.message || 'Não foi possível excluir a loja e a conta. Tente fazer login novamente.',
-                duration: 10000
-            });
-         }
-    }
+    });
   };
 
   const isLoading = isUserLoadingAuth || isLoadingCompany || isLoadingZones || isLoadingPlan;
@@ -491,21 +471,21 @@ export default function SettingsPage() {
     { key: 'saturday', label: 'Sábado' },
   ];
 
-  if (isLoading) {
-    return <p>Carregando configurações...</p>
-  }
+  if (isLoading) return <p>Carregando configurações...</p>;
   
-  if (companyData && companyData.isActive === false) {
-    return <SubscriptionView />;
+  const trialEndDate = companyData?.subscriptionEndDate?.toDate();
+  const isTrialExpired = trialEndDate && isAfter(new Date(), trialEndDate);
+  const isInactive = companyData?.isActive === false;
+
+  if (isInactive || isTrialExpired) {
+    return <SubscriptionView isExpired={isTrialExpired} trialEndDate={trialEndDate} />;
   }
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Configurações</h2>
-        <p className="text-muted-foreground">
-          Gerencie as configurações da sua loja e conta.
-        </p>
+        <p className="text-muted-foreground">Gerencie sua loja e conta.</p>
       </div>
 
       <Tabs defaultValue="profile" className="w-full">
@@ -522,18 +502,12 @@ export default function SettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Perfil da Empresa</CardTitle>
-              <CardDescription>
-                Atualize as informações e a aparência da sua loja.
-              </CardDescription>
+              <CardDescription>Atualize as informações e a aparência da sua loja.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-2">
                 <Label htmlFor="store-name">Nome da Loja</Label>
                 <Input id="store-name" value={storeName} onChange={(e) => setStoreName(e.target.value)} disabled={isLoading} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="logo">Logomarca</Label>
-                <Input id="logo" type="file" disabled={isLoading} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="phone">Telefone/WhatsApp</Label>
@@ -545,7 +519,7 @@ export default function SettingsPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="closed-message">Mensagem de loja fechada</Label>
-                <Textarea id="closed-message" value={closedMessage} onChange={(e) => setClosedMessage(e.target.value)} placeholder="Estamos fechados no momento, mas abriremos amanhã às 9h!" disabled={isLoading} />
+                <Textarea id="closed-message" value={closedMessage} onChange={(e) => setClosedMessage(e.target.value)} placeholder="Estamos fechados no momento..." disabled={isLoading} />
               </div>
               <Separator />
                <div className="space-y-2">
@@ -556,38 +530,23 @@ export default function SettingsPage() {
                     <Copy className="h-4 w-4" />
                   </Button>
                 </div>
-                <p className="text-sm text-muted-foreground">Compartilhe este link com seus clientes para que eles possam ver seu cardápio.</p>
               </div>
               <Separator />
                <div className="space-y-4">
                  <Label className="text-base">Notificações e Impressão</Label>
                  <div className="flex flex-row items-center justify-between rounded-lg border p-4">
                     <div className="space-y-0.5">
-                      <Label className="font-medium" htmlFor="sound-notification">Ativar notificação sonora para novos pedidos</Label>
-                      <p className="text-[0.8rem] text-muted-foreground">
-                        Um som será reproduzido sempre que um novo pedido chegar.
-                      </p>
+                      <Label className="font-medium" htmlFor="sound-notification">Ativar campainha para novos pedidos</Label>
+                      <p className="text-xs text-muted-foreground">Um som de campainha tocará para cada novo pedido.</p>
                     </div>
-                    <Switch
-                      id="sound-notification"
-                      checked={soundNotificationEnabled}
-                      onCheckedChange={setSoundNotificationEnabled}
-                      disabled={isLoading}
-                    />
+                    <Switch id="sound-notification" checked={soundNotificationEnabled} onCheckedChange={setSoundNotificationEnabled} disabled={isLoading} />
                   </div>
                   <div className="flex flex-row items-center justify-between rounded-lg border p-4">
                     <div className="space-y-0.5">
                       <Label className="font-medium" htmlFor="auto-print">Impressão automática de pedidos</Label>
-                       <p className="text-[0.8rem] text-muted-foreground">
-                        Abre a janela de impressão automaticamente para novos pedidos.
-                      </p>
+                       <p className="text-xs text-muted-foreground">Abre a janela de impressão automaticamente ao receber um pedido.</p>
                     </div>
-                    <Switch
-                      id="auto-print"
-                      checked={autoPrintEnabled}
-                      onCheckedChange={setAutoPrintEnabled}
-                      disabled={isLoading}
-                    />
+                    <Switch id="auto-print" checked={autoPrintEnabled} onCheckedChange={setAutoPrintEnabled} disabled={isLoading} />
                   </div>
               </div>
               <Separator />
@@ -606,43 +565,8 @@ export default function SettingsPage() {
               </div>
             </CardContent>
             <CardFooter>
-              <Button onClick={handleSaveChanges} disabled={isLoading || companyData?.isActive === false}>
-                {isLoading ? 'Carregando...' : 'Salvar Alterações'}
-              </Button>
+              <Button onClick={handleSaveChanges} disabled={isLoading}>Salvar Alterações</Button>
             </CardFooter>
-          </Card>
-          <Card className="mt-6 border-destructive">
-            <CardHeader>
-              <CardTitle className="text-destructive">Zona de Perigo</CardTitle>
-              <CardDescription>
-                Ações irreversíveis. Tenha muito cuidado.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="destructive">Excluir esta loja</Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Você tem certeza absoluta?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Esta ação não pode ser desfeita. Isso excluirá permanentemente sua loja,
-                      junto com todos os produtos, pedidos e dados de clientes.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={handleDeleteStore}
-                      className="bg-destructive hover:bg-destructive/90"
-                    >
-                      Sim, excluir minha loja
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </CardContent>
           </Card>
         </TabsContent>
 
@@ -650,67 +574,37 @@ export default function SettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Horário de Funcionamento</CardTitle>
-              <CardDescription>
-                Defina os dias e horários que sua loja estará aberta.
-              </CardDescription>
+              <CardDescription>Defina os horários de abertura.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {weekDays.map(({ key, label }) => (
                 <div key={key} className="flex items-center justify-between rounded-lg border p-4">
                   <div className="flex items-center gap-4">
-                    <Switch
-                      checked={businessHours[key]?.isOpen}
-                      onCheckedChange={(checked) => handleHoursChange(key, 'isOpen', checked)}
-                      id={`switch-${key}`}
-                      disabled={isLoading || companyData?.isActive === false}
-                    />
+                    <Switch checked={businessHours[key]?.isOpen} onCheckedChange={(checked) => handleHoursChange(key, 'isOpen', checked)} id={`switch-${key}`} disabled={isLoading} />
                     <Label htmlFor={`switch-${key}`} className="w-24">{label}</Label>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Input
-                      type="time"
-                      value={businessHours[key]?.openTime}
-                      onChange={(e) => handleHoursChange(key, 'openTime', e.target.value)}
-                      disabled={!businessHours[key]?.isOpen || isLoading || companyData?.isActive === false}
-                      className="w-32"
-                    />
+                    <Input type="time" value={businessHours[key]?.openTime} onChange={(e) => handleHoursChange(key, 'openTime', e.target.value)} disabled={!businessHours[key]?.isOpen || isLoading} className="w-32" />
                     <span>às</span>
-                    <Input
-                      type="time"
-                      value={businessHours[key]?.closeTime}
-                      onChange={(e) => handleHoursChange(key, 'closeTime', e.target.value)}
-                      disabled={!businessHours[key]?.isOpen || isLoading || companyData?.isActive === false}
-                      className="w-32"
-                    />
+                    <Input type="time" value={businessHours[key]?.closeTime} onChange={(e) => handleHoursChange(key, 'closeTime', e.target.value)} disabled={!businessHours[key]?.isOpen || isLoading} className="w-32" />
                   </div>
                 </div>
               ))}
             </CardContent>
             <CardFooter>
-              <Button onClick={handleSaveHours} disabled={isLoading || companyData?.isActive === false}>
-                {isLoading ? 'Carregando...' : 'Salvar Horários'}
-              </Button>
+              <Button onClick={handleSaveHours} disabled={isLoading}>Salvar Horários</Button>
             </CardFooter>
           </Card>
         </TabsContent>
-
 
         <TabsContent value="delivery">
           <Dialog open={isZoneDialogOpen} onOpenChange={setIsZoneDialogOpen}>
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Entregas e Frete</CardTitle>
-                    <CardDescription>
-                      Configure suas taxas e áreas de entrega.
-                    </CardDescription>
-                  </div>
+                  <CardTitle>Áreas de Entrega</CardTitle>
                   <DialogTrigger asChild>
-                    <Button size="sm" className="gap-1" disabled={isLoading || companyData?.isActive === false}>
-                      <PlusCircle className="h-4 w-4" />
-                      Adicionar Bairro
-                    </Button>
+                    <Button size="sm" className="gap-1"><PlusCircle className="h-4 w-4" /> Adicionar Bairro</Button>
                   </DialogTrigger>
                 </div>
               </CardHeader>
@@ -719,240 +613,125 @@ export default function SettingsPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Bairro</TableHead>
-                      <TableHead>
-                        <DollarSign className="inline-block h-4 w-4 mr-1" />
-                        Taxa
-                      </TableHead>
-                      <TableHead>
-                        <Clock className="inline-block h-4 w-4 mr-1" />
-                        Tempo
-                      </TableHead>
+                      <TableHead>Taxa</TableHead>
+                      <TableHead>Tempo</TableHead>
                       <TableHead>Ativo</TableHead>
-                      <TableHead>
-                        <span className="sr-only">Ações</span>
-                      </TableHead>
+                      <TableHead></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {isLoading && <TableRow><TableCell colSpan={5} className="text-center">Carregando...</TableCell></TableRow>}
                     {!isLoading && deliveryZones?.map((zone) => (
                       <TableRow key={zone.id}>
-                        <TableCell className="font-medium">
-                          {zone.neighborhood}
-                        </TableCell>
+                        <TableCell className="font-medium">{zone.neighborhood}</TableCell>
                         <TableCell>R${zone.deliveryFee.toFixed(2)}</TableCell>
                         <TableCell>{zone.deliveryTime} min</TableCell>
-                        <TableCell>
-                          <Switch 
-                            checked={zone.isActive}
-                            onCheckedChange={(checked) => handleZoneIsActiveChange(zone, checked)}
-                            disabled={isLoading || companyData?.isActive === false}
-                          />
-                        </TableCell>
+                        <TableCell><Switch checked={zone.isActive} onCheckedChange={(checked) => handleZoneIsActiveChange(zone, checked)} /></TableCell>
                         <TableCell className="text-right">
-                          <Button variant="ghost" size="icon" onClick={() => handleDeleteZone(zone.id)} disabled={isLoading || companyData?.isActive === false}>
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => handleDeleteZone(zone.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                         </TableCell>
                       </TableRow>
                     ))}
-                     {!isLoading && deliveryZones?.length === 0 && <TableRow><TableCell colSpan={5} className="text-center">Nenhum bairro adicionado.</TableCell></TableRow>}
                   </TableBody>
                 </Table>
               </CardContent>
             </Card>
-
-            <DialogContent className="sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle>Adicionar Bairro</DialogTitle>
-                <DialogDescription>
-                  Preencha os dados da nova área de entrega.
-                </DialogDescription>
-              </DialogHeader>
+            <DialogContent>
+              <DialogHeader><DialogTitle>Adicionar Bairro</DialogTitle></DialogHeader>
               <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="neighborhood" className="text-right">
-                    Bairro
-                  </Label>
-                  <Input
-                    id="neighborhood"
-                    value={newNeighborhood}
-                    onChange={(e) => setNewNeighborhood(e.target.value)}
-                    className="col-span-3"
-                    placeholder="Ex: Centro"
-                  />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="fee" className="text-right">
-                    Taxa (R$)
-                  </Label>
-                  <Input
-                    id="fee"
-                    type="number"
-                    value={newFee}
-                    onChange={(e) => setNewFee(e.target.value)}
-                    className="col-span-3"
-                    placeholder="5.00"
-                  />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="time" className="text-right">
-                    Tempo (min)
-                  </Label>
-                  <Input
-                    id="time"
-                    type="number"
-                    value={newTime}
-                    onChange={(e) => setNewTime(e.target.value)}
-                    className="col-span-3"
-                    placeholder="30"
-                  />
-                </div>
+                <Input placeholder="Bairro" value={newNeighborhood} onChange={(e) => setNewNeighborhood(e.target.value)} />
+                <Input placeholder="Taxa (R$)" type="number" value={newFee} onChange={(e) => setNewFee(e.target.value)} />
+                <Input placeholder="Tempo (min)" type="number" value={newTime} onChange={(e) => setNewTime(e.target.value)} />
               </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsZoneDialogOpen(false)}>Cancelar</Button>
-                <Button onClick={handleAddZone}>Salvar</Button>
-              </DialogFooter>
+              <DialogFooter><Button onClick={handleAddZone}>Salvar</Button></DialogFooter>
             </DialogContent>
           </Dialog>
-        </TabsContent>
-
-        <TabsContent value="notifications">
-          <Card>
-            <CardHeader>
-              <CardTitle>Mensagens do WhatsApp</CardTitle>
-              <CardDescription>
-                Personalize as mensagens automáticas enviadas aos clientes. Use {'{cliente}'} e {'{pedido_id}'} como variáveis.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="msg-received">Pedido Recebido / Em Preparo</Label>
-                <Textarea
-                  id="msg-received"
-                  value={whatsappTemplates.received}
-                  onChange={(e) => setWhatsappTemplates(p => ({...p, received: e.target.value}))}
-                  disabled={isLoading || companyData?.isActive === false}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="msg-delivery">Saiu para Entrega</Label>
-                <Textarea
-                  id="msg-delivery"
-                  value={whatsappTemplates.delivery}
-                  onChange={(e) => setWhatsappTemplates(p => ({...p, delivery: e.target.value}))}
-                  disabled={isLoading || companyData?.isActive === false}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="msg-ready">Pronto para Retirada</Label>
-                <Textarea
-                  id="msg-ready"
-                  value={whatsappTemplates.ready}
-                  onChange={(e) => setWhatsappTemplates(p => ({...p, ready: e.target.value}))}
-                  disabled={isLoading || companyData?.isActive === false}
-                />
-              </div>
-            </CardContent>
-            <CardFooter>
-              <Button onClick={handleSaveMessages} disabled={isLoading || companyData?.isActive === false}>Salvar Mensagens</Button>
-            </CardFooter>
-          </Card>
         </TabsContent>
 
         <TabsContent value="payments">
           <Card>
             <CardHeader>
               <CardTitle>Métodos de Pagamento</CardTitle>
-              <CardDescription>
-                Ative os métodos de pagamento que sua loja aceita.
-              </CardDescription>
+              <CardDescription>Escolha quais formas de pagamento sua loja aceita.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="rounded-lg border p-4 space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="payment-cash" className="flex-grow">
-                    Dinheiro
-                  </Label>
-                  <Switch 
-                    id="payment-cash" 
-                    checked={paymentMethods.cash} 
-                    onCheckedChange={(c) => handlePaymentMethodChange('cash', c)}
-                    disabled={isLoading || companyData?.isActive === false}
-                  />
+              <div className="flex items-center justify-between rounded-lg border p-4">
+                <Label htmlFor="pay-cash">Dinheiro</Label>
+                <Switch id="pay-cash" checked={paymentMethods.cash} onCheckedChange={(checked) => handlePaymentMethodChange('cash', checked)} />
+              </div>
+              {paymentMethods.cash && (
+                <div className="flex items-center space-x-2 pl-4">
+                  <Checkbox id="ask-change" checked={paymentMethods.cashAskForChange} onCheckedChange={handleCashAskForChange} />
+                  <Label htmlFor="ask-change" className="text-sm font-normal">Perguntar se precisa de troco ao cliente</Label>
                 </div>
-                {paymentMethods.cash && (
-                  <div className="flex items-center space-x-2 pl-2 pt-2 border-t mt-2">
-                    <Checkbox 
-                      id="ask-for-change" 
-                      checked={paymentMethods.cashAskForChange}
-                      onCheckedChange={(c) => handleCashAskForChange(c as boolean)}
-                      disabled={isLoading || companyData?.isActive === false}
-                    />
-                    <Label htmlFor="ask-for-change" className="text-sm font-normal">
-                      Perguntar se o cliente precisa de troco
-                    </Label>
-                  </div>
-                )}
+              )}
+              <div className="flex items-center justify-between rounded-lg border p-4">
+                <Label htmlFor="pay-pix">PIX</Label>
+                <Switch id="pay-pix" checked={paymentMethods.pix} onCheckedChange={(checked) => handlePaymentMethodChange('pix', checked)} />
               </div>
               <div className="flex items-center justify-between rounded-lg border p-4">
-                <Label htmlFor="payment-pix" className="flex-grow">
-                  PIX
-                </Label>
-                <Switch 
-                  id="payment-pix" 
-                  checked={paymentMethods.pix} 
-                  onCheckedChange={(c) => handlePaymentMethodChange('pix', c)}
-                  disabled={isLoading || companyData?.isActive === false}
-                />
+                <Label htmlFor="pay-credit">Cartão de Crédito</Label>
+                <Switch id="pay-credit" checked={paymentMethods.credit} onCheckedChange={(checked) => handlePaymentMethodChange('credit', checked)} />
               </div>
               <div className="flex items-center justify-between rounded-lg border p-4">
-                <Label htmlFor="payment-credit" className="flex-grow">
-                  Cartão de Crédito
-                </Label>
-                <Switch 
-                  id="payment-credit" 
-                  checked={paymentMethods.credit} 
-                  onCheckedChange={(c) => handlePaymentMethodChange('credit', c)}
-                  disabled={isLoading || companyData?.isActive === false}
-                />
-              </div>
-              <div className="flex items-center justify-between rounded-lg border p-4">
-                <Label htmlFor="payment-debit" className="flex-grow">
-                  Cartão de Débito
-                </Label>
-                <Switch 
-                  id="payment-debit"
-                  checked={paymentMethods.debit} 
-                  onCheckedChange={(c) => handlePaymentMethodChange('debit', c)}
-                  disabled={isLoading || companyData?.isActive === false}
-                />
+                <Label htmlFor="pay-debit">Cartão de Débito</Label>
+                <Switch id="pay-debit" checked={paymentMethods.debit} onCheckedChange={(checked) => handlePaymentMethodChange('debit', checked)} />
               </div>
             </CardContent>
-             <CardFooter>
-              <Button onClick={handleSavePayments} disabled={isLoading || companyData?.isActive === false}>
-                 {isLoading ? 'Carregando...' : 'Salvar Pagamentos'}
-              </Button>
+            <CardFooter>
+              <Button onClick={handleSavePayments} disabled={isLoading}>Salvar Configurações de Pagamento</Button>
             </CardFooter>
           </Card>
         </TabsContent>
-         <TabsContent value="subscription">
+
+        <TabsContent value="notifications">
+          <Card>
+            <CardHeader>
+              <CardTitle>Modelos de Mensagens (WhatsApp)</CardTitle>
+              <CardDescription>Customize as mensagens automáticas enviadas aos clientes. Use <code className="bg-muted px-1">{`{cliente}`}</code> e <code className="bg-muted px-1">{`{pedido_id}`}</code> para dados dinâmicos.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="msg-received">Pedido em Preparo</Label>
+                <Textarea id="msg-received" value={whatsappTemplates.received} onChange={(e) => setWhatsappTemplates({...whatsappTemplates, received: e.target.value})} disabled={isLoading} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="msg-delivery">Saiu para Entrega</Label>
+                <Textarea id="msg-delivery" value={whatsappTemplates.delivery} onChange={(e) => setWhatsappTemplates({...whatsappTemplates, delivery: e.target.value})} disabled={isLoading} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="msg-ready">Pronto para Retirada</Label>
+                <Textarea id="msg-ready" value={whatsappTemplates.ready} onChange={(e) => setWhatsappTemplates({...whatsappTemplates, ready: e.target.value})} disabled={isLoading} />
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Button onClick={handleSaveMessages} disabled={isLoading}>Salvar Modelos</Button>
+            </CardFooter>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="subscription">
             <Card>
                 <CardHeader>
                     <CardTitle>Plano e Assinatura</CardTitle>
-                    <CardDescription>Visualize os detalhes do seu plano atual.</CardDescription>
+                    <CardDescription>Detalhes do seu plano atual.</CardDescription>
                 </CardHeader>
-                <CardContent>
-                    {isLoadingPlan && <p>Carregando seu plano...</p>}
-                    {!isLoadingPlan && planData && (
-                        <div className="space-y-4">
-                             <p>Plano Atual: <span className="font-bold text-primary">{planData.name}</span></p>
-                             <p>Sua assinatura é válida até: <span className="font-bold">{companyData?.subscriptionEndDate ? format(companyData.subscriptionEndDate.toDate(), 'dd/MM/yyyy') : 'N/A'}</span></p>
+                <CardContent className="space-y-4">
+                    <div className="bg-muted p-4 rounded-lg">
+                        <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Status Atual</p>
+                        <p className="text-xl font-bold mt-1">
+                            {companyData?.planId === 'trial' ? 'Período de Teste Gratuito' : planData?.name || 'Sem plano'}
+                        </p>
+                        <p className="text-sm mt-2">
+                            Válido até: <span className="font-bold">{trialEndDate ? format(trialEndDate, 'dd/MM/yyyy') : 'N/A'}</span>
+                        </p>
+                    </div>
+                    {companyData?.planId === 'trial' && (
+                        <div className="border border-primary/20 p-4 rounded-lg bg-primary/5">
+                            <p className="font-medium text-primary">Gostando da plataforma?</p>
+                            <p className="text-sm text-muted-foreground mt-1">Seu teste expira em breve. Garanta que sua loja continue online assinando um plano.</p>
+                            <Button className="mt-4" onClick={() => router.push('/dashboard/settings?tab=subscription')}>Ver Planos Disponíveis</Button>
                         </div>
                     )}
-                     {!isLoadingPlan && !planData && (
-                        <p>Você não está inscrito em nenhum plano no momento.</p>
-                     )}
                 </CardContent>
             </Card>
         </TabsContent>

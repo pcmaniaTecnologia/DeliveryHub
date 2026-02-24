@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -20,20 +19,25 @@ import { useToast } from '@/hooks/use-toast';
 import { doc } from 'firebase/firestore';
 import { FirebaseError } from 'firebase/app';
 import type { User, UserCredential } from 'firebase/auth';
+import { addDays } from 'date-fns';
 
 
 async function createInitialDocuments(firestore: any, user: User, firstName: string, lastName: string) {
     if (!user || !firestore || !firstName || !lastName) return;
     
     const companyRef = doc(firestore, 'companies', user.uid);
+    const trialEndDate = addDays(new Date(), 5);
+
     const companyData = {
         id: user.uid,
         ownerId: user.uid,
-        name: `${firstName}'s Store`,
+        name: `Loja de ${firstName}`,
         email: user.email,
-        isActive: false, // New companies start as inactive until they subscribe.
-        planId: null,
-        subscriptionEndDate: null,
+        isActive: true, 
+        planId: 'trial', 
+        subscriptionEndDate: trialEndDate,
+        soundNotificationEnabled: true,
+        autoPrintEnabled: false,
     };
 
     const companyUserRef = doc(firestore, 'companies', user.uid, 'users', user.uid);
@@ -43,10 +47,9 @@ async function createInitialDocuments(firestore: any, user: User, firstName: str
         firstName,
         lastName,
         email: user.email,
-        role: 'admin', // The user is an admin of their own company
+        role: 'admin',
     };
     
-    // The setDocument function from @/firebase will handle emitting contextual errors
     await Promise.all([
         setDocument(companyRef, companyData, { merge: true }),
         setDocument(companyUserRef, companyUserData, { merge: true }),
@@ -132,15 +135,13 @@ export default function SignupPage() {
       return;
     }
 
-    // If auth succeeds, proceed to create documents.
-    // Errors here will now be thrown and caught by the global error handler.
     if (firestore && userCredential.user) {
         await createInitialDocuments(firestore, userCredential.user, firstName, lastName);
     } else {
         toast({
             variant: 'destructive',
             title: 'Erro de sistema',
-            description: 'Não foi possível inicializar o banco de dados para criar os documentos iniciais.',
+            description: 'Não foi possível inicializar o banco de dados.',
         });
         setIsLoading(false);
         return;
@@ -148,9 +149,8 @@ export default function SignupPage() {
        
     toast({
       title: 'Conta criada com sucesso!',
-      description: 'Bem-vindo ao DeliveryHub! Sua loja foi criada e está pronta para ser configurada.',
+      description: 'Bem-vindo! Você ganhou 5 dias de teste gratuito para configurar sua loja.',
     });
-    // Let the useEffect handle redirect, setIsLoading(false) is not strictly needed
   };
 
 
@@ -170,7 +170,7 @@ export default function SignupPage() {
             <Package2 className="h-10 w-10 text-primary" />
           </div>
           <CardTitle className="text-2xl font-bold">Criar uma conta</CardTitle>
-          <CardDescription>Insira seus dados para se cadastrar.</CardDescription>
+          <CardDescription>Ganhe 5 dias de acesso total gratuito.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSignUp}>
@@ -178,11 +178,11 @@ export default function SignupPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="first-name">Nome</Label>
-                  <Input id="first-name" placeholder="Wellington" required value={firstName} onChange={(e) => setFirstName(e.target.value)} disabled={isLoading} />
+                  <Input id="first-name" placeholder="Nome" required value={firstName} onChange={(e) => setFirstName(e.target.value)} disabled={isLoading} />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="last-name">Sobrenome</Label>
-                  <Input id="last-name" placeholder="Henrique" required value={lastName} onChange={(e) => setLastName(e.target.value)} disabled={isLoading} />
+                  <Input id="last-name" placeholder="Sobrenome" required value={lastName} onChange={(e) => setLastName(e.target.value)} disabled={isLoading} />
                 </div>
               </div>
               <div className="grid gap-2">
@@ -190,7 +190,7 @@ export default function SignupPage() {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="suporte@pcmania.net"
+                  placeholder="seu@email.com"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -206,7 +206,7 @@ export default function SignupPage() {
                 <Input id="confirm-password" type="password" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} disabled={isLoading} />
               </div>
               <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? 'Criando conta...' : 'Criar conta'}
+                {isLoading ? 'Criando conta...' : 'Começar Teste Grátis'}
               </Button>
             </div>
           </form>
