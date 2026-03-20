@@ -7,7 +7,6 @@ import Image from 'next/image';
 import { useCollection, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { PlaceHolderImages, type ImagePlaceholder } from '@/lib/placeholder-images';
 import { Button } from '@/components/ui/button';
 import { Clock, Plus, Pizza, Ham, GlassWater, Cake, Sandwich, LeafyGreen, IceCream, UtensilsCrossed, type LucideIcon } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -58,6 +57,7 @@ export type Product = {
     category?: string; // This might be present from older logic
     isActive: boolean;
     imageUrl?: string;
+    imageUrls?: string[];
     variants?: VariantGroup[];
 };
 
@@ -231,29 +231,14 @@ const OptionsDialog = ({ product, open, onOpenChange, onAddToCart }: { product: 
 };
 
 
+// Modern Horizontal Product Card Premium Layout
 const ProductCard = ({ product, index }: { product: Product, index: number }) => {
     const { addToCart } = useCart();
     const [isOptionsDialogOpen, setIsOptionsDialogOpen] = useState(false);
     
-   const imagePlaceholder: ImagePlaceholder = useMemo(() => {
-    if (product.imageUrl) {
-      return {
-        id: product.id,
-        imageUrl: product.imageUrl,
-        imageHint: 'product image',
-        description: product.name,
-      };
-    }
-    const defaultPlaceholder: ImagePlaceholder = {
-      id: 'default',
-      imageUrl: `https://picsum.photos/seed/${product.id}/400/300`,
-      imageHint: 'food placeholder',
-      description: 'Default product image',
-    };
-    const placeholders = PlaceHolderImages.filter(p => p.id.startsWith('product-'));
-    if (placeholders.length === 0) return defaultPlaceholder;
-    return placeholders[index % placeholders.length] ?? defaultPlaceholder;
-  }, [product, index]);
+   const imageUrl = useMemo(() => {
+    return product.imageUrl || (product.imageUrls && product.imageUrls.length > 0 ? product.imageUrls[0] : null);
+  }, [product]);
 
     const handleAddToCart = () => {
         if (product.variants && product.variants.length > 0) {
@@ -265,32 +250,40 @@ const ProductCard = ({ product, index }: { product: Product, index: number }) =>
 
     return (
         <>
-            <div
-                className="group relative flex cursor-pointer flex-col overflow-hidden rounded-xl border bg-card shadow-sm transition-all duration-300 hover:border-primary hover:shadow-lg"
+             <div
+                className="group relative flex cursor-pointer overflow-hidden rounded-2xl border bg-card p-4 shadow-sm transition-all duration-300 hover:border-primary/40 hover:shadow-md"
                 onClick={handleAddToCart}
             >
-                <div className="relative h-48 w-full overflow-hidden">
-                    <Image
-                        src={imagePlaceholder.imageUrl}
-                        alt={product.name}
-                        fill
-                        style={{ objectFit: "cover" }}
-                        className="transition-transform duration-500 group-hover:scale-105"
-                        data-ai-hint={imagePlaceholder.imageHint}
-                        unoptimized
-                    />
-                </div>
-                <div className="flex flex-1 flex-col p-4">
-                    <h3 className="text-lg font-semibold text-foreground">{product.name}</h3>
-                    <p className="mt-1 flex-grow text-sm text-muted-foreground">{product.description}</p>
-                    <div className="mt-4 flex items-end justify-between">
-                        <span className="text-xl font-bold text-primary">R${product.price.toFixed(2)}</span>
-                         <Button size="icon" className="h-9 w-9 rounded-full">
-                            <Plus className="h-5 w-5" />
-                            <span className="sr-only">Adicionar</span>
-                        </Button>
+                <div className="flex flex-1 flex-col justify-between pr-4">
+                    <div>
+                        <h3 className="text-base font-bold leading-tight text-foreground">{product.name}</h3>
+                        <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{product.description}</p>
                     </div>
+                    <div className="mt-4 font-semibold text-primary">R$ {product.price.toFixed(2)}</div>
                 </div>
+                
+                {imageUrl ? (
+                    <div className="relative h-28 w-28 shrink-0 overflow-hidden rounded-xl bg-muted/20">
+                        <Image
+                            src={imageUrl}
+                            alt={product.name}
+                            fill
+                            style={{ objectFit: "cover" }}
+                            className="transition-transform duration-500 group-hover:scale-110"
+                            unoptimized
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+                        <div className="absolute bottom-1 right-1 flex h-8 w-8 translate-x-4 translate-y-4 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md transition-transform duration-300 group-hover:translate-x-0 group-hover:translate-y-0">
+                            <Plus className="h-5 w-5" />
+                        </div>
+                    </div>
+                ) : (
+                    <div className="flex shrink-0 flex-col justify-end">
+                       <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+                           <Plus className="h-5 w-5" />
+                       </div>
+                    </div>
+                )}
             </div>
             {product.variants && product.variants.length > 0 && (
                 <OptionsDialog 
@@ -373,21 +366,30 @@ export default function MenuPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       {isLoading ? (
-        <header className="mb-12 text-center space-y-4">
-             <Skeleton className="h-12 w-1/2 mx-auto" />
-             <Skeleton className="h-6 w-3/4 mx-auto" />
+        <header className="mb-10 text-center space-y-4 pt-4">
+             <Skeleton className="h-24 w-24 rounded-full mx-auto" />
+             <Skeleton className="h-10 w-1/2 mx-auto" />
+             <Skeleton className="h-5 w-1/3 mx-auto" />
         </header>
       ) : company ? (
-        <header className="mb-12 text-center">
+        <header className="mb-8 pt-6 text-center relative">
+            <div className="absolute inset-0 -top-8 -z-10 h-64 w-full bg-gradient-to-b from-primary/10 to-background opacity-60 pointer-events-none" />
+            
             {company.logoUrl && (
-                <Image src={company.logoUrl} alt={`${company.name} logo`} width={96} height={96} className="mx-auto mb-4 rounded-full border-2 border-primary p-1" />
+                <div className="mx-auto mb-5 h-24 w-24 overflow-hidden rounded-full border-4 border-background shadow-lg">
+                    <Image src={company.logoUrl} alt={`${company.name} logo`} width={96} height={96} className="h-full w-full object-cover" />
+                </div>
             )}
-          <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">{company.name}</h1>
-          <p className="mt-3 text-lg text-muted-foreground">{company.address}</p>
+          <h1 className="text-4xl font-extrabold tracking-tight text-foreground sm:text-5xl bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70 pb-1">{company.name}</h1>
+          <p className="mt-2 text-base font-medium text-muted-foreground">{company.address}</p>
+          
           {company.averagePrepTime && (
-            <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-muted px-4 py-1 text-sm">
-                <Clock className="h-4 w-4 text-primary"/>
-                <span>Preparo: ~{company.averagePrepTime} min</span>
+            <div className="mt-5 inline-flex flex-col items-center gap-1 rounded-2xl bg-card px-5 py-2.5 shadow-sm border">
+                <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+                    <Clock className="h-4 w-4"/>
+                    <span>Tempo de Preparo</span>
+                </div>
+                <span className="text-xs font-medium text-muted-foreground">~{company.averagePrepTime} minutos</span>
             </div>
           )}
         </header>
@@ -398,17 +400,37 @@ export default function MenuPage() {
         </header>
       )}
 
-      <div className="space-y-12">
+      <div className="space-y-12 pb-24">
+        {/* Sticky Category Navbar */}
+        {!isLoading && Object.keys(productsByCategory).length > 0 && (
+            <div className="sticky top-0 z-20 -mx-4 mb-8 overflow-x-auto bg-background/80 px-4 py-3 backdrop-blur-xl border-b shadow-sm sm:mx-0 sm:rounded-b-2xl sm:px-6">
+                <div className="flex gap-2 pb-1">
+                    {Object.keys(productsByCategory).map(cat => (
+                        <a 
+                            key={cat} 
+                            href={`#cat-${cat.replace(/\s+/g, '-')}`} 
+                            className="whitespace-nowrap rounded-full bg-muted/60 px-5 py-2 text-sm font-semibold text-muted-foreground transition-all hover:bg-primary hover:text-primary-foreground hover:shadow-md active:scale-95"
+                        >
+                           {cat}
+                        </a>
+                    ))}
+                </div>
+            </div>
+        )}
+
         {isLoading ? (
             Object.keys(Array.from({length: 3})).map((key) => (
-                <div key={key} className="space-y-8">
+                <div key={key} className="space-y-6">
                     <Skeleton className="h-8 w-1/4" />
-                    <div className="grid grid-cols-1 gap-x-6 gap-y-10 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
                        {Array.from({length: 4}).map((_, i) => (
-                           <Card key={i}>
-                               <Skeleton className="h-48 w-full" />
-                               <CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader>
-                               <CardFooter><Skeleton className="h-10 w-24" /></CardFooter>
+                           <Card key={i} className="flex p-4 gap-4 h-36">
+                               <div className="flex-1 space-y-3">
+                                   <Skeleton className="h-5 w-3/4" />
+                                   <Skeleton className="h-4 w-full" />
+                                   <Skeleton className="h-4 w-1/4 mt-4" />
+                               </div>
+                               <Skeleton className="h-28 w-28 rounded-xl shrink-0" />
                            </Card>
                        ))}
                     </div>
@@ -418,12 +440,14 @@ export default function MenuPage() {
           Object.entries(productsByCategory).map(([category, productList], idx) => {
             const Icon = getCategoryIcon(category);
             return (
-                <section key={category}>
-                    <div className="flex items-center gap-3 mb-8">
-                        <Icon className="h-8 w-8 text-primary" />
-                        <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">{category}</h2>
+                <section key={category} id={`cat-${category.replace(/\s+/g, '-')}`} className="scroll-mt-24">
+                    <div className="flex items-center gap-3 mb-6 px-1">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                            <Icon className="h-6 w-6" />
+                        </div>
+                        <h2 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">{category}</h2>
                     </div>
-                    <div className="grid grid-cols-1 gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
                         {productList.map((product, pIdx) => (
                         <ProductCard key={product.id} product={product} index={idx * 10 + pIdx} />
                         ))}

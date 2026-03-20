@@ -41,8 +41,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Separator } from '@/components/ui/separator';
-import { useRouter } from 'next/navigation';
-import { format, isAfter } from 'date-fns';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { format, addDays, isAfter } from 'date-fns';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 
@@ -114,7 +114,85 @@ const SubscriptionView = ({ isExpired, trialEndDate }: { isExpired?: boolean, tr
     const { data: platformSettings, isLoading: isLoadingSettings } = useDoc<PlatformSettings>(platformSettingsRef);
 
     const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
+    const { user } = useUser();
+    const searchParams = useSearchParams();
+    const router = useRouter();
+    const paymentId = searchParams.get('payment_id');
+    const [isVerifying, setIsVerifying] = useState(!!paymentId);
+    const [isCheckingOut, setIsCheckingOut] = useState(false);
 
+    useEffect(() => {
+        if (paymentId && user && isVerifying && firestore) {
+            const verifyPayment = async () => {
+                toast({
+                    title: "Verificando pagamento...",
+                    description: "Aguarde enquanto confirmamos com o Mercado Pago.",
+                });
+                try {
+                    const res = await fetch('/api/payments/verify', {
+                        method: 'POST',
+                        body: JSON.stringify({ payment_id: paymentId, companyId: user.uid })
+                    });
+                    const data = await res.json();
+                    
+                    if (data.approved) {
+                        const companyRef = doc(firestore, 'companies', user.uid);
+                        await updateDocument(companyRef, {
+                            isActive: true,
+                            subscriptionEndDate: addDays(new Date(), 30),
+                        });
+                        toast({
+                            title: "🎉 Assinatura Aprovada!",
+                            description: "Sua loja foi ativada com sucesso por mais 30 dias.",
+                            duration: 8000
+                        });
+                        router.replace('/dashboard/settings');
+                    } else if (data.status === 'pending') {
+                         toast({
+                            variant: 'default',
+                            title: "Pagamento Pendente",
+                            description: "Seu pagamento via PIX ou Boleto ainda está pendente de aprovação.",
+                        });
+                        router.replace('/dashboard/settings');
+                    } else {
+                        toast({
+                            variant: 'destructive',
+                            title: "Pagamento não aprovado",
+                            description: `Status do Mercado Pago: ${data.status || 'Desconhecido'}`
+                        });
+                        router.replace('/dashboard/settings');
+                    }
+                } catch (e) {
+                    toast({ variant: 'destructive', title: 'Erro de sistema', description: 'Ocorreu um erro ao verificar sua transação.' });
+                }
+                setIsVerifying(false);
+            };
+            verifyPayment();
+        }
+    }, [paymentId, user, isVerifying, firestore, router, toast]);
+
+    const handleCheckout = async () => {
+        if (!selectedPlan || !user) return;
+        setIsCheckingOut(true);
+        try {
+            const res = await fetch('/api/payments/checkout', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ planId: selectedPlan.id, companyId: user.uid })
+            });
+            const data = await res.json();
+            if (data.init_point) {
+                window.location.href = data.init_point;
+            } else {
+                toast({ variant: 'destructive', title: 'Erro ao gerar pagamento', description: data.error || 'Verifique as configurações do Mercado Pago no Admin.' });
+                setIsCheckingOut(false);
+            }
+        } catch (e) {
+            toast({ variant: 'destructive', title: 'Erro de conexão' });
+            setIsCheckingOut(false);
+        }
+    };
+    
     const handleSelectPlan = (plan: Plan) => {
         setSelectedPlan(plan);
     };
@@ -189,7 +267,7 @@ const SubscriptionView = ({ isExpired, trialEndDate }: { isExpired?: boolean, tr
             </div>
             <Card className="max-w-lg mx-auto shadow-xl">
                 <CardHeader>
-                    <CardTitle>Pagamento via PIX</CardTitle>
+                    <CardTitle>Pagamento Automático</CardTitle>
                     <CardDescription>Plano selecionado: <span className="font-bold text-primary">{selectedPlan.name}</span></CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -197,23 +275,19 @@ const SubscriptionView = ({ isExpired, trialEndDate }: { isExpired?: boolean, tr
                         <span className="text-lg font-medium">Valor da Assinatura:</span>
                         <span className="text-3xl font-bold text-primary">R${selectedPlan.price.toFixed(2)}</span>
                     </div>
-                    <div className="space-y-2">
-                        <Label>Copie a Chave PIX abaixo:</Label>
-                        <div className="flex items-center gap-2">
-                            <Input value={platformSettings?.pixKey || 'Chave não configurada'} readOnly className="font-mono" />
-                            <Button variant="outline" size="icon" onClick={handleCopyPixKey}><Copy className="h-4 w-4" /></Button>
-                        </div>
-                    </div>
-                     <Alert className="bg-yellow-50 border-yellow-200">
-                        <Send className="h-4 w-4 text-yellow-600" />
-                        <AlertTitle className="text-yellow-800 font-bold">Aviso de Ativação</AlertTitle>
-                        <AlertDescription className="text-yellow-700">
-                            Após o pagamento, sua conta será ativada manualmente pela nossa equipe em até 24 horas. Envie o comprovante para nosso suporte se desejar agilizar!
+                     <Alert className="bg-primary/5 border-primary/20">
+                        <Send className="h-4 w-4 text-primary" />
+                        <AlertTitle className="text-primary font-bold">Processamento Automático</AlertTitle>
+                        <AlertDescription className="text-muted-foreground">
+                            Você será redirecionado para o Checkout seguro do <strong>Mercado Pago</strong>. Retorne à esta página após o pagamento (PIX ou Cartão) e seu acesso será liberado instantaneamente na mesma hora.
                         </AlertDescription>
                     </Alert>
                 </CardContent>
                 <CardFooter className="flex flex-col gap-3">
-                    <Button variant="outline" className="w-full" onClick={() => setSelectedPlan(null)}>Escolher outro plano</Button>
+                    <Button className="w-full text-lg h-12 gap-2" size="lg" onClick={handleCheckout} disabled={isCheckingOut || isVerifying}>
+                        {isCheckingOut || isVerifying ? 'Processando...' : 'Pagar Agora'}
+                    </Button>
+                    <Button variant="ghost" className="w-full" onClick={() => setSelectedPlan(null)} disabled={isCheckingOut || isVerifying}>Cancelar e voltar</Button>
                 </CardFooter>
             </Card>
         </div>

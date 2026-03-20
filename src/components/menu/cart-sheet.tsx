@@ -164,6 +164,12 @@ export default function CartSheet({ companyId }: { companyId: string}) {
         return;
     }
 
+    const rawPhone = customerPhone.replace(/\D/g, '');
+    if (rawPhone.length < 10 || rawPhone.length > 11) {
+        toast({ variant: 'destructive', title: 'WhatsApp Inválido. Digite o DDD + número válido.' });
+        return;
+    }
+
     if (!selectedPayment) {
       toast({ variant: 'destructive', title: 'Selecione a forma de pagamento' });
       return;
@@ -210,12 +216,15 @@ export default function CartSheet({ companyId }: { companyId: string}) {
                 const variantsSummary = item.selectedVariants && item.selectedVariants.length > 0 
                     ? `\n  (${item.selectedVariants.map(v => `${v.itemName}${v.price > 0 ? ` +R$${v.price.toFixed(2)}` : ''}`).join(', ')})` 
                     : '';
-                return `- ${item.quantity}x ${item.product.name} (R$${item.finalPrice.toFixed(2)})${variantsSummary}`;
+                const notesSummary = item.notes?.trim() ? `\n  *Obs:* ${item.notes.trim()}` : '';
+                return `- ${item.quantity}x ${item.product.name} (R$${item.finalPrice.toFixed(2)})${variantsSummary}${notesSummary}`;
             }).join('\n');
 
             const message = `*Novo Pedido!* 🎉\n` +
                             `*ID:* ${docRef.id.substring(0, 6).toUpperCase()}\n` +
-                            `*Cliente:* ${customerName}\n\n` +
+                            `*Cliente:* ${customerName}\n` +
+                            `*WhatsApp:* ${customerPhone}\n\n` +
+                            `*Endereço:* ${fullAddress}\n\n` +
                             `--- *Itens* ---\n${itemsSummary}\n\n` +
                             `*Subtotal:* R$${totalPrice.toFixed(2)}\n` +
                             `${deliveryFee > 0 ? `*Entrega:* R$${deliveryFee.toFixed(2)}\n` : ''}` +
@@ -224,6 +233,31 @@ export default function CartSheet({ companyId }: { companyId: string}) {
 
             const whatsappUrl = `https://wa.me/55${companyData.phone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
             window.open(whatsappUrl, 'whatsapp_window');
+
+            // Disparar via API do DeliveryHub (Z-API) em background
+            await fetch("/api/whatsapp", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    id: docRef.id,
+                    nome: customerName,
+                    telefone: customerPhone,
+                    telefoneEmpresa: companyData.phone,
+                    itens: cartItems.map(item => ({
+                        nome: item.product.name,
+                        qtd: item.quantity,
+                        preco: item.finalPrice,
+                        adicionais: item.selectedVariants || []
+                    })),
+                    total: finalTotal,
+                    subtotal: totalPrice,
+                    entrega: deliveryFee,
+                    pagamento: orderData.paymentMethod,
+                    endereco: fullAddress
+                })
+            });
         }
 
         setIsOrderFinished(true);
@@ -248,6 +282,20 @@ export default function CartSheet({ companyId }: { companyId: string}) {
     return deliveryZones?.filter(zone => zone.isActive) ?? [];
   }, [deliveryZones]);
 
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value.replace(/\D/g, ''); // Remove tudo que não for número
+    if (value.length > 11) value = value.slice(0, 11); // Limita a 11 dígitos
+    
+    // Formata para (XX) XXXXX-XXXX
+    if (value.length > 2) {
+      value = `(${value.slice(0, 2)}) ${value.slice(2)}`;
+    }
+    if (value.length > 10) {
+      value = `${value.slice(0, 10)}-${value.slice(10)}`;
+    }
+    setCustomerPhone(value);
+  };
+
   return (
     <>
       <Sheet onOpenChange={(open) => !open && setIsCheckoutOpen(false)}>
@@ -269,7 +317,7 @@ export default function CartSheet({ companyId }: { companyId: string}) {
                             </div>
                             <div className="grid gap-2">
                                 <Label>WhatsApp <span className="text-destructive">*</span></Label>
-                                <Input placeholder="(00) 00000-0000" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} />
+                                <Input placeholder="(99) 99999-9999" value={customerPhone} onChange={handlePhoneChange} maxLength={15} />
                             </div>
                             <Separator />
                             <div className="flex gap-2">

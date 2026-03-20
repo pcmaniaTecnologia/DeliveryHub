@@ -54,7 +54,6 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { PlaceHolderImages, type ImagePlaceholder } from '@/lib/placeholder-images';
 import { useUser, useFirestore, useCollection, useMemoFirebase, addDocument, deleteDocument, updateDocument } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -264,27 +263,9 @@ export default function ProductsPage() {
 
   const isLoading = isUserLoading || isLoadingProducts || isLoadingCategories;
 
-  const getProductImage = (product: Product, index: number): ImagePlaceholder => {
-    const imageUrl = product.imageUrls && product.imageUrls.length > 0 ? product.imageUrls[0] : '';
-    if (imageUrl) {
-      return {
-        id: product.id,
-        imageUrl: imageUrl,
-        imageHint: 'product image',
-        description: product.name,
-      };
-    }
-    const defaultPlaceholder = {
-      id: 'default',
-      imageUrl: `https://picsum.photos/seed/${product.id}/64/64`,
-      imageHint: 'food placeholder',
-      description: 'Default product image',
-    };
-    const placeholders = PlaceHolderImages.filter(p => p.id.startsWith('product-'));
-    if (placeholders.length === 0) return defaultPlaceholder;
-    return placeholders[index % placeholders.length] ?? defaultPlaceholder;
-  };
-  
+  const getProductImage = (product: Product): string | null => {
+    return product.imageUrls && product.imageUrls.length > 0 ? product.imageUrls[0] : null;
+  };  
   const categoryMap = useMemo(() => {
     if (!categories) return new Map();
     return new Map(categories.map(cat => [cat.id, cat.name]));
@@ -538,20 +519,25 @@ export default function ProductsPage() {
                 <TableCell colSpan={7} className="text-center">Carregando produtos...</TableCell>
               </TableRow>
             )}
-            {!isLoading && products?.map((product, index) => {
-              const imagePlaceholder = getProductImage(product, index);
+            {!isLoading && products?.map((product) => {
+              const imageUrl = getProductImage(product);
               return (
                 <TableRow key={product.id}>
                   <TableCell className="hidden sm:table-cell">
-                    {imagePlaceholder && <Image
-                      alt={product.name}
-                      className="aspect-square rounded-md object-cover"
-                      height="64"
-                      src={imagePlaceholder.imageUrl}
-                      width="64"
-                      data-ai-hint={imagePlaceholder.imageHint}
-                      unoptimized // Use unoptimized for external URLs
-                    />}
+                    {imageUrl ? (
+                        <Image
+                            alt={product.name}
+                            className="aspect-square rounded-md object-cover"
+                            height="64"
+                            src={imageUrl}
+                            width="64"
+                            unoptimized
+                        />
+                    ) : (
+                        <div className="h-16 w-16 bg-muted/50 rounded-md flex items-center justify-center text-[10px] text-muted-foreground border">
+                            Sem Foto
+                        </div>
+                    )}
                   </TableCell>
                   <TableCell className="font-medium">{product.name}</TableCell>
                   <TableCell>

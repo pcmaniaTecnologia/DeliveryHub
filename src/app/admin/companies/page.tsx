@@ -2,7 +2,7 @@
 'use client';
 
 import { useState } from 'react';
-import { MoreHorizontal, Info, Trash2 } from 'lucide-react';
+import { MoreHorizontal, Info, Trash2, MessageCircle, Megaphone, Send } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -45,6 +45,9 @@ import {
 import { format, addDays } from 'date-fns';
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 
 type Company = {
@@ -61,6 +64,39 @@ export default function ManageCompaniesPage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
+  
+  const [isBulkOpen, setIsBulkOpen] = useState(false);
+  const [bulkMessage, setBulkMessage] = useState('');
+  const [bulkQueue, setBulkQueue] = useState<{ id: string, name: string, phone: string, sent: boolean }[]>([]);
+
+  const handleStartBulk = () => {
+      const queue = companies?.filter(c => c.phone && c.phone.replace(/\D/g, '').length >= 10).map(c => ({
+          id: c.id,
+          name: c.name,
+          phone: c.phone!.replace(/\D/g, ''),
+          sent: false
+      })) || [];
+      if (queue.length === 0) return toast({ variant: 'destructive', title: 'Erro', description: 'Nenhuma empresa com telefone válido foi encontrada.' });
+      setBulkQueue(queue);
+  };
+
+  const currentBulkTarget = bulkQueue.find(q => !q.sent);
+  const totalSent = bulkQueue.filter(q => q.sent).length;
+
+  const handleSendNextBulk = () => {
+      if (!currentBulkTarget) return;
+      const message = bulkMessage.replace('{empresa}', currentBulkTarget.name);
+      const url = `https://wa.me/55${currentBulkTarget.phone}?text=${encodeURIComponent(message)}`;
+      window.open(url, '_blank');
+      setBulkQueue(prev => prev.map(q => q.id === currentBulkTarget.id ? { ...q, sent: true } : q));
+  };
+  
+  const handleSendIndividual = (company: Company) => {
+      if (!company.phone) return toast({ variant: 'destructive', description: "Telefone não cadastrado." });
+      const phone = company.phone.replace(/\D/g, '');
+      const url = `https://wa.me/55${phone}`;
+      window.open(url, '_blank');
+  };
 
   const companiesRef = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -125,9 +161,15 @@ export default function ManageCompaniesPage() {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Gerenciar Empresas</CardTitle>
-        <CardDescription>Visualize os emails, ative, desative ou exclua as lojas da plataforma.</CardDescription>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+            <CardTitle>Gerenciar Empresas</CardTitle>
+            <CardDescription>Visualize os emails, ative, desative ou exclua as lojas da plataforma.</CardDescription>
+        </div>
+        <Button onClick={() => setIsBulkOpen(true)} className="gap-2 shadow-sm rounded-full">
+            <Megaphone className="h-4 w-4" />
+            Comunicado Geral
+        </Button>
       </CardHeader>
       <CardContent>
         <Alert className="mb-4">
@@ -169,6 +211,9 @@ export default function ManageCompaniesPage() {
                 </TableCell>
                 <TableCell className="text-center">
                     <div className="flex items-center justify-center gap-2">
+                        <Button variant="outline" size="icon" onClick={() => handleSendIndividual(company)} title="Enviar Mensagem" className="rounded-full text-green-600 hover:text-green-700 hover:bg-green-50 z-10">
+                            <MessageCircle className="h-4 w-4" />
+                        </Button>
                          <Switch
                             checked={!!company.isActive}
                             onCheckedChange={() => handleToggleActive(company.id, !!company.isActive)}
@@ -207,6 +252,71 @@ export default function ManageCompaniesPage() {
           </TableBody>
         </Table>
       </CardContent>
+
+      <Dialog open={isBulkOpen} onOpenChange={(open) => {
+          setIsBulkOpen(open);
+          if (!open) {
+              setBulkQueue([]);
+              setBulkMessage('');
+          }
+      }}>
+        <DialogContent className="sm:max-w-xl">
+            <DialogHeader>
+                <DialogTitle>Comunicado em Massa</DialogTitle>
+                <DialogDescription>
+                    Envie mensagens para o WhatsApp de todas as empresas cadastradas. Use <strong>{'{empresa}'}</strong> para inserir o nome da loja na mensagem.
+                </DialogDescription>
+            </DialogHeader>
+            {bulkQueue.length === 0 ? (
+                <div className="space-y-4 pt-4">
+                    <Textarea 
+                        placeholder="Olá, {empresa}! Temos novidades plataforma..." 
+                        rows={6}
+                        value={bulkMessage}
+                        onChange={(e) => setBulkMessage(e.target.value)}
+                    />
+                    <DialogFooter>
+                        <Button onClick={handleStartBulk} disabled={!bulkMessage.trim()} className="w-full gap-2">
+                            <Send className="h-4 w-4" />
+                            Preparar Disparos
+                        </Button>
+                    </DialogFooter>
+                </div>
+            ) : (
+                <div className="space-y-4 pt-4">
+                    <div className="bg-muted p-4 rounded-lg flex items-center justify-between">
+                        <div>
+                            <span className="text-sm font-semibold">Progresso dos Envios</span>
+                            <div className="text-2xl font-bold text-primary">{totalSent} / {bulkQueue.length}</div>
+                        </div>
+                        {currentBulkTarget ? (
+                            <Button size="lg" onClick={handleSendNextBulk} className="gap-2 animate-bounce">
+                                <MessageCircle className="h-5 w-5" />
+                                Enviar para {currentBulkTarget.name}
+                            </Button>
+                        ) : (
+                            <Badge variant="default" className="bg-green-600 px-4 py-2">
+                                Todos os Envios Concluídos!
+                            </Badge>
+                        )}
+                    </div>
+                    
+                    <ScrollArea className="h-64 rounded-md border p-4">
+                        {bulkQueue.map((q, i) => (
+                            <div key={q.id} className="flex items-center justify-between py-2 border-b last:border-0 opacity-60">
+                                <span className={`text-sm ${q.sent ? 'line-through text-muted-foreground' : 'font-medium'}`}>
+                                    {i + 1}. {q.name}
+                                </span>
+                                <Badge variant={q.sent ? "secondary" : "outline"} className={q.sent ? "bg-green-100 text-green-800" : ""}>
+                                    {q.sent ? 'Enviado' : 'Aguardando'}
+                                </Badge>
+                            </div>
+                        ))}
+                    </ScrollArea>
+                </div>
+            )}
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

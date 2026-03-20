@@ -67,10 +67,19 @@ export const NotificationProvider = ({ children, companyData }: NotificationProv
                         if (currentSettings?.autoPrintEnabled) {
                             setTimeout(() => {
                                 const printHtml = generateOrderPrintHtml(order, currentSettings);
-                                const printWindow = window.open('', '_blank', 'width=300,height=500');
-                                if (printWindow) {
-                                    printWindow.document.write(printHtml);
-                                    printWindow.document.close();
+                                const iframe = document.getElementById('auto-print-iframe') as HTMLIFrameElement;
+                                if (iframe && iframe.contentWindow) {
+                                    iframe.contentWindow.document.open();
+                                    iframe.contentWindow.document.write(printHtml);
+                                    iframe.contentWindow.document.close();
+                                    
+                                    // Aguarda a renderização do HTML no iframe e aciona o print silencioso
+                                    setTimeout(() => {
+                                        if (iframe.contentWindow) {
+                                            iframe.contentWindow.focus();
+                                            iframe.contentWindow.print();
+                                        }
+                                    }, 500);
                                 }
                                 
                                 const orderRef = doc(firestore, `companies/${user.uid}/orders`, order.id);
@@ -95,7 +104,12 @@ export const NotificationProvider = ({ children, companyData }: NotificationProv
 
     const value = { playTrigger };
 
-    return <NotificationContext.Provider value={value}>{children}</NotificationContext.Provider>;
+    return (
+        <NotificationContext.Provider value={value}>
+            {children}
+            <iframe id="auto-print-iframe" style={{ display: 'none' }} title="Impressão Automática" />
+        </NotificationContext.Provider>
+    );
 };
 
 export const useNotifications = (): NotificationContextType => {

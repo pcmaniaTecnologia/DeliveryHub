@@ -19,6 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 
 type PlatformSettings = {
     pixKey?: string;
+    mpAccessToken?: string;
 };
 
 export default function AdminSettingsPage() {
@@ -26,6 +27,7 @@ export default function AdminSettingsPage() {
   const { toast } = useToast();
   const { user, isUserLoading } = useUser();
   const [pixKey, setPixKey] = useState('');
+  const [mpAccessToken, setMpAccessToken] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
   const settingsRef = useMemoFirebase(() => {
@@ -39,6 +41,7 @@ export default function AdminSettingsPage() {
   useEffect(() => {
     if (settingsData) {
       setPixKey(settingsData.pixKey || '');
+      setMpAccessToken(settingsData.mpAccessToken || '');
     }
   }, [settingsData]);
 
@@ -46,7 +49,7 @@ export default function AdminSettingsPage() {
     if (!settingsRef) return;
 
     setIsSaving(true);
-    setDocument(settingsRef, { pixKey })
+    setDocument(settingsRef, { pixKey, mpAccessToken }, { merge: true })
       .then(() => {
         toast({
             title: 'Sucesso!',
@@ -80,6 +83,21 @@ export default function AdminSettingsPage() {
             />
             <p className="text-sm text-muted-foreground">
                 Esta chave será exibida para os novos lojistas realizarem o pagamento da assinatura.
+            </p>
+        </div>
+        
+        <div className="space-y-2 pt-4 border-t">
+            <Label htmlFor="mp-token">Access Token - Mercado Pago (PRODUÇÃO)</Label>
+            <Input 
+                id="mp-token" 
+                type="password"
+                value={mpAccessToken} 
+                onChange={(e) => setMpAccessToken(e.target.value)} 
+                placeholder="APP_USR-000000000-000000-0000000000"
+                disabled={isLoading || isSaving} 
+            />
+            <p className="text-sm text-muted-foreground">
+                Credencial oficial de produção do Mercado Pago para gerar links de Checkout Automático.
             </p>
         </div>
         </CardContent>

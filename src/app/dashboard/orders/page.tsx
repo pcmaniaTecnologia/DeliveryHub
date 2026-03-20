@@ -34,6 +34,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { generateOrderPrintHtml } from '@/lib/print-utils';
+import { Input } from '@/components/ui/input';
+import { Search } from 'lucide-react';
 
 
 type Company = {
@@ -88,6 +90,7 @@ export default function OrdersPage() {
     const firestore = useFirestore();
     const { toast } = useToast();
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
 
     const companyRef = useMemoFirebase(() => {
       if (!firestore || !user?.uid) return null;
@@ -105,41 +108,41 @@ export default function OrdersPage() {
 
     const handleUpdateStatus = (order: Order, status: Order['status']) => {
         if (!firestore || !user || !companyData) return;
-        const orderDocRef = doc(firestore, `companies/${user.uid}/orders`, order.id);
-        const newStatus = { status };
+        
+        // Gerar a mensagem e abrir a aba ANTES da Promise para evitar bloqueio de Pop-up (Popup Blocker do Chrome)
+        const templates = companyData.whatsappMessageTemplates ? JSON.parse(companyData.whatsappMessageTemplates) : {};
+        let messageTemplate = '';
+        
+        switch (status) {
+            case 'Em preparo':
+                messageTemplate = templates.received || "Olá {cliente}, seu pedido nº {pedido_id} foi recebido e já estamos preparando tudo! 🍔";
+                break;
+            case 'Saiu para entrega':
+                messageTemplate = templates.delivery || "Boas notícias, {cliente}! Seu pedido nº {pedido_id} acabou de sair para entrega! 🛵";
+                break;
+            case 'Pronto para retirada':
+                messageTemplate = templates.ready || "Ei, {cliente}! Seu pedido nº {pedido_id} está pronto para retirada. 😊";
+                break;
+        }
 
-        updateDocument(orderDocRef, newStatus).then(async () => {
-            toast({
-                title: 'Status do Pedido Atualizado!',
-                description: `O pedido foi marcado como "${status}".`,
-            });
-            
-            const templates = companyData.whatsappMessageTemplates ? JSON.parse(companyData.whatsappMessageTemplates) : {};
-            let messageTemplate = '';
-            
-            switch (status) {
-                case 'Em preparo':
-                    messageTemplate = templates.received || "Olá {cliente}, seu pedido nº {pedido_id} foi recebido e já estamos preparando tudo! 🍔";
-                    break;
-                case 'Saiu para entrega':
-                    messageTemplate = templates.delivery || "Boas notícias, {cliente}! Seu pedido nº {pedido_id} acabou de sair para entrega! 🛵";
-                    break;
-                case 'Pronto para retirada':
-                    messageTemplate = templates.ready || "Ei, {cliente}! Seu pedido nº {pedido_id} está pronto para retirada. 😊";
-                    break;
-                default:
-                    return; 
-            }
-
-            if (!order.customerPhone) return;
-            
+        if (messageTemplate && order.customerPhone) {
             const message = messageTemplate
                 .replace('{cliente}', order.customerName || 'Cliente')
                 .replace('{pedido_id}', order.id.substring(0, 6).toUpperCase());
 
             const whatsappUrl = `https://wa.me/55${order.customerPhone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
-            window.open(whatsappUrl, 'whatsapp_window');
+            window.open(whatsappUrl, '_blank');
+        }
 
+        // Continua com a atualização do status em background
+        const orderDocRef = doc(firestore, `companies/${user.uid}/orders`, order.id);
+        const newStatus = { status };
+
+        updateDocument(orderDocRef, newStatus).then(() => {
+            toast({
+                title: 'Status do Pedido Atualizado!',
+                description: `O pedido foi marcado como "${status}".`,
+            });
         }).catch(serverError => {
             errorEmitter.emit('permission-error', new FirestorePermissionError({
                 path: orderDocRef.path,
@@ -159,6 +162,15 @@ export default function OrdersPage() {
         <CardDescription>Gerencie seus pedidos em tempo real.</CardDescription>
       </CardHeader>
       <CardContent>
+        <div className="mb-6 relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input 
+            placeholder="Pesquisar por nome do cliente, telefone ou código do pedido..." 
+            value={searchQuery} 
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9 w-full md:max-w-md"
+          />
+        </div>
         <Tabs defaultValue="Todos">
           <TabsList className="grid w-full grid-cols-5">
             {Object.keys(statusMap).map(status => (
@@ -183,7 +195,23 @@ export default function OrdersPage() {
                      {isLoading ? (
                         <TableRow><TableCell colSpan={5} className="text-center">Carregando...</TableCell></TableRow>
                       ) : (
-                      orders?.filter(order => statuses.includes(order.status)).sort((a, b) => b.orderDate.toMillis() - a.orderDate.toMillis()).map(order => (
+                      orders?.filter(order => {
+                          const matchesStatus = statuses.includes(order.status);
+                          if (!matchesStatus) return false;
+                          if (!searchQuery.trim()) return true;
+                          
+                          const queryNorm = searchQuery.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+                          const queryDigits = searchQuery.replace(/\D/g, '');
+
+                          const orderNameNorm = order.customerName ? order.customerName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() : '';
+                          const orderPhoneDigits = order.customerPhone ? order.customerPhone.replace(/\D/g, '') : '';
+
+                          const matchesName = orderNameNorm.includes(queryNorm);
+                          const matchesPhone = queryDigits.length > 0 && orderPhoneDigits.includes(queryDigits);
+                          const matchesId = order.id.toLowerCase().includes(queryNorm);
+                          
+                          return matchesName || matchesPhone || matchesId;
+                      }).sort((a, b) => b.orderDate.toMillis() - a.orderDate.toMillis()).map(order => (
                         <TableRow key={order.id}>
                           <TableCell className="font-medium">{order.id.substring(0, 6).toUpperCase()}</TableCell>
                           <TableCell>{order.customerName}</TableCell>
