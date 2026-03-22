@@ -102,6 +102,7 @@ export default function CartSheet({ companyId }: { companyId: string}) {
   const { toast } = useToast();
   const [isOrderFinished, setIsOrderFinished] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [whatsappLink, setWhatsappLink] = useState('');
 
   const companyRef = useMemoFirebase(() => {
     if (!firestore || !companyId) return null;
@@ -209,8 +210,9 @@ export default function CartSheet({ companyId }: { companyId: string}) {
 
         if (zapNumber) {
             const whatsappUrl = `https://wa.me/${zapNumber}?text=${encodeURIComponent(testMsg)}`;
+            setWhatsappLink(whatsappUrl);
             
-            // Corrige o problema do iPhone (iOS) bloqueando pop-ups gerados após funções "await"
+            // Tenta abrir automaticamente
             const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
             if (isMobile) {
                 window.location.assign(whatsappUrl);
@@ -218,7 +220,7 @@ export default function CartSheet({ companyId }: { companyId: string}) {
                 window.open(whatsappUrl, '_blank');
             }
         } else {
-            // Caso a loja não tenha um número configurado, apenas exibe no console como fallback (embora a loja deva ter no Admin)
+            // Caso a loja não tenha um número configurado
             console.warn("Loja sem número de WhatsApp configurado.");
         }
 
@@ -345,8 +347,22 @@ export default function CartSheet({ companyId }: { companyId: string}) {
       </Sheet>
       <AlertDialog open={isOrderFinished} onOpenChange={setIsOrderFinished}>
         <AlertDialogContent>
-            <AlertDialogHeader><AlertDialogTitle>Pedido Enviado!</AlertDialogTitle><AlertDialogDescription>Seu pedido foi recebido. Acompanhe pelo WhatsApp.</AlertDialogDescription></AlertDialogHeader>
-            <AlertDialogFooter><AlertDialogAction onClick={() => setIsOrderFinished(false)}>OK</AlertDialogAction></AlertDialogFooter>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Pedido Salvo! 🎉</AlertDialogTitle>
+                <AlertDialogDescription>Seu pedido já está no sistema, mas falta um último passo! Envie a mensagem para o restaurante clicando no botão abaixo para confirmar seu pedido.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="flex flex-col gap-3 mt-4">
+                {whatsappLink && (
+                    <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="w-full">
+                        <Button className="w-full h-12 text-lg bg-green-600 hover:bg-green-700 text-white">
+                            Enviar Confirmação no WhatsApp
+                        </Button>
+                    </a>
+                )}
+                <Button variant="outline" onClick={() => setIsOrderFinished(false)}>
+                    Fechar Relatório
+                </Button>
+            </div>
         </AlertDialogContent>
       </AlertDialog>
     </>
