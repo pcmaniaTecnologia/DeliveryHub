@@ -151,6 +151,26 @@ export default function OrdersPage() {
             }));
         });
     };
+    const handlePrintOrder = (orderToPrint: Order) => {
+        if (!firestore || !user) return;
+        const printHtml = generateOrderPrintHtml(orderToPrint, companyData || undefined);
+        const printWindow = window.open('', '_blank', 'width=300,height=500');
+        if (printWindow) {
+            printWindow.document.write(printHtml);
+            printWindow.document.close();
+        }
+
+        if (orderToPrint.status === 'Novo' || orderToPrint.status === 'Aguardando pagamento') {
+            const orderDocRef = doc(firestore, `companies/${user.uid}/orders`, orderToPrint.id);
+            updateDocument(orderDocRef, { status: 'Em preparo' }).catch(() => {
+                errorEmitter.emit('permission-error', new FirestorePermissionError({
+                    path: orderDocRef.path,
+                    operation: 'update',
+                    requestResourceData: { status: 'Em preparo' },
+                }));
+            });
+        }
+    };
     
     const isLoading = isUserLoading || isLoadingOrders || isLoadingCompany;
 
@@ -218,23 +238,37 @@ export default function OrdersPage() {
                           <TableCell><Badge>{order.status}</Badge></TableCell>
                           <TableCell className="text-right">R${order.totalAmount.toFixed(2)}</TableCell>
                           <TableCell className="text-right">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuLabel>Ações</DropdownMenuLabel>
-                                <DropdownMenuItem onClick={() => setSelectedOrder(order)}>Ver Detalhes</DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => handleUpdateStatus(order, 'Em preparo')}>Mudar para Preparo</DropdownMenuItem>
-                                {order.deliveryType === 'Delivery' ? (
-                                    <DropdownMenuItem onClick={() => handleUpdateStatus(order, 'Saiu para entrega')}>Saiu para Entrega</DropdownMenuItem>
-                                ) : (
-                                    <DropdownMenuItem onClick={() => handleUpdateStatus(order, 'Pronto para retirada')}>Pronto para Retirada</DropdownMenuItem>
-                                )}
-                                <DropdownMenuItem onClick={() => handleUpdateStatus(order, 'Entregue')}>Finalizar/Entregue</DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => handleUpdateStatus(order, 'Cancelado')} className="text-destructive">Cancelar</DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                            <div className="flex items-center justify-end gap-2">
+                              <Button 
+                                variant={(order.status === 'Novo' || order.status === 'Aguardando pagamento') ? 'default' : 'outline'} 
+                                size="sm" 
+                                onClick={() => handlePrintOrder(order)}
+                                title={(order.status === 'Novo' || order.status === 'Aguardando pagamento') ? 'Imprimir e Iniciar Preparo' : 'Imprimir Pedido'}
+                              >
+                                <Printer className="mr-2 h-4 w-4" />
+                                Imprimir
+                              </Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuLabel>Ações</DropdownMenuLabel>
+                                  <DropdownMenuItem onClick={() => setSelectedOrder(order)}>Ver Detalhes</DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handlePrintOrder(order)}>
+                                    <Printer className="mr-2 h-4 w-4" /> Imprimir
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem onClick={() => handleUpdateStatus(order, 'Em preparo')}>Mudar para Preparo</DropdownMenuItem>
+                                  {order.deliveryType === 'Delivery' ? (
+                                      <DropdownMenuItem onClick={() => handleUpdateStatus(order, 'Saiu para entrega')}>Saiu para Entrega</DropdownMenuItem>
+                                  ) : (
+                                      <DropdownMenuItem onClick={() => handleUpdateStatus(order, 'Pronto para retirada')}>Pronto para Retirada</DropdownMenuItem>
+                                  )}
+                                  <DropdownMenuItem onClick={() => handleUpdateStatus(order, 'Entregue')}>Finalizar/Entregue</DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem onClick={() => handleUpdateStatus(order, 'Cancelado')} className="text-destructive">Cancelar</DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))

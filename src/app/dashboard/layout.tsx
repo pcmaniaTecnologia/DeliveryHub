@@ -194,13 +194,13 @@ export default function DashboardLayout({
                 <span className="">DeliveryHub</span>
               </Link>
             </div>
-            <div className="flex-1">
-              <DashboardNav newOrdersCount={newOrdersCount} isAdmin={!!adminData} />
-            </div>
-            <div className="mt-auto p-4 border-t text-xs text-muted-foreground text-center bg-muted/30">
+            <div className="p-4 border-b text-xs text-muted-foreground text-center bg-muted/30">
                 <p className="font-semibold text-foreground mb-1">Suporte Técnico DeliveryHub</p>
                 <p>(33) 9.8750-7606</p>
                 <a href="https://www.pcmania.net" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">www.pcmania.net</a>
+            </div>
+            <div className="flex-1 pt-4 overflow-y-auto">
+              <DashboardNav newOrdersCount={newOrdersCount} isAdmin={!!adminData} />
             </div>
           </div>
         </div>
@@ -224,13 +224,13 @@ export default function DashboardLayout({
                     <span className="">DeliveryHub</span>
                   </Link>
                 </div>
-                <div className="mt-5 flex-1 overflow-y-auto">
-                  <DashboardNav newOrdersCount={newOrdersCount} isAdmin={!!adminData} />
-                </div>
-                <div className="mt-auto p-4 border-t text-xs text-muted-foreground text-center bg-muted/30 pb-8">
+                <div className="p-4 border-b text-xs text-muted-foreground text-center bg-muted/30">
                     <p className="font-semibold text-foreground mb-1">Suporte Técnico DeliveryHub</p>
                     <p>(33) 9.8750-7606</p>
                     <a href="https://www.pcmania.net" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">www.pcmania.net</a>
+                </div>
+                <div className="mt-5 flex-1 overflow-y-auto">
+                  <DashboardNav newOrdersCount={newOrdersCount} isAdmin={!!adminData} />
                 </div>
               </SheetContent>
             </Sheet>

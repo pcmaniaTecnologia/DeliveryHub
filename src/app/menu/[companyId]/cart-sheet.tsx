@@ -195,34 +195,26 @@ export default function CartSheet({ companyId }: { companyId: string}) {
     
     try {
         const docRef = await addDocument(ordersRef, orderData);
-       console.log("ENDEREÇO ENVIADO:", fullAddress);
+        const rawCompanyPhone = companyData.phone?.replace(/\D/g, '') || '';
+        const zapNumber = rawCompanyPhone.startsWith('55') ? rawCompanyPhone : (rawCompanyPhone ? `55${rawCompanyPhone}` : '');
 
-        await fetch("/api/whatsapp", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json"
-  },
-  body: JSON.stringify({
-    id: docRef.id,
-    nome: customerName,
-    telefone: customerPhone,
-    telefoneEmpresa: companyData.phone,
-    itens: cartItems.map(item => ({
-      nome: item.product.name,
-      qtd: item.quantity,
-      preco: item.finalPrice,
-      adicionais: item.selectedVariants || []
-    })),
-    total: finalTotal,
-    subtotal: totalPrice,
-    entrega: deliveryFee,
-    pagamento: orderData.paymentMethod,
-    endereco: fullAddress
-  })
-});
+        const itensTexto = cartItems.map(item => {
+          const adicionais = item.selectedVariants?.length
+            ? `\n  (${item.selectedVariants.map(a => a.itemName).join(', ')})`
+            : '';
+          return `- ${item.quantity}x ${item.product.name} (R$${item.finalPrice.toFixed(2)})${adicionais}`;
+        }).join('\n');
 
+        const testMsg = `*Novo Pedido!* 🎉\n*ID:* ${docRef.id.substring(0,6).toUpperCase()}\n*Cliente:* ${customerName.trim()}\n*WhatsApp:* ${customerPhone}\n\n*Endereço:* ${fullAddress}\n\n--- *Itens* ---\n${itensTexto}\n\n*Subtotal:* R$${totalPrice.toFixed(2)}\n${deliveryFee > 0 ? `*Entrega:* R$${deliveryFee.toFixed(2)}\n` : ''}*Total:* *R$${finalTotal.toFixed(2)}*\n*Pagamento:* ${orderData.paymentMethod}`;
 
-       
+        if (zapNumber) {
+            const whatsappUrl = `https://wa.me/${zapNumber}?text=${encodeURIComponent(testMsg)}`;
+            window.open(whatsappUrl, '_blank');
+        } else {
+            // Caso a loja não tenha um número configurado, apenas exibe no console como fallback (embora a loja deva ter no Admin)
+            console.warn("Loja sem número de WhatsApp configurado.");
+        }
+
         setIsOrderFinished(true);
         clearCart();
         setIsCheckoutOpen(false);
