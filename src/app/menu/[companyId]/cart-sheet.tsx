@@ -209,7 +209,14 @@ export default function CartSheet({ companyId }: { companyId: string}) {
 
         if (zapNumber) {
             const whatsappUrl = `https://wa.me/${zapNumber}?text=${encodeURIComponent(testMsg)}`;
-            window.open(whatsappUrl, '_blank');
+            
+            // Corrige o problema do iPhone (iOS) bloqueando pop-ups gerados após funções "await"
+            const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+            if (isMobile) {
+                window.location.assign(whatsappUrl);
+            } else {
+                window.open(whatsappUrl, '_blank');
+            }
         } else {
             // Caso a loja não tenha um número configurado, apenas exibe no console como fallback (embora a loja deva ter no Admin)
             console.warn("Loja sem número de WhatsApp configurado.");
