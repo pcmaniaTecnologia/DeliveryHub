@@ -215,7 +215,7 @@ export default function CartSheet({ companyId }: { companyId: string}) {
             // Tenta abrir automaticamente
             const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
             if (isMobile) {
-                window.location.assign(whatsappUrl);
+                window.location.href = whatsappUrl;
             } else {
                 window.open(whatsappUrl, '_blank');
             }
