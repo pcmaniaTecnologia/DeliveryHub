@@ -20,7 +20,7 @@ export function generateOrderPrintHtml(order: Order, company?: Company) {
                 const priceLabel = i.price > 0 ? ` (+R$${i.price.toFixed(2)})` : '';
                 return `${i.name}${priceLabel}`;
             }).join(', ');
-            return `<br><small style="color: #333; padding-left: 10px;"><strong>${group}:</strong> ${itemsText}</small>`;
+            return `<br><span style="color: #000; padding-left: 10px; font-size: 0.9em; font-weight: bold;"><strong>${group}:</strong> ${itemsText}</span>`;
         }).join('');
         
         const priceToUse = item.finalPrice || item.unitPrice;
@@ -28,15 +28,15 @@ export function generateOrderPrintHtml(order: Order, company?: Company) {
         return `
             <tr>
                 <td colspan="3" style="padding-top: 5px;">
-                    <strong>${item.quantity}x ${item.productName || item.productId}</strong>
+                    <strong style="font-size: 1.1em; color: #000;">${item.quantity}x ${item.productName || item.productId}</strong>
                     ${variantsText}
-                    ${item.notes ? `<br><small style="color: #555; padding-left: 10px; font-style: italic;">OBS: ${item.notes}</small>` : ''}
+                    ${item.notes ? `<br><span style="color: #000; padding-left: 10px; font-size: 0.9em; font-weight: bold; font-style: normal;">OBS: ${item.notes}</span>` : ''}
                 </td>
             </tr>
             <tr>
-                <td style="padding-bottom: 5px;">&nbsp;</td>
-                <td style="text-align: center; padding-bottom: 5px;">R$${priceToUse.toFixed(2)}</td>
-                <td style="text-align: right; padding-bottom: 5px;">R$${(priceToUse * item.quantity).toFixed(2)}</td>
+                <td style="padding-bottom: 5px; color: #000; font-weight: bold;">&nbsp;</td>
+                <td style="text-align: center; padding-bottom: 5px; color: #000; font-weight: bold; font-size: 0.9em;">R$${priceToUse.toFixed(2)}</td>
+                <td style="text-align: right; padding-bottom: 5px; color: #000; font-weight: bold; font-size: 0.9em;">R$${(priceToUse * item.quantity).toFixed(2)}</td>
             </tr>
         `;
     }).join('');
@@ -48,18 +48,19 @@ export function generateOrderPrintHtml(order: Order, company?: Company) {
             <head>
                 <title>Pedido ${order.id.substring(0,6).toUpperCase()}</title>
                 <style>
-                    body { font-family: 'Courier New', monospace; font-size: 10pt; margin: 20px; color: #000; }
-                    h2, p { margin: 0; text-align: center; }
-                    h2 { font-size: 1.2em; }
-                    hr { border: none; border-top: 1px dashed black; margin: 10px 0; }
-                    table { width: 100%; border-collapse: collapse; }
-                    th, td { padding: 2px 0; }
-                    th { text-align: left; border-bottom: 1px dashed black;}
-                    .totals { text-align: right; margin-top: 10px; }
-                    .totals strong { font-size: 1.1em; }
-                    .section { margin-top: 15px; }
-                    .section p { text-align: left; }
-                    .section-title { font-weight: bold; }
+                    body { font-family: 'Courier New', monospace; font-size: 12pt; margin: 20px; color: #000; font-weight: bold; }
+                    h2, p { margin: 0; text-align: center; color: #000; }
+                    h2 { font-size: 1.4em; font-weight: 900; }
+                    hr { border: none; border-top: 2px dashed black; margin: 10px 0; }
+                    table { width: 100%; border-collapse: collapse; color: #000; }
+                    th, td { padding: 4px 0; }
+                    th { text-align: left; border-bottom: 2px dashed black; font-weight: 900; font-size: 1.1em; }
+                    td { font-weight: bold; }
+                    .totals { text-align: right; margin-top: 10px; color: #000; }
+                    .totals strong { font-size: 1.3em; font-weight: 900; }
+                    .section { margin-top: 15px; color: #000; font-weight: bold; }
+                    .section p { text-align: left; margin-bottom: 4px; }
+                    .section-title { font-weight: 900; font-size: 1.1em; text-transform: uppercase; }
                 </style>
             </head>
             <body>
