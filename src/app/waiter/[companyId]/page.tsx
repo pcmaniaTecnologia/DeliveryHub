@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
@@ -18,8 +18,8 @@ type Waiter = {
   isActive: boolean;
 };
 
-export default function WaiterLoginPage({ params }: { params: { companyId: string } }) {
-    const { companyId } = params;
+export default function WaiterLoginPage({ params }: { params: Promise<{ companyId: string }> }) {
+    const { companyId } = React.use(params);
     const router = useRouter();
     const firestore = useFirestore();
     const { toast } = useToast();
