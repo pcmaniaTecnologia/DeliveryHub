@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useCollection, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, doc, type Timestamp } from 'firebase/firestore';
+import { useImpersonation } from '@/context/impersonation-context';
 
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -102,11 +103,15 @@ export default function DashboardLayout({
   const router = useRouter();
   const pathname = usePathname();
   const firestore = useFirestore();
+  const { isImpersonating, impersonatedCompanyId, impersonatedCompanyName, stopImpersonation } = useImpersonation();
+
+  // When admin impersonates a company, use their ID instead of the logged-in admin's UID
+  const effectiveCompanyId = isImpersonating ? impersonatedCompanyId : user?.uid;
 
   const companyRef = useMemoFirebase(() => {
-    if (!firestore || !user?.uid) return null;
-    return doc(firestore, 'companies', user.uid);
-  }, [firestore, user?.uid]);
+    if (!firestore || !effectiveCompanyId) return null;
+    return doc(firestore, 'companies', effectiveCompanyId);
+  }, [firestore, effectiveCompanyId]);
 
   const { data: companyData, isLoading: isLoadingCompany } = useDoc<CompanyData>(companyRef);
 
@@ -118,9 +123,9 @@ export default function DashboardLayout({
   const { data: adminData, isLoading: isLoadingAdmin } = useDoc(adminRef);
 
   const allOrdersRef = useMemoFirebase(() => {
-    if (!firestore || !user?.uid) return null;
-    return collection(firestore, `companies/${user.uid}/orders`);
-  }, [firestore, user?.uid]);
+    if (!firestore || !effectiveCompanyId) return null;
+    return collection(firestore, `companies/${effectiveCompanyId}/orders`);
+  }, [firestore, effectiveCompanyId]);
 
   const { data: allOrders, isLoading: isLoadingAllOrders } = useCollection<Order>(allOrdersRef);
   
@@ -137,6 +142,8 @@ export default function DashboardLayout({
   }, [user, isUserLoading, router]);
 
    useEffect(() => {
+    // Skip subscription check when admin is impersonating
+    if (isImpersonating) return;
     if (!isLoadingCompany && companyData) {
         const now = new Date();
         const endDate = companyData.subscriptionEndDate?.toDate();
@@ -148,7 +155,7 @@ export default function DashboardLayout({
             }
         }
     }
-  }, [companyData, isLoadingCompany, router, pathname]);
+  }, [companyData, isLoadingCompany, router, pathname, isImpersonating]);
   
   useEffect(() => {
     if (companyData?.themeColors) {
@@ -238,6 +245,14 @@ export default function DashboardLayout({
             <UserNav isAdmin={!!adminData} />
           </header>
           <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8 bg-muted/20">
+            {isImpersonating && (
+              <div className="flex items-center justify-between bg-destructive text-destructive-foreground px-4 py-2 rounded-lg text-sm font-medium shadow">
+                <span>👁️ Modo Admin: visualizando o painel de <strong>{impersonatedCompanyName}</strong></span>
+                <Button size="sm" variant="outline" className="text-destructive border-destructive-foreground bg-destructive-foreground hover:bg-white" onClick={stopImpersonation}>
+                  Sair da Empresa
+                </Button>
+              </div>
+            )}
             {children}
           </main>
         </div>

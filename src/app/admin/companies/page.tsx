@@ -2,7 +2,7 @@
 'use client';
 
 import { useState } from 'react';
-import { MoreHorizontal, Info, Trash2, MessageCircle, Megaphone, Send } from 'lucide-react';
+import { MoreHorizontal, Info, Trash2, MessageCircle, Megaphone, Send, ExternalLink } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -31,6 +31,7 @@ import {
 import { useUser, useFirestore, useCollection, useMemoFirebase, updateDocument, deleteDocument, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { collection, doc, type Timestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
+import { useImpersonation } from '@/context/impersonation-context';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -64,6 +65,7 @@ export default function ManageCompaniesPage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
+  const { startImpersonation } = useImpersonation();
   
   const [isBulkOpen, setIsBulkOpen] = useState(false);
   const [bulkMessage, setBulkMessage] = useState('');
@@ -213,6 +215,15 @@ export default function ManageCompaniesPage() {
                     <div className="flex items-center justify-center gap-2">
                         <Button variant="outline" size="icon" onClick={() => handleSendIndividual(company)} title="Enviar Mensagem" className="rounded-full text-green-600 hover:text-green-700 hover:bg-green-50 z-10">
                             <MessageCircle className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          title={`Acessar dashboard de ${company.name}`}
+                          className="rounded-full text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                          onClick={() => startImpersonation(company.id, company.name)}
+                        >
+                          <ExternalLink className="h-4 w-4" />
                         </Button>
                          <Switch
                             checked={!!company.isActive}

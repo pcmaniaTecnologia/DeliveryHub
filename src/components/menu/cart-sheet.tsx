@@ -108,6 +108,7 @@ export default function CartSheet({ companyId }: { companyId: string}) {
   const { toast } = useToast();
   const [isOrderFinished, setIsOrderFinished] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [whatsappLink, setWhatsappLink] = useState('');
 
   const companyRef = useMemoFirebase(() => {
     if (!firestore || !companyId) return null;
@@ -232,7 +233,15 @@ export default function CartSheet({ companyId }: { companyId: string}) {
                             `*Pagamento:* ${orderData.paymentMethod}`;
 
             const whatsappUrl = `https://wa.me/55${companyData.phone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
-            window.open(whatsappUrl, 'whatsapp_window');
+            setWhatsappLink(whatsappUrl);
+
+            // Tenta abrir automaticamente (funciona no Android, bloqueado no iPhone/Safari após async)
+            const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+            if (isMobile) {
+                window.location.href = whatsappUrl;
+            } else {
+                window.open(whatsappUrl, '_blank');
+            }
 
             // Disparar via API do DeliveryHub (Z-API) em background
             await fetch("/api/whatsapp", {
@@ -394,8 +403,20 @@ export default function CartSheet({ companyId }: { companyId: string}) {
       </Sheet>
       <AlertDialog open={isOrderFinished} onOpenChange={setIsOrderFinished}>
         <AlertDialogContent>
-            <AlertDialogHeader><AlertDialogTitle>Pedido Enviado!</AlertDialogTitle><AlertDialogDescription>Seu pedido foi recebido com sucesso. Você pode acompanhar o status pelo WhatsApp.</AlertDialogDescription></AlertDialogHeader>
-            <AlertDialogFooter><AlertDialogAction onClick={() => setIsOrderFinished(false)}>Entendi</AlertDialogAction></AlertDialogFooter>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Pedido Salvo! 🎉</AlertDialogTitle>
+                <AlertDialogDescription>Seu pedido já está no sistema. Clique no botão abaixo para enviar a confirmação ao restaurante pelo WhatsApp.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="flex flex-col gap-3 mt-2">
+                {whatsappLink && (
+                    <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="w-full" onClick={() => setIsOrderFinished(false)}>
+                        <button className="w-full h-12 text-lg rounded-md bg-green-600 hover:bg-green-700 text-white font-semibold transition-colors">
+                            📲 Enviar pelo WhatsApp
+                        </button>
+                    </a>
+                )}
+                <AlertDialogAction onClick={() => setIsOrderFinished(false)} className="w-full">Fechar</AlertDialogAction>
+            </div>
         </AlertDialogContent>
       </AlertDialog>
     </>

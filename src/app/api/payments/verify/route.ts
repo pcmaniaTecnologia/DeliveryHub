@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { initializeFirebase } from '@/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, Timestamp } from 'firebase/firestore';
+import { addDays } from 'date-fns';
 
 export async function POST(req: Request) {
   try {
@@ -31,8 +32,44 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'Payment not found' }, { status: 404 });
     }
 
-    if (mpData.status === 'approved' && mpData.external_reference === companyId) {
-        return NextResponse.json({ approved: true });
+    // external_reference format: "companyId|planId"
+    const externalRef: string = mpData.external_reference || '';
+    const [refCompanyId, planId] = externalRef.split('|');
+
+    if (mpData.status === 'approved' && refCompanyId === companyId) {
+        // Fetch plan to get the correct duration
+        let daysToAdd = 30; // fallback
+        let planName = 'Plano';
+
+        if (planId) {
+            const planDoc = await getDoc(doc(firestore, 'plans', planId));
+            if (planDoc.exists()) {
+                const plan = planDoc.data();
+                planName = plan.name || 'Plano';
+                if (plan.duration === 'trial') {
+                    daysToAdd = plan.trialDays || 7;
+                } else {
+                    daysToAdd = 30; // monthly
+                }
+            }
+        }
+
+        const subscriptionEndDate = addDays(new Date(), daysToAdd);
+
+        // Save to Firestore server-side
+        const companyRef = doc(firestore, 'companies', companyId);
+        await updateDoc(companyRef, {
+            isActive: true,
+            planId: planId || 'unknown',
+            subscriptionEndDate: Timestamp.fromDate(subscriptionEndDate),
+        });
+
+        return NextResponse.json({
+            approved: true,
+            planName,
+            daysAdded: daysToAdd,
+            subscriptionEndDate: subscriptionEndDate.toISOString(),
+        });
     }
 
     return NextResponse.json({ approved: false, status: mpData.status });

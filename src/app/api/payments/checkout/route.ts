@@ -36,7 +36,7 @@ export async function POST(req: Request) {
                 unit_price: Number(plan.price)
             }
         ],
-        external_reference: companyId,
+        external_reference: `${companyId}|${planId}`,
         back_urls: {
             success: `${origin}/dashboard/settings?checkout=success`,
             failure: `${origin}/dashboard/settings?checkout=failure`,

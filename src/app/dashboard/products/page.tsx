@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
-import { MoreHorizontal, PlusCircle, Trash2 } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Trash2, Search } from 'lucide-react';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -124,6 +124,7 @@ export default function ProductsPage() {
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [newCategoryName, setNewCategoryName] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   
   const form = useForm<z.infer<typeof productFormSchema>>({
     resolver: zodResolver(productFormSchema),
@@ -270,6 +271,14 @@ export default function ProductsPage() {
     if (!categories) return new Map();
     return new Map(categories.map(cat => [cat.id, cat.name]));
   }, [categories]);
+
+  const filteredProducts = useMemo(() => {
+    if (!products) return [];
+    if (!searchQuery.trim()) return products;
+    return products.filter(p =>
+      p.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [products, searchQuery]);
 
   return (
     <Card>
@@ -497,6 +506,15 @@ export default function ProductsPage() {
             </Form>
           </DialogContent>
         </Dialog>
+        <div className="relative mb-4">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Pesquisar produto por nome..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
+        </div>
         <Table>
           <TableHeader>
             <TableRow>
@@ -519,7 +537,7 @@ export default function ProductsPage() {
                 <TableCell colSpan={7} className="text-center">Carregando produtos...</TableCell>
               </TableRow>
             )}
-            {!isLoading && products?.map((product) => {
+            {!isLoading && filteredProducts.map((product) => {
               const imageUrl = getProductImage(product);
               return (
                 <TableRow key={product.id}>
@@ -589,9 +607,11 @@ export default function ProductsPage() {
                 </TableRow>
               )
             })}
-             {!isLoading && products?.length === 0 && (
+             {!isLoading && filteredProducts.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center">Nenhum produto encontrado.</TableCell>
+                  <TableCell colSpan={7} className="text-center">
+                    {searchQuery ? `Nenhum produto encontrado para "${searchQuery}".` : 'Nenhum produto encontrado.'}
+                  </TableCell>
                 </TableRow>
               )}
           </TableBody>
@@ -599,7 +619,7 @@ export default function ProductsPage() {
       </CardContent>
       <CardFooter>
         <div className="text-xs text-muted-foreground">
-          Mostrando <strong>{products?.length ?? 0}</strong> de <strong>{products?.length ?? 0}</strong> produtos
+          Mostrando <strong>{filteredProducts.length}</strong> de <strong>{products?.length ?? 0}</strong> produtos
         </div>
       </CardFooter>
     </Card>

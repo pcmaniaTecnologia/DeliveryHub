@@ -136,14 +136,9 @@ const SubscriptionView = ({ isExpired, trialEndDate }: { isExpired?: boolean, tr
                     const data = await res.json();
                     
                     if (data.approved) {
-                        const companyRef = doc(firestore, 'companies', user.uid);
-                        await updateDocument(companyRef, {
-                            isActive: true,
-                            subscriptionEndDate: addDays(new Date(), 30),
-                        });
                         toast({
                             title: "🎉 Assinatura Aprovada!",
-                            description: "Sua loja foi ativada com sucesso por mais 30 dias.",
+                            description: `Plano ${data.planName || ''} ativado por ${data.daysAdded || 30} dias com sucesso!`,
                             duration: 8000
                         });
                         router.replace('/dashboard/settings');
