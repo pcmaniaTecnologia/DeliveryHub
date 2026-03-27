@@ -372,10 +372,10 @@ export default function CartSheet({ companyId }: { companyId: string}) {
                                     </div>
                                 ))}
                             </RadioGroup>
-                            {selectedPayment === 'Dinheiro' && companyData?.paymentMethods?.cashAskForChange && (
+                            {selectedPayment === 'Dinheiro' && (
                                 <div className="grid gap-2 pl-6 pt-2">
-                                    <Label className="text-xs">Troco para quanto?</Label>
-                                    <Input type="number" value={cashAmount} onChange={e => setCashAmount(e.target.value)} placeholder="Ex: 50.00" />
+                                    <Label className="text-xs">Precisa de troco? Troco para quanto? (opcional)</Label>
+                                    <Input type="number" value={cashAmount} onChange={e => setCashAmount(e.target.value)} placeholder="Ex: 50.00 (deixe vazio se não precisar)" />
                                 </div>
                             )}
                         </div>

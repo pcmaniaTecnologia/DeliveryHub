@@ -322,6 +322,12 @@ export default function CartSheet({ companyId }: { companyId: string}) {
                                     </div>
                                 ))}
                             </RadioGroup>
+                            {selectedPayment === 'Dinheiro' && (
+                                <div className="grid gap-2 pl-6 pt-2">
+                                    <Label className="text-xs">Precisa de troco? Troco para quanto? (opcional)</Label>
+                                    <Input type="number" value={cashAmount} onChange={e => setCashAmount(e.target.value)} placeholder="Ex: 50.00 (deixe vazio se não precisar)" />
+                                </div>
+                            )}
                         </div>
                     </ScrollArea>
                     <SheetFooter className="pt-4 border-t flex flex-col gap-2">
