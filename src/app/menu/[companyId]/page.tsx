@@ -8,7 +8,7 @@ import { useCollection, useDoc, useFirestore, useMemoFirebase } from '@/firebase
 import { collection, doc } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Clock, Plus, Pizza, Ham, GlassWater, Cake, Sandwich, LeafyGreen, IceCream, UtensilsCrossed, type LucideIcon } from 'lucide-react';
+import { Clock, Plus, Minus, Pizza, Ham, GlassWater, Cake, Sandwich, LeafyGreen, IceCream, UtensilsCrossed, type LucideIcon } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCart, type SelectedVariant } from '@/context/cart-context';
 import {
@@ -54,11 +54,12 @@ export type Product = {
     description: string;
     price: number;
     categoryId: string;
-    category?: string; // This might be present from older logic
+    category?: string;
     isActive: boolean;
     imageUrl?: string;
     imageUrls?: string[];
     variants?: VariantGroup[];
+    ingredients?: string;
 };
 
 type Category = {
@@ -94,35 +95,37 @@ const getCategoryIcon = (categoryName: string): LucideIcon => {
 };
 
 
-const OptionsDialog = ({ product, open, onOpenChange, onAddToCart }: { product: Product, open: boolean, onOpenChange: (open: boolean) => void, onAddToCart: (product: Product, quantity: number, notes?: string, variants?: SelectedVariant[]) => void }) => {
+const ProductDetailDialog = ({
+    product,
+    open,
+    onOpenChange,
+    onAddToCart,
+}: {
+    product: Product;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    onAddToCart: (product: Product, quantity: number, notes?: string, variants?: SelectedVariant[]) => void;
+}) => {
     const [selectedVariants, setSelectedVariants] = useState<SelectedVariant[]>([]);
     const [notes, setNotes] = useState('');
+    const [quantity, setQuantity] = useState(1);
     const { toast } = useToast();
+
+    const imageUrl = product.imageUrl || (product.imageUrls && product.imageUrls.length > 0 ? product.imageUrls[0] : null);
 
     const handleSelection = (groupName: string, itemName: string, price: number, isSingleChoice: boolean) => {
         const group = product.variants?.find(v => v.name === groupName);
         if (!group) return;
-
         const isCurrentlySelected = selectedVariants.some(v => v.groupName === groupName && v.itemName === itemName);
         const groupItemsSelectedCount = selectedVariants.filter(v => v.groupName === groupName).length;
-
         if (isSingleChoice) {
-             setSelectedVariants(prev => {
-                const otherGroups = prev.filter(v => v.groupName !== groupName);
-                return [...otherGroups, { groupName, itemName, price }];
-             });
+            setSelectedVariants(prev => [...prev.filter(v => v.groupName !== groupName), { groupName, itemName, price }]);
         } else {
-             if (isCurrentlySelected) {
-                // Uncheck: remove the item
+            if (isCurrentlySelected) {
                 setSelectedVariants(prev => prev.filter(v => !(v.groupName === groupName && v.itemName === itemName)));
             } else {
-                // Check: add the item if not exceeding max
                 if (groupItemsSelectedCount >= group.max) {
-                    toast({
-                        variant: "destructive",
-                        title: "Limite atingido",
-                        description: `Você só pode selecionar até ${group.max} ${group.max > 1 ? 'opções' : 'opção'} para "${groupName}".`,
-                    });
+                    toast({ variant: 'destructive', title: 'Limite atingido', description: `Máximo de ${group.max} opção(ões) para "${groupName}".` });
                 } else {
                     setSelectedVariants(prev => [...prev, { groupName, itemName, price }]);
                 }
@@ -130,129 +133,184 @@ const OptionsDialog = ({ product, open, onOpenChange, onAddToCart }: { product: 
         }
     };
 
-    const isSelected = (groupName: string, itemName: string) => {
-        return selectedVariants.some(v => v.groupName === groupName && v.itemName === itemName);
-    };
+    const isSelected = (groupName: string, itemName: string) =>
+        selectedVariants.some(v => v.groupName === groupName && v.itemName === itemName);
 
-    const finalPrice = useMemo(() => {
-        const optionsPrice = selectedVariants.reduce((total, variant) => total + variant.price, 0);
+    const unitPrice = useMemo(() => {
+        const optionsPrice = selectedVariants.reduce((total, v) => total + v.price, 0);
         return product.price + optionsPrice;
     }, [product.price, selectedVariants]);
 
+    const finalPrice = unitPrice * quantity;
+
     const handleConfirm = () => {
-        // Validate minimum requirements
         for (const group of product.variants || []) {
             const selectedCount = selectedVariants.filter(v => v.groupName === group.name).length;
             if (selectedCount < group.min) {
-                toast({
-                    variant: "destructive",
-                    title: "Seleção Incompleta",
-                    description: `Por favor, selecione pelo menos ${group.min} ${group.min > 1 ? 'opções' : 'opção'} para "${group.name}".`,
-                });
+                toast({ variant: 'destructive', title: 'Seleção Incompleta', description: `Selecione pelo menos ${group.min} opção(ões) para "${group.name}".` });
                 return;
             }
         }
-        onAddToCart(product, 1, notes, selectedVariants);
+        onAddToCart(product, quantity, notes, selectedVariants);
         onOpenChange(false);
     };
-    
-    // Reset state when dialog opens or product changes
+
     useEffect(() => {
         if (open) {
             setSelectedVariants([]);
             setNotes('');
+            setQuantity(1);
         }
     }, [open, product]);
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-md">
-                <DialogHeader>
+            <DialogContent className="sm:max-w-lg p-0 overflow-hidden">
+                {/* Always include DialogTitle for accessibility */}
+                <DialogHeader className="sr-only">
                     <DialogTitle>{product.name}</DialogTitle>
-                    <DialogDescription>{product.description}</DialogDescription>
                 </DialogHeader>
-                <ScrollArea className="max-h-[60vh] pr-4">
-                    <div className="space-y-4">
+
+                {/* Product Image Banner */}
+                {imageUrl ? (
+                    <div className="relative h-52 w-full bg-muted">
+                        <Image src={imageUrl} alt={product.name} fill style={{ objectFit: 'cover' }} unoptimized />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                        <div className="absolute bottom-3 left-4 right-4">
+                            <h2 className="text-xl font-bold text-white drop-shadow">{product.name}</h2>
+                            <p className="text-sm text-white/80 mt-0.5">R$ {product.price.toFixed(2)}</p>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="px-5 pt-2">
+                        <p className="text-xl font-bold">{product.name}</p>
+                    </div>
+                )}
+
+                <ScrollArea className="max-h-[55vh]">
+                    <div className="space-y-4 px-5 py-4">
+                        {/* Description */}
+                        {product.description && (
+                            <p className="text-sm text-muted-foreground leading-relaxed">{product.description}</p>
+                        )}
+
+                        {/* Ingredients */}
+                        {product.ingredients && (
+                            <div className="rounded-lg bg-muted/50 p-3">
+                                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Ingredientes</p>
+                                <p className="text-sm text-foreground">{product.ingredients}</p>
+                            </div>
+                        )}
+
+                        {/* Variants/Add-ons */}
                         {product.variants?.map((group) => {
                             const isSingleChoice = group.max === 1 && group.min === 1;
                             return (
                                 <div key={group.name} className="space-y-2">
                                     <Separator />
-                                    <h4 className="font-semibold">{group.name}</h4>
-                                    <p className="text-sm text-muted-foreground">
-                                       {group.min > 0 && group.max > group.min ? `Selecione de ${group.min} a ${group.max} opções.` :
-                                        group.min > 0 && group.max === group.min ? `Selecione ${group.min} ${group.min > 1 ? 'opções' : 'opção'}.` :
-                                        `Selecione até ${group.max} ${group.max > 1 ? 'opções' : 'opção'}.`
-                                       }
+                                    <div className="flex items-center justify-between">
+                                        <h4 className="font-semibold">{group.name}</h4>
+                                        {group.min > 0 && <span className="text-xs bg-primary/10 text-primary rounded-full px-2 py-0.5 font-medium">Obrigatório</span>}
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                        {group.min > 0 && group.max > group.min
+                                            ? `Selecione de ${group.min} a ${group.max} opções`
+                                            : group.min > 0 && group.max === group.min
+                                            ? `Selecione ${group.min} ${group.min > 1 ? 'opções' : 'opção'}`
+                                            : `Selecione até ${group.max} ${group.max > 1 ? 'opções' : 'opção'}`}
                                     </p>
-                                    
                                     {isSingleChoice ? (
                                         <RadioGroup onValueChange={(value) => handleSelection(group.name, value.split(';')[0], parseFloat(value.split(';')[1]), true)}>
                                             {group.items.map(item => (
-                                                <div key={item.name} className="flex items-center space-x-2">
-                                                    <RadioGroupItem value={`${item.name};${item.price}`} id={`${group.name}-${item.name}`} />
-                                                    <Label htmlFor={`${group.name}-${item.name}`} className="flex-grow">{item.name}</Label>
-                                                    {item.price > 0 && <span className="text-sm text-muted-foreground">+ R$ {item.price.toFixed(2)}</span>}
+                                                <div key={item.name} className="flex items-center justify-between rounded-lg border px-3 py-2 has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5 transition-colors">
+                                                    <div className="flex items-center gap-2">
+                                                        <RadioGroupItem value={`${item.name};${item.price}`} id={`${group.name}-${item.name}`} />
+                                                        <Label htmlFor={`${group.name}-${item.name}`} className="cursor-pointer font-normal">{item.name}</Label>
+                                                    </div>
+                                                    {item.price > 0 && <span className="text-sm font-medium text-primary">+ R$ {item.price.toFixed(2)}</span>}
                                                 </div>
                                             ))}
                                         </RadioGroup>
                                     ) : (
-                                        group.items.map(item => (
-                                            <div key={item.name} className="flex items-center space-x-2">
-                                                <Checkbox
-                                                    id={`${group.name}-${item.name}`}
-                                                    checked={isSelected(group.name, item.name)}
-                                                    onCheckedChange={() => handleSelection(group.name, item.name, item.price, false)}
-                                                />
-                                                <Label htmlFor={`${group.name}-${item.name}`} className="flex-grow">{item.name}</Label>
-                                                {item.price > 0 && <span className="text-sm text-muted-foreground">+ R$ {item.price.toFixed(2)}</span>}
-                                            </div>
-                                        ))
+                                        <div className="space-y-2">
+                                            {group.items.map(item => (
+                                                <div key={item.name} className="flex items-center justify-between rounded-lg border px-3 py-2 has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5 transition-colors">
+                                                    <div className="flex items-center gap-2">
+                                                        <Checkbox
+                                                            id={`${group.name}-${item.name}`}
+                                                            checked={isSelected(group.name, item.name)}
+                                                            onCheckedChange={() => handleSelection(group.name, item.name, item.price, false)}
+                                                        />
+                                                        <Label htmlFor={`${group.name}-${item.name}`} className="cursor-pointer font-normal">{item.name}</Label>
+                                                    </div>
+                                                    {item.price > 0 && <span className="text-sm font-medium text-primary">+ R$ {item.price.toFixed(2)}</span>}
+                                                </div>
+                                            ))}
+                                        </div>
                                     )}
                                 </div>
                             );
                         })}
-                         <Separator />
-                         <div className="space-y-2">
-                            <Label htmlFor="notes">Observações</Label>
-                            <Textarea id="notes" placeholder="Ex: tirar a cebola, ponto da carne, etc." value={notes} onChange={(e) => setNotes(e.target.value)} />
-                         </div>
+
+                        {/* Notes */}
+                        <Separator />
+                        <div className="space-y-2 pb-2">
+                            <Label htmlFor="notes" className="font-semibold">Alguma observação?</Label>
+                            <Textarea
+                                id="notes"
+                                placeholder="Ex: sem cebola, ponto da carne bem passado…"
+                                value={notes}
+                                onChange={(e) => setNotes(e.target.value)}
+                                className="resize-none"
+                                rows={2}
+                            />
+                        </div>
                     </div>
                 </ScrollArea>
-                <DialogFooter>
-                    <div className="flex w-full justify-between items-center">
-                        <span className="text-lg font-bold">Total: R$ {finalPrice.toFixed(2)}</span>
-                        <Button onClick={handleConfirm}>Adicionar ao Carrinho</Button>
+
+                {/* Footer: Quantity + Add to Cart */}
+                <div className="flex items-center gap-3 border-t px-5 py-4 bg-background">
+                    {/* Quantity selector */}
+                    <div className="flex items-center gap-2 rounded-lg border px-2 py-1">
+                        <button
+                            className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-foreground disabled:opacity-30 transition-colors"
+                            onClick={() => setQuantity(q => Math.max(1, q - 1))}
+                            disabled={quantity <= 1}
+                        >
+                            <Minus className="h-4 w-4" />
+                        </button>
+                        <span className="w-5 text-center font-bold text-base">{quantity}</span>
+                        <button
+                            className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-foreground transition-colors"
+                            onClick={() => setQuantity(q => q + 1)}
+                        >
+                            <Plus className="h-4 w-4" />
+                        </button>
                     </div>
-                </DialogFooter>
+                    {/* Add to cart button */}
+                    <Button className="flex-1 h-11 text-base font-semibold" onClick={handleConfirm}>
+                        Adicionar · R$ {finalPrice.toFixed(2)}
+                    </Button>
+                </div>
             </DialogContent>
         </Dialog>
     );
 };
 
 
-// Modern Horizontal Product Card Premium Layout
-const ProductCard = ({ product, index }: { product: Product, index: number }) => {
+const ProductCard = ({ product }: { product: Product }) => {
     const { addToCart } = useCart();
-    const [isOptionsDialogOpen, setIsOptionsDialogOpen] = useState(false);
-    
-   const imageUrl = useMemo(() => {
-    return product.imageUrl || (product.imageUrls && product.imageUrls.length > 0 ? product.imageUrls[0] : null);
-  }, [product]);
+    const [isDetailOpen, setIsDetailOpen] = useState(false);
 
-    const handleAddToCart = () => {
-        if (product.variants && product.variants.length > 0) {
-            setIsOptionsDialogOpen(true);
-        } else {
-            addToCart(product);
-        }
-    };
+    const imageUrl = useMemo(() =>
+        product.imageUrl || (product.imageUrls && product.imageUrls.length > 0 ? product.imageUrls[0] : null)
+    , [product]);
 
     return (
         <>
-             <div
+            <div
                 className="group relative flex cursor-pointer overflow-hidden rounded-2xl border bg-card p-4 shadow-sm transition-all duration-300 hover:border-primary/40 hover:shadow-md"
-                onClick={handleAddToCart}
+                onClick={() => setIsDetailOpen(true)}
             >
                 <div className="flex flex-1 flex-col justify-between pr-4">
                     <div>
@@ -261,14 +319,14 @@ const ProductCard = ({ product, index }: { product: Product, index: number }) =>
                     </div>
                     <div className="mt-4 font-semibold text-primary">R$ {product.price.toFixed(2)}</div>
                 </div>
-                
+
                 {imageUrl ? (
                     <div className="relative h-28 w-28 shrink-0 overflow-hidden rounded-xl bg-muted/20">
                         <Image
                             src={imageUrl}
                             alt={product.name}
                             fill
-                            style={{ objectFit: "cover" }}
+                            style={{ objectFit: 'cover' }}
                             className="transition-transform duration-500 group-hover:scale-110"
                             unoptimized
                         />
@@ -279,22 +337,21 @@ const ProductCard = ({ product, index }: { product: Product, index: number }) =>
                     </div>
                 ) : (
                     <div className="flex shrink-0 flex-col justify-end">
-                       <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
-                           <Plus className="h-5 w-5" />
-                       </div>
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+                            <Plus className="h-5 w-5" />
+                        </div>
                     </div>
                 )}
             </div>
-            {product.variants && product.variants.length > 0 && (
-                <OptionsDialog 
-                    product={product} 
-                    open={isOptionsDialogOpen} 
-                    onOpenChange={setIsOptionsDialogOpen}
-                    onAddToCart={addToCart}
-                />
-            )}
+
+            <ProductDetailDialog
+                product={product}
+                open={isDetailOpen}
+                onOpenChange={setIsDetailOpen}
+                onAddToCart={addToCart}
+            />
         </>
-    )
+    );
 };
 
 export default function MenuPage() {
@@ -449,7 +506,7 @@ export default function MenuPage() {
                     </div>
                     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
                         {productList.map((product, pIdx) => (
-                        <ProductCard key={product.id} product={product} index={idx * 10 + pIdx} />
+                        <ProductCard key={product.id} product={product} />
                         ))}
                     </div>
                 </section>
