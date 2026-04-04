@@ -198,6 +198,7 @@ export default function ProductsPage() {
       const productDocRef = doc(firestore, `companies/${user.uid}/products/${editingProduct.id}`);
       promise = updateDocument(productDocRef, productData);
     } else {
+        if (!productsRef) return;
         promise = addDocument(productsRef, { 
             ...productData, 
             stock: 0, // Default stock
