@@ -329,7 +329,6 @@ export default function SettingsPage() {
   const [primaryColor, setPrimaryColor] = useState('#29ABE2');
   const [accentColor, setAccentColor] = useState('#29E2D1');
   const [soundNotificationEnabled, setSoundNotificationEnabled] = useState(true);
-  const [autoPrintEnabled, setAutoPrintEnabled] = useState(false);
   const [closedMessage, setClosedMessage] = useState('');
   const [averagePrepTime, setAveragePrepTime] = useState(30);
   const [menuLink, setMenuLink] = useState('');
@@ -361,7 +360,6 @@ export default function SettingsPage() {
       setStoreName(companyData.name || '');
       setPhone(companyData.phone || '');
       setSoundNotificationEnabled(companyData.soundNotificationEnabled ?? true);
-      setAutoPrintEnabled(companyData.autoPrintEnabled ?? false);
       setClosedMessage(companyData.closedMessage || '');
       setAveragePrepTime(companyData.averagePrepTime || 30);
       if (companyData.themeColors) {
@@ -422,7 +420,6 @@ export default function SettingsPage() {
         phone: phone,
         themeColors: themeColors,
         soundNotificationEnabled: soundNotificationEnabled,
-        autoPrintEnabled: autoPrintEnabled,
         closedMessage: closedMessage,
         averagePrepTime: averagePrepTime,
         ownerId: user.uid,
@@ -602,20 +599,13 @@ export default function SettingsPage() {
               </div>
               <Separator />
                <div className="space-y-4">
-                 <Label className="text-base">Notificações e Impressão</Label>
+                 <Label className="text-base">Notificações</Label>
                  <div className="flex flex-row items-center justify-between rounded-lg border p-4">
                     <div className="space-y-0.5">
                       <Label className="font-medium" htmlFor="sound-notification">Ativar campainha para novos pedidos</Label>
                       <p className="text-xs text-muted-foreground">Um som de campainha tocará para cada novo pedido.</p>
                     </div>
                     <Switch id="sound-notification" checked={soundNotificationEnabled} onCheckedChange={setSoundNotificationEnabled} disabled={isLoading} />
-                  </div>
-                  <div className="flex flex-row items-center justify-between rounded-lg border p-4">
-                    <div className="space-y-0.5">
-                      <Label className="font-medium" htmlFor="auto-print">Impressão automática de pedidos</Label>
-                       <p className="text-xs text-muted-foreground">Abre a janela de impressão automaticamente ao receber um pedido.</p>
-                    </div>
-                    <Switch id="auto-print" checked={autoPrintEnabled} onCheckedChange={setAutoPrintEnabled} disabled={isLoading} />
                   </div>
               </div>
               <Separator />

@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
-import { MoreHorizontal, PlusCircle, Trash2, Search } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Trash2, Search, ArrowUp, ArrowDown } from 'lucide-react';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -108,12 +108,14 @@ type Product = {
     imageUrls: string[];
     companyId: string;
     variants?: VariantGroup[];
+    sortOrder?: number;
 }
 
 type Category = {
     id: string;
     name: string;
     companyId: string;
+    sortOrder?: number;
 }
 
 export default function ProductsPage() {
@@ -196,10 +198,10 @@ export default function ProductsPage() {
       const productDocRef = doc(firestore, `companies/${user.uid}/products/${editingProduct.id}`);
       promise = updateDocument(productDocRef, productData);
     } else {
-       if (!productsRef) return;
-       promise = addDocument(productsRef, { 
+        promise = addDocument(productsRef, { 
             ...productData, 
             stock: 0, // Default stock
+            sortOrder: Date.now(),
         });
     }
 
@@ -239,6 +241,7 @@ export default function ProductsPage() {
     const duplicatedData = {
         ...productDataToCopy,
         name: `${product.name} (Cópia)`,
+        sortOrder: Date.now(),
     };
 
     addDocument(productsRef, duplicatedData).then(() => {
@@ -255,7 +258,7 @@ export default function ProductsPage() {
         return;
     }
     if (!categoriesRef) return;
-    addDocument(categoriesRef, { name: newCategoryName, companyId: user?.uid }).then(() => {
+    addDocument(categoriesRef, { name: newCategoryName, companyId: user?.uid, sortOrder: Date.now() }).then(() => {
         toast({ title: "Categoria adicionada!" });
         setNewCategoryName('');
         setIsCategoryDialogOpen(false);
@@ -267,18 +270,97 @@ export default function ProductsPage() {
   const getProductImage = (product: Product): string | null => {
     return product.imageUrls && product.imageUrls.length > 0 ? product.imageUrls[0] : null;
   };  
+  const sortedCategoriesList = useMemo(() => {
+    if (!categories) return [];
+    return [...categories].sort((a, b) => {
+        if (a.sortOrder !== undefined && b.sortOrder !== undefined) return a.sortOrder - b.sortOrder;
+        if (a.sortOrder !== undefined) return -1;
+        if (b.sortOrder !== undefined) return 1;
+        return a.name.localeCompare(b.name);
+    });
+  }, [categories]);
+
   const categoryMap = useMemo(() => {
     if (!categories) return new Map();
     return new Map(categories.map(cat => [cat.id, cat.name]));
   }, [categories]);
 
-  const filteredProducts = useMemo(() => {
+  const sortedAndFilteredProducts = useMemo(() => {
     if (!products) return [];
-    if (!searchQuery.trim()) return products;
-    return products.filter(p =>
-      p.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  }, [products, searchQuery]);
+    
+    const sortFn = (a: Product, b: Product) => {
+        const catAIndex = sortedCategoriesList.findIndex(c => c.id === a.categoryId);
+        const catBIndex = sortedCategoriesList.findIndex(c => c.id === b.categoryId);
+        if (catAIndex !== catBIndex) return catAIndex - catBIndex;
+        
+        if (a.sortOrder !== undefined && b.sortOrder !== undefined) return a.sortOrder - b.sortOrder;
+        if (a.sortOrder !== undefined) return -1;
+        if (b.sortOrder !== undefined) return 1;
+        return a.name.localeCompare(b.name);
+    }
+    
+    let result = [...products].sort(sortFn);
+    if (searchQuery.trim()) {
+        result = result.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()));
+    }
+    return result;
+  }, [products, searchQuery, sortedCategoriesList]);
+
+  const handleMoveCategory = (index: number, direction: 'up' | 'down') => {
+      if (!firestore || !user || !sortedCategoriesList) return;
+      const targetIndex = direction === 'up' ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= sortedCategoriesList.length) return;
+
+      const currentCat = sortedCategoriesList[index];
+      const targetCat = sortedCategoriesList[targetIndex];
+
+      let currentOrder = currentCat.sortOrder !== undefined ? currentCat.sortOrder : index * 10;
+      let targetOrder = targetCat.sortOrder !== undefined ? targetCat.sortOrder : targetIndex * 10;
+      if (currentOrder === targetOrder) {
+          targetOrder += (direction === 'up' ? -1 : 1);
+      }
+
+      const docRef1 = doc(firestore, `companies/${user.uid}/categories/${currentCat.id}`);
+      const docRef2 = doc(firestore, `companies/${user.uid}/categories/${targetCat.id}`);
+
+      Promise.all([
+          updateDocument(docRef1, { sortOrder: targetOrder }),
+          updateDocument(docRef2, { sortOrder: currentOrder })
+      ]);
+  };
+
+  const handleMoveProduct = (product: Product, direction: 'up' | 'down') => {
+      if (!firestore || !user || !products) return;
+      const categoryProducts = products
+        .filter(p => p.categoryId === product.categoryId)
+        .sort((a, b) => {
+            if (a.sortOrder !== undefined && b.sortOrder !== undefined) return a.sortOrder - b.sortOrder;
+            if (a.sortOrder !== undefined) return -1;
+            if (b.sortOrder !== undefined) return 1;
+            return a.name.localeCompare(b.name);
+        });
+
+      const index = categoryProducts.findIndex(p => p.id === product.id);
+      if (index === -1) return;
+
+      const targetIndex = direction === 'up' ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= categoryProducts.length) return;
+
+      const targetProduct = categoryProducts[targetIndex];
+      let currentOrder = product.sortOrder !== undefined ? product.sortOrder : index * 10;
+      let targetOrder = targetProduct.sortOrder !== undefined ? targetProduct.sortOrder : targetIndex * 10;
+      if (currentOrder === targetOrder) {
+          targetOrder += (direction === 'up' ? -1 : 1);
+      }
+
+      const docRef1 = doc(firestore, `companies/${user.uid}/products/${product.id}`);
+      const docRef2 = doc(firestore, `companies/${user.uid}/products/${targetProduct.id}`);
+
+      Promise.all([
+          updateDocument(docRef1, { sortOrder: targetOrder }),
+          updateDocument(docRef2, { sortOrder: currentOrder })
+      ]);
+  };
 
   return (
     <Card>
@@ -306,12 +388,20 @@ export default function ProductsPage() {
                         <Separator />
                         <h4 className="font-medium">Categorias existentes</h4>
                         <div className="space-y-2">
-                            {categories?.map(cat => (
+                             {sortedCategoriesList?.map((cat, index) => (
                                 <div key={cat.id} className="flex items-center justify-between p-2 border rounded-md">
                                     <span>{cat.name}</span>
-                                    <Button variant="ghost" size="icon" disabled>
-                                        <Trash2 className="h-4 w-4 text-destructive" />
-                                    </Button>
+                                    <div className="flex items-center gap-1">
+                                        <Button variant="ghost" size="icon" onClick={() => handleMoveCategory(index, 'up')} disabled={index === 0}>
+                                            <ArrowUp className="h-4 w-4" />
+                                        </Button>
+                                        <Button variant="ghost" size="icon" onClick={() => handleMoveCategory(index, 'down')} disabled={index === sortedCategoriesList.length - 1}>
+                                            <ArrowDown className="h-4 w-4" />
+                                        </Button>
+                                        <Button variant="ghost" size="icon" disabled>
+                                            <Trash2 className="h-4 w-4 text-destructive" />
+                                        </Button>
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -537,7 +627,7 @@ export default function ProductsPage() {
                 <TableCell colSpan={7} className="text-center">Carregando produtos...</TableCell>
               </TableRow>
             )}
-            {!isLoading && filteredProducts.map((product) => {
+            {!isLoading && sortedAndFilteredProducts.map((product) => {
               const imageUrl = getProductImage(product);
               return (
                 <TableRow key={product.id}>
@@ -567,13 +657,20 @@ export default function ProductsPage() {
                   <TableCell className="hidden md:table-cell">{product.stock ?? 0}</TableCell>
                   <TableCell className="hidden md:table-cell">{categoryMap.get(product.categoryId) || 'Sem categoria'}</TableCell>
                   <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button aria-haspopup="true" size="icon" variant="ghost">
-                          <MoreHorizontal className="h-4 w-4" />
-                          <span className="sr-only">Toggle menu</span>
-                        </Button>
-                      </DropdownMenuTrigger>
+                    <div className="flex items-center justify-end">
+                      <Button variant="ghost" size="icon" onClick={() => handleMoveProduct(product, 'up')} title="Mover para cima">
+                        <ArrowUp className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => handleMoveProduct(product, 'down')} title="Mover para baixo">
+                        <ArrowDown className="h-4 w-4" />
+                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button aria-haspopup="true" size="icon" variant="ghost">
+                            <MoreHorizontal className="h-4 w-4" />
+                            <span className="sr-only">Toggle menu</span>
+                          </Button>
+                        </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Ações</DropdownMenuLabel>
                         <DropdownMenuItem onClick={() => handleOpenDialog(product)}>Editar</DropdownMenuItem>
@@ -603,11 +700,12 @@ export default function ProductsPage() {
                         </AlertDialog>
                       </DropdownMenuContent>
                     </DropdownMenu>
+                    </div>
                   </TableCell>
                 </TableRow>
               )
             })}
-             {!isLoading && filteredProducts.length === 0 && (
+             {!isLoading && sortedAndFilteredProducts.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center">
                     {searchQuery ? `Nenhum produto encontrado para "${searchQuery}".` : 'Nenhum produto encontrado.'}
@@ -619,7 +717,7 @@ export default function ProductsPage() {
       </CardContent>
       <CardFooter>
         <div className="text-xs text-muted-foreground">
-          Mostrando <strong>{filteredProducts.length}</strong> de <strong>{products?.length ?? 0}</strong> produtos
+          Mostrando <strong>{sortedAndFilteredProducts.length}</strong> de <strong>{products?.length ?? 0}</strong> produtos
         </div>
       </CardFooter>
     </Card>

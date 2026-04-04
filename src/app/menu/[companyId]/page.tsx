@@ -60,12 +60,14 @@ export type Product = {
     imageUrls?: string[];
     variants?: VariantGroup[];
     ingredients?: string;
+    sortOrder?: number;
 };
 
 type Category = {
     id: string;
     name: string;
     companyId: string;
+    sortOrder?: number;
 };
 
 // Function to get an icon for a category
@@ -395,8 +397,14 @@ export default function MenuPage() {
         acc[categoryName].push(product);
         return acc;
     }, {} as { [key: string]: Product[] });
-    
-    const categoryOrder = categories.map(c => c.name);
+    const sortedCategoriesList = [...categories].sort((a, b) => {
+        if (a.sortOrder !== undefined && b.sortOrder !== undefined) return a.sortOrder - b.sortOrder;
+        if (a.sortOrder !== undefined) return -1;
+        if (b.sortOrder !== undefined) return 1;
+        return a.name.localeCompare(b.name);
+    });
+
+    const categoryOrder = sortedCategoriesList.map(c => c.name);
 
     const sortedCategoryNames = Object.keys(grouped).sort((a, b) => {
         const indexA = categoryOrder.indexOf(a);
@@ -411,7 +419,12 @@ export default function MenuPage() {
 
     const finalGrouped: { [key: string]: Product[] } = {};
     for (const name of sortedCategoryNames) {
-        finalGrouped[name] = grouped[name];
+        finalGrouped[name] = grouped[name].sort((a, b) => {
+            if (a.sortOrder !== undefined && b.sortOrder !== undefined) return a.sortOrder - b.sortOrder;
+            if (a.sortOrder !== undefined) return -1;
+            if (b.sortOrder !== undefined) return 1;
+            return a.name.localeCompare(b.name);
+        });
     }
     
     return finalGrouped;

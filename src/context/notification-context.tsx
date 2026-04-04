@@ -64,28 +64,7 @@ export const NotificationProvider = ({ children, companyData }: NotificationProv
                             duration: 15000
                         });
                         
-                        if (currentSettings?.autoPrintEnabled) {
-                            setTimeout(() => {
-                                const printHtml = generateOrderPrintHtml(order, currentSettings);
-                                const iframe = document.getElementById('auto-print-iframe') as HTMLIFrameElement;
-                                if (iframe && iframe.contentWindow) {
-                                    iframe.contentWindow.document.open();
-                                    iframe.contentWindow.document.write(printHtml);
-                                    iframe.contentWindow.document.close();
-                                    
-                                    // Aguarda a renderização do HTML no iframe e aciona o print silencioso
-                                    setTimeout(() => {
-                                        if (iframe.contentWindow) {
-                                            iframe.contentWindow.focus();
-                                            iframe.contentWindow.print();
-                                        }
-                                    }, 500);
-                                }
-                                
-                                const orderRef = doc(firestore, `companies/${user.uid}/orders`, order.id);
-                                updateDocument(orderRef, { status: 'Em preparo' }).catch(() => {});
-                            }, 1500);
-                        }
+
                     } else if (orderTime <= startTime) {
                         processedOrderIds.current.add(order.id);
                     }
@@ -107,7 +86,6 @@ export const NotificationProvider = ({ children, companyData }: NotificationProv
     return (
         <NotificationContext.Provider value={value}>
             {children}
-            <iframe id="auto-print-iframe" style={{ display: 'none' }} title="Impressão Automática" />
         </NotificationContext.Provider>
     );
 };
