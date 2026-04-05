@@ -52,6 +52,7 @@ type PaymentMethods = {
 
 type CompanyData = {
     paymentMethods?: PaymentMethods;
+    pixKey?: string;
     phone?: string;
     name?: string;
     businessHours?: string;
@@ -376,6 +377,15 @@ export default function CartSheet({ companyId }: { companyId: string}) {
                                 <div className="grid gap-2 pl-6 pt-2">
                                     <Label className="text-xs">Precisa de troco? Troco para quanto? (opcional)</Label>
                                     <Input type="number" value={cashAmount} onChange={e => setCashAmount(e.target.value)} placeholder="Ex: 50.00 (deixe vazio se não precisar)" />
+                                </div>
+                            )}
+                            {selectedPayment === 'PIX' && companyData?.pixKey && (
+                                <div className="grid gap-2 pl-6 pt-2">
+                                    <Label className="text-sm font-semibold text-primary">Chave PIX para pagamento:</Label>
+                                    <div className="bg-primary/10 p-3 rounded-md mt-1 mb-2 border border-primary/20">
+                                        <p className="font-mono text-sm break-all font-bold select-all">{companyData.pixKey}</p>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground mt-1">O pedido será liberado após a confirmação do pagamento pelo estabelecimento.</p>
                                 </div>
                             )}
                         </div>

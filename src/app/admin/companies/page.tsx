@@ -2,9 +2,10 @@
 'use client';
 
 import { useState } from 'react';
-import { MoreHorizontal, Info, Trash2, MessageCircle, Megaphone, Send, ExternalLink } from 'lucide-react';
+import { MoreHorizontal, Info, Trash2, MessageCircle, Megaphone, Send, Search } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   Card,
   CardContent,
@@ -31,7 +32,6 @@ import {
 import { useUser, useFirestore, useCollection, useMemoFirebase, updateDocument, deleteDocument, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { collection, doc, type Timestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import { useImpersonation } from '@/context/impersonation-context';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -58,6 +58,7 @@ type Company = {
   phone?: string;
   isActive?: boolean;
   subscriptionEndDate?: Timestamp; 
+  createdAt?: Timestamp | any;
 };
 
 
@@ -65,8 +66,8 @@ export default function ManageCompaniesPage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
-  const { startImpersonation } = useImpersonation();
   
+  const [searchQuery, setSearchQuery] = useState('');
   const [isBulkOpen, setIsBulkOpen] = useState(false);
   const [bulkMessage, setBulkMessage] = useState('');
   const [bulkQueue, setBulkQueue] = useState<{ id: string, name: string, phone: string, sent: boolean }[]>([]);
@@ -161,17 +162,34 @@ export default function ManageCompaniesPage() {
   
   const isLoading = isUserLoading || isLoadingCompanies;
 
+  const filteredCompanies = companies?.filter(c => 
+    c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    (c.email && c.email.toLowerCase().includes(searchQuery.toLowerCase()))
+  ) || [];
+
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
+      <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
             <CardTitle>Gerenciar Empresas</CardTitle>
             <CardDescription>Visualize os emails, ative, desative ou exclua as lojas da plataforma.</CardDescription>
         </div>
-        <Button onClick={() => setIsBulkOpen(true)} className="gap-2 shadow-sm rounded-full">
-            <Megaphone className="h-4 w-4" />
-            Comunicado Geral
-        </Button>
+        <div className="flex w-full sm:w-auto items-center gap-2">
+            <div className="relative w-full sm:w-64">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                    type="search"
+                    placeholder="Buscar empresa..."
+                    className="pl-8"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                />
+            </div>
+            <Button onClick={() => setIsBulkOpen(true)} className="gap-2 shadow-sm rounded-full whitespace-nowrap">
+                <Megaphone className="h-4 w-4" />
+                Comunicado Geral
+            </Button>
+        </div>
       </CardHeader>
       <CardContent>
         <Alert className="mb-4">
@@ -187,6 +205,7 @@ export default function ManageCompaniesPage() {
               <TableHead>Nome da Empresa</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Contato</TableHead>
+              <TableHead>Data de Assinatura</TableHead>
               <TableHead>Validade da Assinatura</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-center">Ações</TableHead>
@@ -195,14 +214,17 @@ export default function ManageCompaniesPage() {
           <TableBody>
              {isLoading && (
               <TableRow>
-                <TableCell colSpan={6} className="text-center">Carregando empresas...</TableCell>
+                <TableCell colSpan={7} className="text-center">Carregando empresas...</TableCell>
               </TableRow>
             )}
-            {!isLoading && companies?.map((company) => (
+            {!isLoading && filteredCompanies.map((company) => (
               <TableRow key={company.id}>
                 <TableCell className="font-medium">{company.name}</TableCell>
                 <TableCell>{company.email || 'Não informado'}</TableCell>
                 <TableCell>{company.phone || 'Não informado'}</TableCell>
+                <TableCell>
+                  {company.createdAt?.toDate ? format(company.createdAt.toDate(), 'dd/MM/yyyy') : (company.createdAt ? format(new Date(company.createdAt), 'dd/MM/yyyy') : 'N/A')}
+                </TableCell>
                 <TableCell>
                   {company.subscriptionEndDate ? format(company.subscriptionEndDate.toDate(), 'dd/MM/yyyy') : 'N/A'}
                 </TableCell>
@@ -215,15 +237,6 @@ export default function ManageCompaniesPage() {
                     <div className="flex items-center justify-center gap-2">
                         <Button variant="outline" size="icon" onClick={() => handleSendIndividual(company)} title="Enviar Mensagem" className="rounded-full text-green-600 hover:text-green-700 hover:bg-green-50 z-10">
                             <MessageCircle className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          title={`Acessar dashboard de ${company.name}`}
-                          className="rounded-full text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                          onClick={() => startImpersonation(company.id, company.name)}
-                        >
-                          <ExternalLink className="h-4 w-4" />
                         </Button>
                          <Switch
                             checked={!!company.isActive}
@@ -255,9 +268,9 @@ export default function ManageCompaniesPage() {
                 </TableCell>
               </TableRow>
             ))}
-             {!isLoading && companies?.length === 0 && (
+             {!isLoading && filteredCompanies.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center">Nenhuma empresa encontrada.</TableCell>
+                  <TableCell colSpan={7} className="text-center">Nenhuma empresa encontrada com essa busca.</TableCell>
                 </TableRow>
               )}
           </TableBody>

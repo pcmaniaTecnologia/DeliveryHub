@@ -332,6 +332,7 @@ export default function SettingsPage() {
   const [closedMessage, setClosedMessage] = useState('');
   const [averagePrepTime, setAveragePrepTime] = useState(30);
   const [menuLink, setMenuLink] = useState('');
+  const [pixKey, setPixKey] = useState('');
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethods>({
     cash: true,
     pix: true,
@@ -373,6 +374,9 @@ export default function SettingsPage() {
       }
        if (companyData.paymentMethods) {
         setPaymentMethods(companyData.paymentMethods);
+      }
+      if (companyData.pixKey) {
+        setPixKey(companyData.pixKey);
       }
        if (companyData.businessHours) {
         try {
@@ -443,10 +447,10 @@ export default function SettingsPage() {
 
   const handleSavePayments = () => {
     if (!companyRef || !user) return;
-    setDocument(companyRef, { paymentMethods, ownerId: user.uid }, { merge: true }).then(() => {
+    setDocument(companyRef, { paymentMethods, pixKey, ownerId: user.uid }, { merge: true }).then(() => {
         toast({
             title: 'Pagamentos Salvos!',
-            description: 'Suas formas de pagamento foram atualizadas.',
+            description: 'Suas formas de pagamento e chave PIX foram atualizadas.',
         });
     });
   };
@@ -727,6 +731,12 @@ export default function SettingsPage() {
                 <Label htmlFor="pay-pix">PIX</Label>
                 <Switch id="pay-pix" checked={paymentMethods.pix} onCheckedChange={(checked) => handlePaymentMethodChange('pix', checked)} />
               </div>
+              {paymentMethods.pix && (
+                <div className="flex flex-col space-y-2 pl-4">
+                  <Label htmlFor="pix-key" className="text-sm font-normal">Chave PIX (Opcional)</Label>
+                  <Input id="pix-key" placeholder="Ex: email@dominio.com, CPF, Telefone..." value={pixKey} onChange={(e) => setPixKey(e.target.value)} disabled={isLoading} />
+                </div>
+              )}
               <div className="flex items-center justify-between rounded-lg border p-4">
                 <Label htmlFor="pay-credit">Cartão de Crédito</Label>
                 <Switch id="pay-credit" checked={paymentMethods.credit} onCheckedChange={(checked) => handlePaymentMethodChange('credit', checked)} />

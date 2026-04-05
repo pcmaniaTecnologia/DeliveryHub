@@ -36,6 +36,8 @@ async function createInitialDocuments(firestore: any, user: User, firstName: str
         isActive: true, 
         planId: 'trial', 
         soundNotificationEnabled: true,
+        createdAt: new Date(),
+        subscriptionEndDate: trialEndDate,
     };
 
     const companyUserRef = doc(firestore, 'companies', user.uid, 'users', user.uid);
