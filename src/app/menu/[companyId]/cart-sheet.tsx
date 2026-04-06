@@ -103,6 +103,7 @@ export default function CartSheet({ companyId }: { companyId: string}) {
   const [isOrderFinished, setIsOrderFinished] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [whatsappLink, setWhatsappLink] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const companyRef = useMemoFirebase(() => {
     if (!firestore || !companyId) return null;
@@ -165,7 +166,9 @@ export default function CartSheet({ companyId }: { companyId: string}) {
         return;
     }
     
-    const ordersRef = collection(firestore, 'companies', companyId, 'orders');
+    setIsSubmitting(true);
+    try {
+        const ordersRef = collection(firestore, 'companies', companyId, 'orders');
     const fullAddress = deliveryType === 'Delivery'
   ? `${addressStreet || 'Rua não informada'}, ${addressNumber || 'S/N'} - ${addressNeighborhood || 'Bairro não informado'} ${addressComplement || ''}`
   : 'Retirada no local';
@@ -194,7 +197,7 @@ export default function CartSheet({ companyId }: { companyId: string}) {
         totalAmount: finalTotal,
     };
     
-    try {
+    
         const docRef = await addDocument(ordersRef, orderData);
         const rawCompanyPhone = companyData.phone?.replace(/\D/g, '') || '';
         const zapNumber = rawCompanyPhone.startsWith('55') ? rawCompanyPhone : (rawCompanyPhone ? `55${rawCompanyPhone}` : '');
@@ -229,6 +232,8 @@ export default function CartSheet({ companyId }: { companyId: string}) {
         setIsCheckoutOpen(false);
     } catch (error) {
         toast({ variant: 'destructive', title: 'Erro ao enviar pedido' });
+    } finally {
+        setIsSubmitting(false);
     }
   };
 
@@ -336,7 +341,9 @@ export default function CartSheet({ companyId }: { companyId: string}) {
                             {deliveryFee > 0 && <div className="flex justify-between"><span>Entrega</span><span>R$ {deliveryFee.toFixed(2)}</span></div>}
                             <div className="flex justify-between font-bold text-lg pt-1 border-t"><span>Total</span><span>R$ {finalTotal.toFixed(2)}</span></div>
                         </div>
-                        <Button className="w-full h-12 text-lg" onClick={handlePlaceOrder}>Enviar Pedido</Button>
+                        <Button className="w-full h-12 text-lg" onClick={handlePlaceOrder} disabled={isSubmitting}>
+                            {isSubmitting ? 'Processando...' : 'Enviar Pedido'}
+                        </Button>
                     </SheetFooter>
                 </>
             ) : (

@@ -110,6 +110,7 @@ export default function CartSheet({ companyId }: { companyId: string}) {
   const [isOrderFinished, setIsOrderFinished] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [whatsappLink, setWhatsappLink] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const companyRef = useMemoFirebase(() => {
     if (!firestore || !companyId) return null;
@@ -182,7 +183,9 @@ export default function CartSheet({ companyId }: { companyId: string}) {
         return;
     }
     
-    const ordersRef = collection(firestore, 'companies', companyId, 'orders');
+    setIsSubmitting(true);
+    try {
+        const ordersRef = collection(firestore, 'companies', companyId, 'orders');
     const fullAddress = deliveryType === 'Delivery'
       ? `${addressStreet}, ${addressNumber} - ${addressNeighborhood}${addressComplement ? ` (${addressComplement})` : ''}`
       : 'Retirada no local';
@@ -210,7 +213,7 @@ export default function CartSheet({ companyId }: { companyId: string}) {
         totalAmount: finalTotal,
     };
     
-    try {
+    
         const docRef = await addDocument(ordersRef, orderData);
         
         if (companyData.phone) {
@@ -275,6 +278,8 @@ export default function CartSheet({ companyId }: { companyId: string}) {
         setIsCheckoutOpen(false);
     } catch (error) {
         toast({ variant: 'destructive', title: 'Erro ao enviar pedido' });
+    } finally {
+        setIsSubmitting(false);
     }
   };
 
@@ -396,7 +401,9 @@ export default function CartSheet({ companyId }: { companyId: string}) {
                             {deliveryFee > 0 && <div className="flex justify-between text-muted-foreground"><span>Entrega</span><span>R$ {deliveryFee.toFixed(2)}</span></div>}
                             <div className="flex justify-between font-bold text-lg pt-1 border-t"><span>Total</span><span className="text-primary">R$ {finalTotal.toFixed(2)}</span></div>
                         </div>
-                        <Button className="w-full h-12 text-lg shadow-md" onClick={handlePlaceOrder}>Confirmar e Enviar</Button>
+                        <Button className="w-full h-12 text-lg shadow-md" onClick={handlePlaceOrder} disabled={isSubmitting}>
+                            {isSubmitting ? 'Processando...' : 'Confirmar e Enviar'}
+                        </Button>
                     </SheetFooter>
                 </>
             ) : (
