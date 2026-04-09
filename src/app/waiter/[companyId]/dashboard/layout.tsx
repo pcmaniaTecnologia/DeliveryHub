@@ -14,7 +14,9 @@ export default async function WaiterDashboardLayout({
   return (
     <CartProvider>
       <div className="min-h-screen bg-background pb-20">
-        {children}
+        <Suspense fallback={<div className="p-8 text-center">Carregando...</div>}>
+          {children}
+        </Suspense>
         <Suspense fallback={null}>
             <WaiterCartSheet companyId={companyId} />
         </Suspense>

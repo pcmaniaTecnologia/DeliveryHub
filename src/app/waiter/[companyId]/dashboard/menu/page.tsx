@@ -10,8 +10,8 @@ export default function WaiterMenuPage() {
     const params = useParams();
     const searchParams = useSearchParams();
     const companyId = params?.companyId as string;
-    const tableNumber = searchParams.get('table');
-    const isAdmin = searchParams.get('admin') === 'true';
+    const tableNumber = searchParams?.get('table');
+    const isAdmin = searchParams?.get('admin') === 'true';
     
     const backUrl = isAdmin ? '/dashboard/comandas' : `/waiter/${companyId}/dashboard`;
 

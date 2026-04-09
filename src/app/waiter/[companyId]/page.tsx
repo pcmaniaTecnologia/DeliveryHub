@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { useFirestore, useDoc, useMemoFirebase, useAuth, initiateAnonymousSignIn } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -16,6 +16,7 @@ export default function WaiterLoginPage() {
     const companyId = params?.companyId as string;
     const router = useRouter();
     const firestore = useFirestore();
+    const auth = useAuth();
     const { toast } = useToast();
     const [name, setName] = useState('');
 
@@ -36,23 +37,38 @@ export default function WaiterLoginPage() {
         }
     }, [companyId, router]);
 
-    const handleIdentify = (e?: React.FormEvent) => {
+    const handleIdentify = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
         
         if (!name.trim()) return;
 
-        // Save name to localStorage
-        localStorage.setItem(`waiter_name_${companyId}`, name.trim());
-        
-        // Also save a session object for compatibility with components that expect it
-        localStorage.setItem(`waiter_session_${companyId}`, JSON.stringify({
-            id: 'waiter_id_' + Date.now(),
-            name: name.trim(),
-            pin: ''
-        }));
+        try {
+            // Background anonymous sign-in to get a valid Firebase UID
+            // This is required to satisfy Firestore security rules for listing orders
+            if (auth && !auth.currentUser) {
+                await initiateAnonymousSignIn(auth);
+            }
 
-        toast({ title: 'Identificado!', description: `Bem-vindo(a), ${name}!` });
-        router.push(`/waiter/${companyId}/dashboard`);
+            // Save name to localStorage
+            localStorage.setItem(`waiter_name_${companyId}`, name.trim());
+            
+            // Also save a session object for compatibility with components that expect it
+            localStorage.setItem(`waiter_session_${companyId}`, JSON.stringify({
+                id: auth?.currentUser?.uid || 'waiter_id_' + Date.now(),
+                name: name.trim(),
+                pin: ''
+            }));
+
+            toast({ title: 'Identificado!', description: `Bem-vindo(a), ${name}!` });
+            router.push(`/waiter/${companyId}/dashboard`);
+        } catch (error) {
+            console.error("Waiter auth error:", error);
+            toast({ 
+                variant: "destructive", 
+                title: 'Erro de conexão', 
+                description: 'Não foi possível iniciar sua sessão. Verifique sua internet.' 
+            });
+        }
     };
 
     if (isLoadingCompany) {

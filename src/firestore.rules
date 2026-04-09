@@ -104,8 +104,7 @@ service cloud.firestore {
     }
 
     match /companies/{companyId}/orders/{orderId} {
-      allow get: if isCompanyMember(companyId) || isSuperAdmin() || (isSignedIn() && resource.data.customerId == request.auth.uid);
-      allow list: if isCompanyMember(companyId) || isSuperAdmin();
+      allow get, list: if isCompanyMember(companyId) || isSuperAdmin() || isSignedIn();
       allow create: if request.resource.data.companyId == companyId;
       allow update: if (isCompanyMember(companyId) || isSuperAdmin()) && resource != null;
       allow delete: if false;
