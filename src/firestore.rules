@@ -72,7 +72,13 @@ service cloud.firestore {
     match /companies/{companyId}/products/{productId} {
       allow get, list: if true;
       allow create: if (isCompanyMember(companyId) || isSuperAdmin()) && request.resource.data.companyId == companyId;
+      // Membros da empresa podem atualizar tudo
       allow update: if (isCompanyMember(companyId) || isSuperAdmin()) && resource != null && request.resource.data.companyId == resource.data.companyId;
+      // Clientes anônimos só podem decrementar o campo 'stock' (para baixa de estoque no pedido)
+      allow update: if resource != null
+                    && resource.data.get('stockControlEnabled', false) == true
+                    && request.resource.data.keys().hasOnly(['stock'])
+                    && request.resource.data.stock < resource.data.stock;
       allow delete: if (isCompanyMember(companyId) || isSuperAdmin()) && resource != null;
     }
 

@@ -83,7 +83,7 @@ export default function MenuLayout({
                 <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
                     <p>&copy; {new Date().getFullYear()} DeliveryHub. Todos os direitos reservados.</p>
                     <p className="mt-1">
-                        Desenvolvido por <a href="#" className="underline">PC MANIA</a>
+                        Desenvolvido por <a href="https://www.pcmania.net" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary transition-colors">PC MANIA</a>
                     </p>
                 </div>
             </footer>

@@ -63,9 +63,10 @@ export type Order = {
   companyId: string;
   customerId: string;
   orderDate: Timestamp;
-  status: 'Novo' | 'Aguardando pagamento' | 'Em preparo' | 'Pronto para retirada' | 'Saiu para entrega' | 'Entregue' | 'Cancelado';
+  status: 'Novo' | 'Aguardando pagamento' | 'Em preparo' | 'Pronto para retirada' | 'Saiu para entrega' | 'Entregue' | 'Cancelado' | 'Entregue à mesa';
   deliveryAddress: string;
-  deliveryType: 'Delivery' | 'Retirada';
+  deliveryType: 'Delivery' | 'Retirada' | 'Mesa';
+  tableNumber?: string;
   deliveryFee?: number;
   paymentMethod: string;
   estimatedTime?: number;
@@ -78,10 +79,10 @@ export type Order = {
 
 
 const statusMap: { [key: string]: Order['status'][] } = {
-  "Todos": ["Novo", "Aguardando pagamento", "Em preparo", "Pronto para retirada", "Saiu para entrega", "Entregue", "Cancelado"],
+  "Todos": ["Novo", "Aguardando pagamento", "Em preparo", "Pronto para retirada", "Saiu para entrega", "Entregue", "Cancelado", "Entregue à mesa"],
   "Novo": ["Novo", "Aguardando pagamento"],
   "Em preparo": ["Em preparo"],
-  "Pronto": ["Pronto para retirada", "Saiu para entrega"],
+  "Pronto": ["Pronto para retirada", "Saiu para entrega", "Entregue à mesa"],
   "Finalizados": ["Entregue", "Cancelado"],
 }
 
@@ -233,7 +234,13 @@ export default function OrdersPage() {
                           return matchesName || matchesPhone || matchesId;
                       }).sort((a, b) => b.orderDate.toMillis() - a.orderDate.toMillis()).map(order => (
                         <TableRow key={order.id}>
-                          <TableCell className="font-medium">{order.id.substring(0, 6).toUpperCase()}</TableCell>
+                          <TableCell className="font-medium">
+                            {order.deliveryType === 'Mesa' || order.tableNumber ? (
+                                <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">Mesa {order.tableNumber}</Badge>
+                            ) : (
+                                order.id.substring(0, 6).toUpperCase()
+                            )}
+                          </TableCell>
                           <TableCell>{order.customerName}</TableCell>
                           <TableCell><Badge>{order.status}</Badge></TableCell>
                           <TableCell className="text-right">R${order.totalAmount.toFixed(2)}</TableCell>
@@ -258,11 +265,14 @@ export default function OrdersPage() {
                                   </DropdownMenuItem>
                                   <DropdownMenuSeparator />
                                   <DropdownMenuItem onClick={() => handleUpdateStatus(order, 'Em preparo')}>Mudar para Preparo</DropdownMenuItem>
+                                  {order.deliveryType === 'Mesa' && (
+                                      <DropdownMenuItem onClick={() => handleUpdateStatus(order, 'Entregue à mesa')}>Entregue à Mesa</DropdownMenuItem>
+                                  )}
                                   {order.deliveryType === 'Delivery' ? (
                                       <DropdownMenuItem onClick={() => handleUpdateStatus(order, 'Saiu para entrega')}>Saiu para Entrega</DropdownMenuItem>
-                                  ) : (
+                                  ) : order.deliveryType === 'Retirada' ? (
                                       <DropdownMenuItem onClick={() => handleUpdateStatus(order, 'Pronto para retirada')}>Pronto para Retirada</DropdownMenuItem>
-                                  )}
+                                  ) : null}
                                   <DropdownMenuItem onClick={() => handleUpdateStatus(order, 'Entregue')}>Finalizar/Entregue</DropdownMenuItem>
                                   <DropdownMenuSeparator />
                                   <DropdownMenuItem onClick={() => handleUpdateStatus(order, 'Cancelado')} className="text-destructive">Cancelar</DropdownMenuItem>

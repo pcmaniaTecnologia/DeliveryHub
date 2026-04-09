@@ -199,6 +199,23 @@ export default function CartSheet({ companyId }: { companyId: string}) {
     
     
         const docRef = await addDocument(ordersRef, orderData);
+
+        // ── Baixa de estoque via API (server-side) ────────────────────────
+        // O cliente anônimo não tem permissão para escrever em /products,
+        // por isso chamamos uma API Route que roda com privilégios de admin.
+        const stockItems = cartItems
+            .filter(item => item.product.stockControlEnabled)
+            .map(item => ({ productId: item.product.id, quantity: item.quantity }));
+
+        if (stockItems.length > 0) {
+            await fetch('/api/stock/decrement', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ companyId, items: stockItems }),
+            });
+        }
+        // ─────────────────────────────────────────────────────────────────
+
         const rawCompanyPhone = companyData.phone?.replace(/\D/g, '') || '';
         const zapNumber = rawCompanyPhone.startsWith('55') ? rawCompanyPhone : (rawCompanyPhone ? `55${rawCompanyPhone}` : '');
 

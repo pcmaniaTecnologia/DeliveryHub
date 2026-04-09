@@ -1,5 +1,6 @@
 import { CartProvider } from '@/context/cart-context';
 import WaiterCartSheet from '@/components/menu/waiter-cart-sheet';
+import { Suspense } from 'react';
 
 export default async function WaiterDashboardLayout({
   children,
@@ -14,7 +15,9 @@ export default async function WaiterDashboardLayout({
     <CartProvider>
       <div className="min-h-screen bg-background pb-20">
         {children}
-        <WaiterCartSheet companyId={companyId} />
+        <Suspense fallback={null}>
+            <WaiterCartSheet companyId={companyId} />
+        </Suspense>
       </div>
     </CartProvider>
   );

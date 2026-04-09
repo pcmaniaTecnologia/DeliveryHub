@@ -46,6 +46,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -127,6 +128,7 @@ export default function ProductsPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
   
   const form = useForm<z.infer<typeof productFormSchema>>({
     resolver: zodResolver(productFormSchema),
@@ -184,13 +186,33 @@ export default function ProductsPage() {
 
   const { data: categories, isLoading: isLoadingCategories } = useCollection<Category>(categoriesRef);
 
-  const onSubmit = (values: z.infer<typeof productFormSchema>) => {
+  const onSubmit = async (values: z.infer<typeof productFormSchema>) => {
     if (!user || !firestore) return;
+    setIsSaving(true);
+
+    let finalImageUrl = values.imageUrl;
+
+    if (finalImageUrl && (finalImageUrl.includes('photos.app.goo.gl') || finalImageUrl.includes('photos.google.com') || finalImageUrl.includes('drive.google.com'))) {
+        try {
+            const res = await fetch(`/api/extract-og-image?url=${encodeURIComponent(finalImageUrl)}`);
+            if (res.ok) {
+                const data = await res.json();
+                if (data.imageUrl) {
+                    finalImageUrl = data.imageUrl;
+                }
+            } else {
+                toast({ variant: 'destructive', title: 'Aviso sobre a Imagem', description: 'Não conseguimos ler a imagem deste link. Talvez o álbum seja privado.' });
+            }
+        } catch(e) {
+            console.error('Error extracting image:', e);
+        }
+    }
 
     const productData = {
       ...values,
+      imageUrl: finalImageUrl,
       companyId: user.uid,
-      imageUrls: values.imageUrl ? [values.imageUrl] : [],
+      imageUrls: finalImageUrl ? [finalImageUrl] : [],
     };
     
     let promise;
@@ -198,7 +220,10 @@ export default function ProductsPage() {
       const productDocRef = doc(firestore, `companies/${user.uid}/products/${editingProduct.id}`);
       promise = updateDocument(productDocRef, productData);
     } else {
-        if (!productsRef) return;
+        if (!productsRef) {
+            setIsSaving(false);
+            return;
+        }
         promise = addDocument(productsRef, { 
             ...productData, 
             stock: 0, // Default stock
@@ -214,6 +239,10 @@ export default function ProductsPage() {
         form.reset();
         setIsDialogOpen(false);
         setEditingProduct(null);
+    }).catch(() => {
+        toast({ variant: 'destructive', title: 'Erro', description: 'Ocorreu um erro ao salvar o produto.' });
+    }).finally(() => {
+        setIsSaving(false);
     });
   };
 
@@ -498,10 +527,13 @@ export default function ProductsPage() {
                   name="imageUrl"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>URL da Imagem</FormLabel>
+                      <FormLabel>URL ou Endereço da Imagem</FormLabel>
                       <FormControl>
                         <Input placeholder="https://exemplo.com/imagem.png" {...field} />
                       </FormControl>
+                      <FormDescription>
+                        Para usar imagem do <strong>Google Fotos</strong> ou da internet, clique na foto com o botão direito e escolha <strong>"Copiar endereço da imagem"</strong> e cole aqui.
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -526,6 +558,7 @@ export default function ProductsPage() {
                     </FormItem>
                   )}
                 />
+
                 <Separator />
                 <div>
                   <h3 className="text-lg font-medium mb-2">Variantes (Opcionais)</h3>
@@ -589,9 +622,11 @@ export default function ProductsPage() {
 
                 <DialogFooter className="sticky bottom-0 bg-background pt-4 z-10">
                   <DialogClose asChild>
-                    <Button type="button" variant="outline">Cancelar</Button>
+                    <Button type="button" variant="outline" disabled={isSaving}>Cancelar</Button>
                   </DialogClose>
-                  <Button type="submit">Salvar Produto</Button>
+                  <Button type="submit" disabled={isSaving}>
+                      {isSaving ? 'Salvando...' : 'Salvar Produto'}
+                  </Button>
                 </DialogFooter>
               </form>
             </Form>

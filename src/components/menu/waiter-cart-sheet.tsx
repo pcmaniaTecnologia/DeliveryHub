@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Sheet,
   SheetContent,
@@ -15,8 +15,8 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useCart, type CartItem } from '@/context/cart-context';
-import { ShoppingCart, Minus, Plus, Trash2, LogOut } from 'lucide-react';
-import { useFirestore, addDocument } from '@/firebase';
+import { Trash2, LogOut, ShieldCheck, Minus, Plus, ShoppingCart } from 'lucide-react';
+import { useFirestore, addDocument, useUser } from '@/firebase';
 import { collection, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -78,17 +78,37 @@ export default function WaiterCartSheet({ companyId }: { companyId: string}) {
   
   const [waiterSession, setWaiterSession] = useState<{id: string, name: string, pin: string} | null>(null);
 
+  const searchParams = useSearchParams();
+  const urlTable = searchParams?.get('table');
+  const urlWaiter = searchParams?.get('waiter');
+  const isAdminSession = searchParams?.get('admin') === 'true';
+  const { user } = useUser();
+
+  const [tableNumber, setTableNumber] = useState(urlTable || '');
+  const [customerName, setCustomerName] = useState('');
+
   useEffect(() => {
+    if (urlTable) {
+        setTableNumber(urlTable);
+    }
+  }, [urlTable]);
+
+  useEffect(() => {
+    if (isAdminSession) {
+        setWaiterSession({id: 'admin', name: 'Administrador(a)', pin: ''});
+        return;
+    }
+    if (urlWaiter) {
+        setWaiterSession({id: 'url_waiter', name: urlWaiter, pin: ''});
+        return;
+    }
     const session = localStorage.getItem(`waiter_session_${companyId}`);
     if (session) {
         setWaiterSession(JSON.parse(session));
     } else {
         router.push(`/waiter/${companyId}`);
     }
-  }, [companyId, router]);
-
-  const [tableNumber, setTableNumber] = useState('');
-  const [customerName, setCustomerName] = useState('');
+  }, [companyId, router, isAdminSession, urlWaiter]);
 
   const finalTotal = totalPrice; // No delivery fee for tables
 
@@ -132,7 +152,7 @@ export default function WaiterCartSheet({ companyId }: { companyId: string}) {
         setIsOrderFinished(true);
         clearCart();
         setIsCheckoutOpen(false);
-        setTableNumber('');
+        if (!urlTable) setTableNumber('');
         setCustomerName('');
     } catch (error) {
         toast({ variant: 'destructive', title: 'Erro ao lançar comanda' });
@@ -140,6 +160,10 @@ export default function WaiterCartSheet({ companyId }: { companyId: string}) {
   };
 
   const handleLogout = () => {
+      if (isAdminSession) {
+          router.push('/dashboard/comandas');
+          return;
+      }
       localStorage.removeItem(`waiter_session_${companyId}`);
       router.push(`/waiter/${companyId}`);
   };
@@ -147,10 +171,11 @@ export default function WaiterCartSheet({ companyId }: { companyId: string}) {
   return (
     <>
       <div className="fixed top-4 right-4 z-40 flex items-center gap-3">
-          <Badge className="px-3 py-1 shadow-md bg-foreground text-background">
-            Garçom: {waiterSession?.name || '...'}
+          <Badge className={`px-3 py-1 shadow-md text-background ${isAdminSession ? 'bg-primary' : 'bg-foreground'}`}>
+            {isAdminSession && <ShieldCheck className="w-3 h-3 mr-1 inline" />}
+            {isAdminSession ? 'Modo Admin' : `Garçom: ${waiterSession?.name || '...'}`}
           </Badge>
-          <Button variant="secondary" size="icon" onClick={handleLogout} className="rounded-full shadow-md bg-red-100 text-red-600 hover:bg-red-200" title="Sair do Modo Garçom">
+          <Button variant="secondary" size="icon" onClick={handleLogout} className="rounded-full shadow-md bg-red-100 text-red-600 hover:bg-red-200" title={isAdminSession ? "Voltar ao painel" : "Sair do Modo Garçom"}>
               <LogOut className="h-4 w-4" />
           </Button>
       </div>
@@ -172,10 +197,11 @@ export default function WaiterCartSheet({ companyId }: { companyId: string}) {
                                 <Label className="text-lg">Número da Mesa <span className="text-destructive">*</span></Label>
                                 <Input 
                                     placeholder="Ex: 05, 12, Varanda" 
-                                    className="text-2xl h-14" 
+                                    className={`text-2xl h-14 ${urlTable ? 'bg-muted text-muted-foreground' : ''}`} 
                                     value={tableNumber} 
+                                    readOnly={!!urlTable}
                                     onChange={e => setTableNumber(e.target.value)} 
-                                    autoFocus
+                                    autoFocus={!urlTable}
                                 />
                             </div>
                             <div className="grid gap-2 mt-4">
@@ -184,8 +210,8 @@ export default function WaiterCartSheet({ companyId }: { companyId: string}) {
                             </div>
                         </div>
                     </ScrollArea>
-                    <SheetFooter className="pt-4 border-t flex flex-col gap-2">
-                        <div className="space-y-1 text-sm">
+                    <SheetFooter className="pt-4 border-t flex flex-col sm:flex-col sm:space-x-0 gap-2">
+                        <div className="space-y-1 text-sm w-full">
                             <div className="flex justify-between font-bold text-xl pt-1"><span>Total do Pedido</span><span className="text-primary">R$ {finalTotal.toFixed(2)}</span></div>
                         </div>
                         <Button className="w-full h-14 text-xl shadow-md mt-2" onClick={handlePlaceOrder}>Enviar para a Cozinha</Button>
@@ -196,8 +222,8 @@ export default function WaiterCartSheet({ companyId }: { companyId: string}) {
                 <>
                     <SheetHeader><SheetTitle>Comanda Atual</SheetTitle></SheetHeader>
                     <ScrollArea className="flex-grow"><div className="space-y-4 py-4">{cartItems.length > 0 ? cartItems.map(item => <CartItemCard key={item.id} item={item} />) : <p className="text-center text-muted-foreground py-8">Nenhum item adicionado na comanda.</p>}</div></ScrollArea>
-                    <SheetFooter className="pt-4 border-t flex flex-col gap-2">
-                        <div className="flex justify-between font-bold text-lg"><span>Subtotal</span><span>R$ {totalPrice.toFixed(2)}</span></div>
+                    <SheetFooter className="pt-4 border-t flex flex-col sm:flex-col sm:space-x-0 gap-2">
+                        <div className="flex justify-between font-bold text-lg w-full"><span>Subtotal</span><span>R$ {totalPrice.toFixed(2)}</span></div>
                         <Button className="w-full h-12 text-lg" onClick={() => setIsCheckoutOpen(true)} disabled={cartItems.length === 0}>Lançar Pedido</Button>
                     </SheetFooter>
                 </>

@@ -45,7 +45,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { format, addDays, isAfter } from 'date-fns';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
-
 type PaymentMethods = {
   cash: boolean;
   pix: boolean;
@@ -301,7 +300,6 @@ export default function SettingsPage() {
   const [newFee, setNewFee] = useState('');
   const [newTime, setNewTime] = useState('');
 
-
   const companyRef = useMemoFirebase(() => {
       if (!firestore || !user) return null;
       return doc(firestore, 'companies', user.uid)
@@ -323,7 +321,6 @@ export default function SettingsPage() {
 
   const { data: planData, isLoading: isLoadingPlan } = useDoc<Plan>(planRef);
 
-
   const [storeName, setStoreName] = useState('');
   const [phone, setPhone] = useState('');
   const [primaryColor, setPrimaryColor] = useState('#29ABE2');
@@ -331,7 +328,9 @@ export default function SettingsPage() {
   const [soundNotificationEnabled, setSoundNotificationEnabled] = useState(true);
   const [closedMessage, setClosedMessage] = useState('');
   const [averagePrepTime, setAveragePrepTime] = useState(30);
+  const [numberOfTables, setNumberOfTables] = useState(0);
   const [menuLink, setMenuLink] = useState('');
+  const [waiterLink, setWaiterLink] = useState('');
   const [pixKey, setPixKey] = useState('');
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethods>({
     cash: true,
@@ -363,6 +362,7 @@ export default function SettingsPage() {
       setSoundNotificationEnabled(companyData.soundNotificationEnabled ?? true);
       setClosedMessage(companyData.closedMessage || '');
       setAveragePrepTime(companyData.averagePrepTime || 30);
+      setNumberOfTables(companyData.numberOfTables || 0);
       if (companyData.themeColors) {
         try {
           const colors = JSON.parse(companyData.themeColors);
@@ -386,9 +386,9 @@ export default function SettingsPage() {
           console.error("Error parsing business hours", e);
         }
       }
-      if (companyData.whatsappMessageTemplates) {
+      if (companyData.whatsappTemplates) {
           try {
-              const templates = JSON.parse(companyData.whatsappMessageTemplates);
+              const templates = JSON.parse(companyData.whatsappTemplates);
               setWhatsappTemplates(templates);
           } catch(e) {
                console.error("Error parsing whatsapp templates", e);
@@ -400,14 +400,15 @@ export default function SettingsPage() {
   useEffect(() => {
     if (typeof window !== 'undefined' && user?.uid) {
       setMenuLink(`${window.location.origin}/menu/${user.uid}`);
+      setWaiterLink(`${window.location.origin}/waiter/${user.uid}/dashboard`);
     }
   }, [user?.uid]);
 
-  const handleCopyToClipboard = () => {
-    navigator.clipboard.writeText(menuLink);
+  const handleCopyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
     toast({
       title: 'Link Copiado!',
-      description: 'O link do cardápio foi copiado para a área de transferência.',
+      description: 'O link foi copiado para a área de transferência.',
     });
   };
 
@@ -426,6 +427,7 @@ export default function SettingsPage() {
         soundNotificationEnabled: soundNotificationEnabled,
         closedMessage: closedMessage,
         averagePrepTime: averagePrepTime,
+        numberOfTables: numberOfTables,
         ownerId: user.uid,
     };
 
@@ -532,13 +534,13 @@ export default function SettingsPage() {
   const isLoading = isUserLoadingAuth || isLoadingCompany || isLoadingZones || isLoadingPlan;
 
   const weekDays: { key: keyof BusinessHours; label: string }[] = [
-    { key: 'sunday', label: 'Domingo' },
     { key: 'monday', label: 'Segunda-feira' },
     { key: 'tuesday', label: 'Terça-feira' },
     { key: 'wednesday', label: 'Quarta-feira' },
     { key: 'thursday', label: 'Quinta-feira' },
     { key: 'friday', label: 'Sexta-feira' },
     { key: 'saturday', label: 'Sábado' },
+    { key: 'sunday', label: 'Domingo' },
   ];
 
   if (isLoading) return <p>Carregando configurações...</p>;
@@ -581,11 +583,16 @@ export default function SettingsPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="phone">Telefone/WhatsApp</Label>
-                <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} disabled={isLoading}/>
+                <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} disabled={isLoading} />
               </div>
                <div className="space-y-2">
                 <Label htmlFor="average-prep-time">Tempo médio de preparo (minutos)</Label>
                 <Input id="average-prep-time" type="number" value={averagePrepTime} onChange={(e) => setAveragePrepTime(Number(e.target.value))} disabled={isLoading} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="number-of-tables">Número de Mesas do Restaurante</Label>
+                <Input id="number-of-tables" type="number" value={numberOfTables} onChange={(e) => setNumberOfTables(Number(e.target.value))} min={0} placeholder="Ex: 20" disabled={isLoading} />
+                <p className="text-xs text-muted-foreground">Útil para o sistema de garçom via celular.</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="closed-message">Mensagem de loja fechada</Label>
@@ -593,13 +600,23 @@ export default function SettingsPage() {
               </div>
               <Separator />
                <div className="space-y-2">
-                <Label htmlFor="menu-link">Link do Cardápio</Label>
+                <Label htmlFor="menu-link">Link do Cardápio (Clientes)</Label>
                 <div className="flex items-center gap-2">
                   <Input id="menu-link" value={menuLink} readOnly disabled={isLoading} />
-                  <Button variant="outline" size="icon" onClick={handleCopyToClipboard} disabled={isLoading}>
+                  <Button variant="outline" size="icon" onClick={() => handleCopyToClipboard(menuLink)} disabled={isLoading}>
                     <Copy className="h-4 w-4" />
                   </Button>
                 </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="waiter-link">Link das Comandas (Garçons)</Label>
+                <div className="flex items-center gap-2">
+                  <Input id="waiter-link" value={waiterLink} readOnly disabled={isLoading} />
+                  <Button variant="outline" size="icon" onClick={() => handleCopyToClipboard(waiterLink)} disabled={isLoading}>
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+                <p className="text-[10px] text-muted-foreground">Acesso rápido para garçons abrirem mesas e lançarem pedidos.</p>
               </div>
               <Separator />
                <div className="space-y-4">
@@ -640,11 +657,11 @@ export default function SettingsPage() {
               <CardDescription>Defina os horários de abertura.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {weekDays.map(({ key, label }) => (
-                <div key={key} className="flex items-center justify-between rounded-lg border p-4">
+              {weekDays.map(({ key, label }, index) => (
+                <div key={`${key}-${index}`} className="flex items-center justify-between rounded-lg border p-4">
                   <div className="flex items-center gap-4">
-                    <Switch checked={businessHours[key]?.isOpen} onCheckedChange={(checked) => handleHoursChange(key, 'isOpen', checked)} id={`switch-${key}`} disabled={isLoading} />
-                    <Label htmlFor={`switch-${key}`} className="w-24">{label}</Label>
+                    <Switch checked={businessHours[key]?.isOpen} onCheckedChange={(checked) => handleHoursChange(key, 'isOpen', checked)} id={`switch-${key}-${index}`} disabled={isLoading} />
+                    <Label htmlFor={`switch-${key}-${index}`} className="w-24">{label}</Label>
                   </div>
                   <div className="flex items-center gap-2">
                     <Input type="time" value={businessHours[key]?.openTime} onChange={(e) => handleHoursChange(key, 'openTime', e.target.value)} disabled={!businessHours[key]?.isOpen || isLoading} className="w-32" />
@@ -667,7 +684,7 @@ export default function SettingsPage() {
                 <div className="flex items-center justify-between">
                   <CardTitle>Áreas de Entrega</CardTitle>
                   <DialogTrigger asChild>
-                    <Button size="sm" className="gap-1"><PlusCircle className="h-4 w-4" /> Adicionar Bairro</Button>
+                    <Button size="sm" className="gap-1" disabled={isLoading}><PlusCircle className="h-4 w-4" /> Adicionar Bairro</Button>
                   </DialogTrigger>
                 </div>
               </CardHeader>
@@ -779,32 +796,85 @@ export default function SettingsPage() {
         </TabsContent>
 
         <TabsContent value="subscription">
-            <Card>
+             <Card>
                 <CardHeader>
-                    <CardTitle>Plano e Assinatura</CardTitle>
-                    <CardDescription>Detalhes do seu plano atual.</CardDescription>
+                    <CardTitle>Sua Assinatura</CardTitle>
+                    <CardDescription>Gerencie seus pagamentos e plano atual.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <div className="bg-muted p-4 rounded-lg">
-                        <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Status Atual</p>
-                        <p className="text-xl font-bold mt-1">
-                            {companyData?.planId === 'trial' ? 'Período de Teste Gratuito' : planData?.name || 'Sem plano'}
-                        </p>
-                        <p className="text-sm mt-2">
-                            Válido até: <span className="font-bold">{trialEndDate ? format(trialEndDate, 'dd/MM/yyyy') : 'N/A'}</span>
-                        </p>
+                    <div className="flex items-center justify-between p-4 border rounded-xl bg-primary/5 border-primary/20">
+                         <div>
+                            <p className="text-sm text-muted-foreground">Plano Atual</p>
+                            <p className="text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                                {planData?.name || (companyData?.planId === 'trial' ? 'Período de Teste' : 'Bronze')}
+                            </p>
+                         </div>
+                         <div className="text-right">
+                             <p className="text-sm text-muted-foreground">Expira em</p>
+                             <p className="font-medium">{trialEndDate ? format(trialEndDate, 'dd/MM/yyyy') : '--/--/----'}</p>
+                         </div>
                     </div>
-                    {companyData?.planId === 'trial' && (
-                        <div className="border border-primary/20 p-4 rounded-lg bg-primary/5">
-                            <p className="font-medium text-primary">Gostando da plataforma?</p>
-                            <p className="text-sm text-muted-foreground mt-1">Seu teste expira em breve. Garanta que sua loja continue online assinando um plano.</p>
-                            <Button className="mt-4" onClick={() => router.push('/dashboard/settings?tab=subscription')}>Ver Planos Disponíveis</Button>
-                        </div>
-                    )}
+                    
+                    <Alert className="border-primary/20 bg-primary/5">
+                        <CheckCircle className="h-4 w-4 text-primary" />
+                        <AlertTitle className="text-primary font-bold">Assinatura Ativa</AlertTitle>
+                        <AlertDescription className="text-muted-foreground">
+                            Seu acesso está liberado. Quando sua assinatura estiver próxima do fim, novas opções de renovação aparecerão aqui.
+                        </AlertDescription>
+                    </Alert>
                 </CardContent>
-            </Card>
+                <CardFooter>
+                    <p className="text-xs text-muted-foreground">Fale com o suporte para mudanças de plano.</p>
+                </CardFooter>
+             </Card>
         </TabsContent>
       </Tabs>
+
+      <Card className="border-destructive/20 bg-destructive/5">
+        <CardHeader>
+          <CardTitle className="text-destructive">Zona de Perigo</CardTitle>
+          <CardDescription>Ações irreversíveis para sua conta.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive">Excluir minha Loja e Dados</Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Você tem certeza absoluta?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Esta ação não pode ser desfeita. Isso excluirá permanentemente sua loja, 
+                  todos os produtos, pedidos e removerá seu acesso ao sistema.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={async () => {
+                    if (!user || !auth) return;
+                    try {
+                        const companyDocRef = doc(firestore!, 'companies', user.uid);
+                        const companyUserDocRef = doc(firestore!, 'users', user.uid);
+                        
+                        await Promise.all([
+                            deleteDocument(companyDocRef),
+                            deleteDocument(companyUserDocRef)
+                        ]);
+                        
+                        await deleteAuthUser(user);
+                        router.push('/signup');
+                        toast({ title: "Conta excluída", description: "Sua loja foi removida com sucesso." });
+                    } catch (e) {
+                         toast({ variant: 'destructive', title: "Erro ao excluir", description: "Tente novamente ou contate o suporte." });
+                    }
+                }}>
+                  Sim, excluir tudo
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </CardContent>
+      </Card>
     </div>
   );
 }
