@@ -13,7 +13,7 @@ import { Loader2, UserCircle } from 'lucide-react';
 
 export default function WaiterLoginPage() {
     const params = useParams();
-    const companyId = params.companyId as string;
+    const companyId = params?.companyId as string;
     const router = useRouter();
     const firestore = useFirestore();
     const { toast } = useToast();

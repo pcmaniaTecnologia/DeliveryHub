@@ -359,7 +359,7 @@ const ProductCard = ({ product }: { product: Product }) => {
 
 export default function MenuPage() {
   const params = useParams();
-  const companyId = params.companyId as string;
+  const companyId = params?.companyId as string;
   const firestore = useFirestore();
 
   // Fetch company data

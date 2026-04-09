@@ -31,7 +31,7 @@ type Order = {
 
 export default function WaiterDashboardPage() {
     const params = useParams();
-    const companyId = params.companyId as string;
+    const companyId = params?.companyId as string;
     const router = useRouter();
     const firestore = useFirestore();
 
