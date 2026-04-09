@@ -175,9 +175,6 @@ export default function WaiterCartSheet({ companyId }: { companyId: string}) {
             {isAdminSession && <ShieldCheck className="w-3 h-3 mr-1 inline" />}
             {isAdminSession ? 'Modo Admin' : `Garçom: ${waiterSession?.name || '...'}`}
           </Badge>
-          <Button variant="secondary" size="icon" onClick={handleLogout} className="rounded-full shadow-md bg-red-100 text-red-600 hover:bg-red-200" title={isAdminSession ? "Voltar ao painel" : "Sair do Modo Garçom"}>
-              <LogOut className="h-4 w-4" />
-          </Button>
       </div>
 
       <Sheet onOpenChange={(open) => !open && setIsCheckoutOpen(false)}>
