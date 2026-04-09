@@ -162,10 +162,11 @@ export default function ManageCompaniesPage() {
   
   const isLoading = isUserLoading || isLoadingCompanies;
 
-  const filteredCompanies = companies?.filter(c => 
-    c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    (c.email && c.email.toLowerCase().includes(searchQuery.toLowerCase()))
-  ) || [];
+  const filteredCompanies = (companies || []).filter(c => {
+    const nameMatch = (c.name || '').toLowerCase().includes(searchQuery.toLowerCase());
+    const emailMatch = (c.email || '').toLowerCase().includes(searchQuery.toLowerCase());
+    return nameMatch || emailMatch;
+  });
 
   return (
     <Card>
@@ -223,10 +224,21 @@ export default function ManageCompaniesPage() {
                 <TableCell>{company.email || 'Não informado'}</TableCell>
                 <TableCell>{company.phone || 'Não informado'}</TableCell>
                 <TableCell>
-                  {company.createdAt?.toDate ? format(company.createdAt.toDate(), 'dd/MM/yyyy') : (company.createdAt ? format(new Date(company.createdAt), 'dd/MM/yyyy') : 'N/A')}
+                  {(() => {
+                    const date = company.createdAt;
+                    if (!date) return 'N/A';
+                    if (typeof date.toDate === 'function') return format(date.toDate(), 'dd/MM/yyyy');
+                    try {
+                      return format(new Date(date), 'dd/MM/yyyy');
+                    } catch (e) {
+                      return 'Data Inválida';
+                    }
+                  })()}
                 </TableCell>
                 <TableCell>
-                  {company.subscriptionEndDate ? format(company.subscriptionEndDate.toDate(), 'dd/MM/yyyy') : 'N/A'}
+                  {company.subscriptionEndDate && typeof company.subscriptionEndDate.toDate === 'function' 
+                    ? format(company.subscriptionEndDate.toDate(), 'dd/MM/yyyy') 
+                    : 'N/A'}
                 </TableCell>
                 <TableCell>
                   <Badge variant={company.isActive ? 'default' : 'destructive'}>
