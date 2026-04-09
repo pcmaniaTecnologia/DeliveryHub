@@ -61,6 +61,7 @@ export type Product = {
     variants?: VariantGroup[];
     ingredients?: string;
     sortOrder?: number;
+    stockControlEnabled?: boolean;
 };
 
 type Category = {
