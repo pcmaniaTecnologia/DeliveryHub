@@ -79,8 +79,8 @@ export default function WaiterCartSheet({ companyId }: { companyId: string}) {
   const [waiterSession, setWaiterSession] = useState<{id: string, name: string, pin: string} | null>(null);
 
   const searchParams = useSearchParams();
-  const urlTable = searchParams?.get('table');
-  const urlWaiter = searchParams?.get('waiter');
+  const urlTable = searchParams?.get('table') ?? null;
+  const urlWaiter = searchParams?.get('waiter') ?? null;
   const isAdminSession = searchParams?.get('admin') === 'true';
   const { user } = useUser();
 

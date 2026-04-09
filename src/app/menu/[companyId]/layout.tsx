@@ -23,7 +23,7 @@ export default function MenuLayout({
 }) {
   const firestore = useFirestore();
   const params = useParams();
-  const companyId = params.companyId as string;
+  const companyId = params?.companyId as string;
 
   const companyRef = useMemoFirebase(() => {
     if (!firestore || !companyId) return null;
@@ -78,7 +78,7 @@ export default function MenuLayout({
             </nav>
         </header>
         <main>{children}</main>
-            <CartSheet companyId={companyId} />
+            {companyId && <CartSheet companyId={companyId} />}
             <footer className="mt-12 border-t py-6">
                 <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
                     <p>&copy; {new Date().getFullYear()} DeliveryHub. Todos os direitos reservados.</p>
