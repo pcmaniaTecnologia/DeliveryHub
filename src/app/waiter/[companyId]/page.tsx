@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
@@ -11,8 +11,9 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, UserCircle } from 'lucide-react';
 
-export default function WaiterLoginPage({ params }: { params: Promise<{ companyId: string }> }) {
-    const { companyId } = React.use(params);
+export default function WaiterLoginPage() {
+    const params = useParams();
+    const companyId = params.companyId as string;
     const router = useRouter();
     const firestore = useFirestore();
     const { toast } = useToast();
