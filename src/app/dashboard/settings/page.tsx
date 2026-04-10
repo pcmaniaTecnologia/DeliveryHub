@@ -331,6 +331,7 @@ export default function SettingsPage() {
   const [numberOfTables, setNumberOfTables] = useState(0);
   const [menuLink, setMenuLink] = useState('');
   const [waiterLink, setWaiterLink] = useState('');
+  const [comandasEnabled, setComandasEnabled] = useState(true);
   const [pixKey, setPixKey] = useState('');
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethods>({
     cash: true,
@@ -363,6 +364,7 @@ export default function SettingsPage() {
       setClosedMessage(companyData.closedMessage || '');
       setAveragePrepTime(companyData.averagePrepTime || 30);
       setNumberOfTables(companyData.numberOfTables || 0);
+      setComandasEnabled(companyData.comandasEnabled ?? true);
       if (companyData.themeColors) {
         try {
           const colors = JSON.parse(companyData.themeColors);
@@ -428,6 +430,7 @@ export default function SettingsPage() {
         closedMessage: closedMessage,
         averagePrepTime: averagePrepTime,
         numberOfTables: numberOfTables,
+        comandasEnabled: comandasEnabled,
         ownerId: user.uid,
     };
 
@@ -594,6 +597,13 @@ export default function SettingsPage() {
                 <Input id="number-of-tables" type="number" value={numberOfTables} onChange={(e) => setNumberOfTables(Number(e.target.value))} min={0} placeholder="Ex: 20" disabled={isLoading} />
                 <p className="text-xs text-muted-foreground">Útil para o sistema de garçom via celular.</p>
               </div>
+              <div className="flex flex-row items-center justify-between rounded-lg border p-4 bg-primary/5 border-primary/20">
+                <div className="space-y-0.5">
+                  <Label className="text-base font-bold" htmlFor="comandas-enabled">Ativar Sistema de Comandas (Mesas/Garçom)</Label>
+                  <p className="text-sm text-muted-foreground">Habilita a gestão de mesas e pedidos via garçom no painel e no celular.</p>
+                </div>
+                <Switch id="comandas-enabled" checked={comandasEnabled} onCheckedChange={setComandasEnabled} disabled={isLoading} />
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="closed-message">Mensagem de loja fechada</Label>
                 <Textarea id="closed-message" value={closedMessage} onChange={(e) => setClosedMessage(e.target.value)} placeholder="Estamos fechados no momento..." disabled={isLoading} />
@@ -608,16 +618,21 @@ export default function SettingsPage() {
                   </Button>
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="waiter-link">Link das Comandas (Garçons)</Label>
-                <div className="flex items-center gap-2">
-                  <Input id="waiter-link" value={waiterLink} readOnly disabled={isLoading} />
-                  <Button variant="outline" size="icon" onClick={() => handleCopyToClipboard(waiterLink)} disabled={isLoading}>
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                </div>
-                <p className="text-[10px] text-muted-foreground">Acesso rápido para garçons abrirem mesas e lançarem pedidos.</p>
-              </div>
+              {comandasEnabled && (
+                <>
+                  <Separator />
+                  <div className="space-y-2">
+                    <Label htmlFor="waiter-link">Link das Comandas (Garçons)</Label>
+                    <div className="flex items-center gap-2">
+                      <Input id="waiter-link" value={waiterLink} readOnly disabled={isLoading} />
+                      <Button variant="outline" size="icon" onClick={() => handleCopyToClipboard(waiterLink)} disabled={isLoading}>
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">Acesso rápido para garçons abrirem mesas e lançarem pedidos.</p>
+                  </div>
+                </>
+              )}
               <Separator />
                <div className="space-y-4">
                  <Label className="text-base">Notificações</Label>

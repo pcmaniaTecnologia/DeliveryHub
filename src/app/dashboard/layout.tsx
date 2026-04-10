@@ -33,6 +33,7 @@ type CompanyData = {
     planId?: string;
     subscriptionEndDate?: Timestamp;
     name?: string;
+    comandasEnabled?: boolean;
 };
 
 const SoundPlayer = () => {
@@ -207,7 +208,7 @@ export default function DashboardLayout({
                 <a href="https://www.pcmania.net" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">www.pcmania.net</a>
             </div>
             <div className="flex-1 pt-4 overflow-y-auto">
-              <DashboardNav newOrdersCount={newOrdersCount} isAdmin={!!adminData} />
+              <DashboardNav newOrdersCount={newOrdersCount} isAdmin={!!adminData} comandasEnabled={companyData?.comandasEnabled ?? true} />
             </div>
           </div>
         </div>
@@ -237,7 +238,7 @@ export default function DashboardLayout({
                     <a href="https://www.pcmania.net" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">www.pcmania.net</a>
                 </div>
                 <div className="mt-5 flex-1 overflow-y-auto">
-                  <DashboardNav newOrdersCount={newOrdersCount} isAdmin={!!adminData} />
+                  <DashboardNav newOrdersCount={newOrdersCount} isAdmin={!!adminData} comandasEnabled={companyData?.comandasEnabled ?? true} />
                 </div>
               </SheetContent>
             </Sheet>

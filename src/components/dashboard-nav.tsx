@@ -1,19 +1,20 @@
-
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, ShoppingCart, Package, Ticket, Settings as SettingsIcon, ShieldCheck, ClipboardList } from 'lucide-react';
+import { Home, ShoppingCart, Package, Ticket, Settings as SettingsIcon, ShieldCheck, ClipboardList, Store, BarChart3 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from './ui/separator';
 
-export function DashboardNav({ newOrdersCount = 0, isAdmin = false }: { newOrdersCount?: number, isAdmin?: boolean }) {
+export function DashboardNav({ newOrdersCount = 0, isAdmin = false, comandasEnabled = true }: { newOrdersCount?: number, isAdmin?: boolean, comandasEnabled?: boolean }) {
   const pathname = usePathname();
 
   const navItems = [
     { href: '/dashboard', label: 'Painel', icon: Home },
+    { href: '/dashboard/sales', label: 'Venda de Balcão', icon: Store },
     { href: '/dashboard/orders', label: 'Pedidos', icon: ShoppingCart, badge: newOrdersCount > 0 ? newOrdersCount.toString() : undefined },
-    { href: '/dashboard/comandas', label: 'Comandas', icon: ClipboardList },
+    { href: '/dashboard/reports', label: 'Relatórios', icon: BarChart3 },
+    ...(comandasEnabled ? [{ href: '/dashboard/comandas', label: 'Comandas', icon: ClipboardList }] : []),
     { href: '/dashboard/products', label: 'Produtos', icon: Package },
     { href: '/dashboard/coupons', label: 'Cupons', icon: Ticket },
     { href: '/dashboard/settings', label: 'Configurações', icon: SettingsIcon },

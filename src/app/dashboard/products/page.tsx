@@ -56,7 +56,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { useUser, useFirestore, useCollection, useMemoFirebase, addDocument, deleteDocument, updateDocument } from '@/firebase';
-import { collection, doc } from 'firebase/firestore';
+import { collection, doc, writeBatch, query, where, getDocs } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -91,7 +91,11 @@ const productFormSchema = z.object({
   categoryId: z.string().min(1, { message: 'A categoria é obrigatória.' }),
   imageUrl: z.string().url({ message: 'Por favor, insira uma URL válida.' }).optional().or(z.literal('')),
   isActive: z.boolean().default(true),
+  stockControlEnabled: z.boolean().default(false),
+  stock: z.coerce.number().int().default(0),
   variants: z.array(variantGroupSchema).optional(),
+  isSoldByWeight: z.boolean().default(false),
+  replicateToCategory: z.boolean().default(false),
 });
 
 
@@ -105,10 +109,12 @@ type Product = {
     price: number;
     categoryId: string;
     isActive: boolean;
+    stockControlEnabled?: boolean;
     stock: number;
     imageUrls: string[];
     companyId: string;
     variants?: VariantGroup[];
+    isSoldByWeight?: boolean;
     sortOrder?: number;
 }
 
@@ -139,7 +145,11 @@ export default function ProductsPage() {
       categoryId: '',
       imageUrl: '',
       isActive: true,
+      stockControlEnabled: false,
+      stock: 0,
       variants: [],
+      isSoldByWeight: false,
+      replicateToCategory: false,
     },
   });
 
@@ -156,8 +166,12 @@ export default function ProductsPage() {
         price: editingProduct.price,
         categoryId: editingProduct.categoryId,
         isActive: editingProduct.isActive,
+        stockControlEnabled: editingProduct.stockControlEnabled ?? false,
+        stock: editingProduct.stock ?? 0,
         imageUrl: editingProduct.imageUrls?.[0] || '',
         variants: editingProduct.variants || [],
+        isSoldByWeight: editingProduct.isSoldByWeight ?? false,
+        replicateToCategory: false,
       });
     } else {
       form.reset({
@@ -167,7 +181,11 @@ export default function ProductsPage() {
         categoryId: '',
         imageUrl: '',
         isActive: true,
+        stockControlEnabled: false,
+        stock: 0,
         variants: [],
+        isSoldByWeight: false,
+        replicateToCategory: false,
       });
     }
   }, [editingProduct, form]);
@@ -219,6 +237,38 @@ export default function ProductsPage() {
     if (editingProduct) {
       const productDocRef = doc(firestore, `companies/${user.uid}/products/${editingProduct.id}`);
       promise = updateDocument(productDocRef, productData);
+      
+      // Lógica de Replicação para Categoria
+      if (values.replicateToCategory && values.variants && values.variants.length > 0) {
+          const bulkUpdatePromise = (async () => {
+              const q = query(
+                  collection(firestore, `companies/${user.uid}/products`),
+                  where('categoryId', '==', values.categoryId)
+              );
+              const snapshot = await getDocs(q);
+              const batch = writeBatch(firestore);
+              
+              snapshot.docs.forEach((productDoc) => {
+                  if (productDoc.id !== editingProduct.id) {
+                      batch.update(productDoc.ref, { 
+                          variants: values.variants 
+                      });
+                  }
+              });
+              
+              await batch.commit();
+              return snapshot.size - 1; // Retorna quantos foram replicados
+          })();
+          
+          bulkUpdatePromise.then((count) => {
+              if (count > 0) {
+                  toast({
+                      title: 'Replicação Concluída!',
+                      description: `Os grupos de opções foram replicados para ${count} produto(s) desta categoria.`,
+                  });
+              }
+          });
+      }
     } else {
         if (!productsRef) {
             setIsSaving(false);
@@ -491,13 +541,33 @@ export default function ProductsPage() {
                     name="price"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Preço Base (R$)</FormLabel>
+                        <FormLabel>{form.watch('isSoldByWeight') ? 'Preço por Kg (R$)' : 'Preço Base (R$)'}</FormLabel>
                         <FormControl>
                             <Input type="number" step="0.01" placeholder="29.90" {...field} />
                         </FormControl>
                           <FormMessage />
                       </FormItem>
                     )}
+                  />
+                   <FormField
+                      control={form.control}
+                      name="isSoldByWeight"
+                      render={({ field }) => (
+                          <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-muted/20">
+                              <div className="space-y-0.5">
+                                  <FormLabel>Vendido por Peso</FormLabel>
+                                  <FormDescription className="text-[10px]">
+                                      O preço será calculado com base no peso (Kg).
+                                  </FormDescription>
+                              </div>
+                              <FormControl>
+                                  <Switch
+                                      checked={field.value}
+                                      onCheckedChange={field.onChange}
+                                  />
+                              </FormControl>
+                          </FormItem>
+                      )}
                   />
                     <FormField
                       control={form.control}
@@ -558,66 +628,132 @@ export default function ProductsPage() {
                     </FormItem>
                   )}
                 />
+                
+                <FormField
+                  control={form.control}
+                  name="stockControlEnabled"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-primary/5 border-primary/20">
+                      <div className="space-y-0.5">
+                        <FormLabel>Controle de Estoque</FormLabel>
+                        <DialogDescription>
+                           Ative para gerenciar a quantidade disponível deste produto.
+                        </DialogDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                {form.watch('stockControlEnabled') && (
+                  <FormField
+                    control={form.control}
+                    name="stock"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Quantidade em Estoque</FormLabel>
+                        <FormControl>
+                          <Input type="number" {...field} placeholder="Ex: 50" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
 
                 <Separator />
-                <div>
-                  <h3 className="text-lg font-medium mb-2">Variantes (Opcionais)</h3>
-                  <div className="space-y-4">
-                    {fields.map((field, groupIndex) => (
-                      <Card key={field.id} className="p-4 bg-muted/50">
-                        <div className="flex justify-between items-start mb-2">
-                           <h4 className="font-semibold">Grupo de Opções</h4>
-                           <Button type="button" variant="ghost" size="icon" onClick={() => remove(groupIndex)}>
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                          <FormField
-                            control={form.control}
-                            name={`variants.${groupIndex}.name`}
-                            render={({ field }) => (
-                              <FormItem className="col-span-3">
-                                <FormLabel>Nome do Grupo</FormLabel>
-                                <FormControl><Input {...field} placeholder="Ex: Escolha sua bebida" /></FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                           <FormField
-                            control={form.control}
-                            name={`variants.${groupIndex}.min`}
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Mínimo</FormLabel>
-                                <FormControl><Input type="number" {...field} /></FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
-                            name={`variants.${groupIndex}.max`}
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Máximo</FormLabel>
-                                <FormControl><Input type="number" {...field} /></FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </div>
-                        <VariantItemsArray groupIndex={groupIndex} control={form.control} />
-                      </Card>
-                    ))}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold">Grupos de Opções (Variantes)</h3>
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => append({ name: '', min: 1, max: 1, items: [{ name: '', price: 0 }] })}
+                      onClick={() => append({ name: '', min: 0, max: 1, items: [{ name: '', price: 0 }] })}
                     >
-                      Adicionar Grupo de Opções
+                      <PlusCircle className="mr-2 h-4 w-4" />
+                      Adicionar Grupo
                     </Button>
                   </div>
+
+                  {fields.length > 0 && editingProduct && (
+                      <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 space-y-3">
+                          <div className="flex items-start gap-4">
+                              <FormField
+                                  control={form.control}
+                                  name="replicateToCategory"
+                                  render={({ field }) => (
+                                      <FormItem className="flex flex-row items-center justify-between rounded-lg p-0 space-x-3">
+                                          <FormControl>
+                                              <Switch
+                                                  checked={field.value}
+                                                  onCheckedChange={field.onChange}
+                                              />
+                                          </FormControl>
+                                          <div className="space-y-0.5">
+                                              <FormLabel className="text-orange-900 font-bold">Replicar para categoria</FormLabel>
+                                              <FormDescription className="text-orange-700 text-xs">
+                                                  Ao salvar, estes grupos de opções serão copiados para TODOS os produtos da categoria selecionada.
+                                              </FormDescription>
+                                          </div>
+                                      </FormItem>
+                                  )}
+                              />
+                          </div>
+                      </div>
+                  )}
+
+                  {fields.map((field, groupIndex) => (
+                    <Card key={field.id} className="p-4 bg-muted/50">
+                      <div className="flex justify-between items-start mb-2">
+                         <h4 className="font-semibold">Grupo de Opções</h4>
+                         <Button type="button" variant="ghost" size="icon" onClick={() => remove(groupIndex)}>
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                        <FormField
+                          control={form.control}
+                          name={`variants.${groupIndex}.name`}
+                          render={({ field }) => (
+                            <FormItem className="col-span-3">
+                              <FormLabel>Nome do Grupo</FormLabel>
+                              <FormControl><Input {...field} placeholder="Ex: Escolha sua bebida" /></FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                         <FormField
+                          control={form.control}
+                          name={`variants.${groupIndex}.min`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Mínimo</FormLabel>
+                              <FormControl><Input type="number" {...field} /></FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name={`variants.${groupIndex}.max`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Máximo</FormLabel>
+                              <FormControl><Input type="number" {...field} /></FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                      <VariantItemsArray groupIndex={groupIndex} control={form.control} />
+                    </Card>
+                  ))}
                 </div>
 
                 <DialogFooter className="sticky bottom-0 bg-background pt-4 z-10">

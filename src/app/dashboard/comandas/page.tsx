@@ -75,22 +75,25 @@ export default function ComandasPage() {
         // Group by table number
         const grouped = tableOrders.reduce((acc, order) => {
             const table = order.tableNumber || 'Sem Número';
+            const orderTime = order.orderDate && typeof order.orderDate.toMillis === 'function' 
+                ? order.orderDate.toMillis() 
+                : (order.orderDate ? new Date(order.orderDate as any).getTime() : Date.now());
+
             if (!acc[table]) {
                 acc[table] = {
                     tableNumber: table,
                     orders: [],
                     totalAmount: 0,
-                    oldestOrderTime: order.orderDate.toMillis(),
+                    oldestOrderTime: orderTime,
                     waiters: new Set<string>(),
                     customerNames: new Set<string>()
                 };
             }
             acc[table].orders.push(order);
-            acc[table].totalAmount += order.totalAmount;
+            acc[table].totalAmount += (order.totalAmount || 0);
             if (order.waiterName) acc[table].waiters.add(order.waiterName);
             if (order.customerName && order.customerName !== 'Cliente na Mesa') acc[table].customerNames.add(order.customerName);
             
-            const orderTime = order.orderDate.toMillis();
             if (orderTime < acc[table].oldestOrderTime) {
                 acc[table].oldestOrderTime = orderTime;
             }
@@ -158,8 +161,8 @@ export default function ComandasPage() {
     const tableItems = useMemo(() => {
         if (!selectedTable) return [];
         const items: any[] = [];
-        selectedTable.orders.forEach((order: Order) => {
-            order.orderItems.forEach((item, idx) => {
+        (selectedTable.orders || []).forEach((order: Order) => {
+            (order.orderItems || []).forEach((item, idx) => {
                 items.push({
                     ...item,
                     orderId: order.id,
@@ -231,8 +234,10 @@ export default function ComandasPage() {
             
             for (const orderId of Array.from(ordersToProcess)) {
                 const originalOrder = selectedTable.orders.find((o: Order) => o.id === orderId);
+                if (!originalOrder) continue;
+
                 const itemsSelectedInThisOrder = itemsBeingPaid.filter(i => i.orderId === orderId);
-                const itemsRemainingInThisOrder = originalOrder.orderItems.filter((_: any, idx: number) => !selectedItemsKeys.has(`${orderId}-${idx}`));
+                const itemsRemainingInThisOrder = (originalOrder.orderItems || []).filter((_: any, idx: number) => !selectedItemsKeys.has(`${orderId}-${idx}`));
                 
                 const orderRef = doc(firestore, `companies/${effectiveCompanyId}/orders`, orderId);
                 
@@ -359,7 +364,8 @@ export default function ComandasPage() {
                             );
                         }
 
-                        const minsOpen = Math.floor((Date.now() - table.oldestOrderTime) / 60000);
+                        const oldestTime = table.oldestOrderTime || Date.now();
+                        const minsOpen = Math.floor((Date.now() - oldestTime) / 60000);
                         const waitersArray = Array.from(table.waiters).filter(Boolean);
                         const customersArray = Array.from(table.customerNames).filter(Boolean);
 
@@ -413,8 +419,9 @@ export default function ComandasPage() {
                         </DialogHeader>
                         
                         <div className="flex-1 overflow-y-auto pr-2 space-y-4 py-2">
-                            {isCheckoutMode ? (
+                             {isCheckoutMode ? (
                                 <div className="space-y-6">
+                                    {/* ... rest of checkout view ... */}
                                     <div className="bg-muted/30 rounded-xl p-4 border border-primary/20">
                                         <div className="flex justify-between items-center mb-4">
                                             <h3 className="font-bold flex items-center gap-2"><ShoppingBag className="w-4 h-4" /> Itens para Pagar</h3>
@@ -432,7 +439,7 @@ export default function ComandasPage() {
                                                     <Checkbox checked={selectedItemsKeys.has(item.uniqueKey)} onCheckedChange={() => toggleItemSelection(item.uniqueKey)} />
                                                     <div className="flex-1 min-w-0">
                                                         <p className="text-sm font-medium truncate">{item.quantity}x {item.productName}</p>
-                                                        {item.selectedVariants?.length > 0 && (
+                                                        {item.selectedVariants && item.selectedVariants.length > 0 && (
                                                             <p className="text-[10px] text-muted-foreground truncate">{item.selectedVariants.map((v: any) => v.itemName).join(', ')}</p>
                                                         )}
                                                     </div>
@@ -492,33 +499,48 @@ export default function ComandasPage() {
                                     </div>
                                 </div>
                             ) : (
-                                selectedTable.orders.sort((a: any, b: any) => a.orderDate.toMillis() - b.orderDate.toMillis()).map((order: any, idx: number) => (
-                                    <div key={order.id} className="space-y-2">
-                                        <div className="flex items-center justify-between">
-                                            <h4 className="font-semibold text-sm text-muted-foreground">Rodada {idx + 1} • {new Date(order.orderDate.toMillis()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</h4>
-                                            <Badge variant="secondary" className="text-xs">{order.status}</Badge>
-                                        </div>
-                                        <div className="bg-muted/30 rounded-lg p-3 space-y-2 border">
-                                            {order.orderItems.map((item: any, itemIdx: number) => {
-                                                const itemPriceStr = (item.finalPrice || item.unitPrice).toFixed(2);
-                                                return (
-                                                    <div key={itemIdx} className="text-sm">
-                                                        <div className="flex justify-between">
-                                                            <span className="font-medium">{item.quantity}x {item.productName}</span>
-                                                            <span>R$ {itemPriceStr}</span>
-                                                        </div>
-                                                        {item.selectedVariants && item.selectedVariants.length > 0 && (
-                                                            <p className="text-xs text-muted-foreground mt-0.5 ml-4">
-                                                                {item.selectedVariants.map((v: any) => `${v.itemName}${v.price > 0 ? ` (+R$${v.price.toFixed(2)})` : ''}`).join(', ')}
-                                                            </p>
-                                                        )}
-                                                        {item.notes && <p className="text-xs italic text-muted-foreground mt-0.5 ml-4">Obs: {item.notes}</p>}
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                ))
+                                (selectedTable.orders || [])
+                                    .sort((a: any, b: any) => {
+                                        const atime = a.orderDate && typeof a.orderDate.toMillis === 'function' ? a.orderDate.toMillis() : 0;
+                                        const btime = b.orderDate && typeof b.orderDate.toMillis === 'function' ? b.orderDate.toMillis() : 0;
+                                        return atime - btime;
+                                    })
+                                    .map((order: any, idx: number) => {
+                                        const orderTime = order.orderDate && typeof order.orderDate.toMillis === 'function' 
+                                            ? order.orderDate.toMillis() 
+                                            : null;
+                                        
+                                        return (
+                                            <div key={order.id} className="space-y-2">
+                                                <div className="flex items-center justify-between">
+                                                    <h4 className="font-semibold text-sm text-muted-foreground">
+                                                        Rodada {idx + 1} 
+                                                        {orderTime && ` • ${new Date(orderTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+                                                    </h4>
+                                                    <Badge variant="secondary" className="text-xs">{order.status}</Badge>
+                                                </div>
+                                                <div className="bg-muted/30 rounded-lg p-3 space-y-2 border">
+                                                    {(order.orderItems || []).map((item: any, itemIdx: number) => {
+                                                        const itemPriceStr = (item.finalPrice || item.unitPrice || 0).toFixed(2);
+                                                        return (
+                                                            <div key={itemIdx} className="text-sm">
+                                                                <div className="flex justify-between">
+                                                                    <span className="font-medium">{item.quantity}x {item.productName}</span>
+                                                                    <span>R$ {itemPriceStr}</span>
+                                                                </div>
+                                                                {item.selectedVariants && item.selectedVariants.length > 0 && (
+                                                                    <p className="text-xs text-muted-foreground mt-0.5 ml-4">
+                                                                        {item.selectedVariants.map((v: any) => `${v.itemName}${v.price > 0 ? ` (+R$${v.price.toFixed(2)})` : ''}`).join(', ')}
+                                                                    </p>
+                                                                )}
+                                                                {item.notes && <p className="text-xs italic text-muted-foreground mt-0.5 ml-4">Obs: {item.notes}</p>}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        );
+                                    })
                             )}
                         </div>
 

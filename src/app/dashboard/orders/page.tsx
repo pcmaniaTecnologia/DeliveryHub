@@ -273,7 +273,9 @@ export default function OrdersPage() {
                                   ) : order.deliveryType === 'Retirada' ? (
                                       <DropdownMenuItem onClick={() => handleUpdateStatus(order, 'Pronto para retirada')}>Pronto para Retirada</DropdownMenuItem>
                                   ) : null}
-                                  <DropdownMenuItem onClick={() => handleUpdateStatus(order, 'Entregue')}>Finalizar/Entregue</DropdownMenuItem>
+                                  {order.deliveryType !== 'Mesa' && (
+                                      <DropdownMenuItem onClick={() => handleUpdateStatus(order, 'Entregue')}>Finalizar/Entregue</DropdownMenuItem>
+                                   )}
                                   <DropdownMenuSeparator />
                                   <DropdownMenuItem onClick={() => handleUpdateStatus(order, 'Cancelado')} className="text-destructive">Cancelar</DropdownMenuItem>
                                 </DropdownMenuContent>

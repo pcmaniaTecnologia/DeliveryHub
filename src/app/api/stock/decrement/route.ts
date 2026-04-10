@@ -7,8 +7,8 @@ import { firebaseConfig } from '@/firebase/config';
  * POST /api/stock/decrement
  * Body: { companyId: string, items: [{ productId: string, quantity: number }] }
  *
- * Decrementa o estoque de produtos com `stockControlEnabled = true`.
- * Inicializa o Firebase diretamente (sem o wrapper 'use client').
+ * Decrementa o estoque usando Firebase Client SDK no Servidor.
+ * Como o servidor roda de forma "anônima", as firestore.rules precisam permitir o decremento.
  */
 
 function getServerFirestore() {
@@ -38,20 +38,27 @@ export async function POST(req: Request) {
         const productRef = doc(firestore, 'companies', companyId, 'products', productId);
         const snap = await getDoc(productRef);
 
-        if (!snap.exists()) return;
+        if (!snap.exists()) {
+            console.log(`[stock/decrement] produto não encontrado: ${productId}`);
+            return;
+        }
+        
         const data = snap.data();
-        if (!data?.stockControlEnabled) return;
+        if (!data?.stockControlEnabled) {
+            console.log(`[stock/decrement] controle de estoque desativado para: ${productId}`);
+            return;
+        }
 
         await updateDoc(productRef, { stock: increment(-quantity) });
         updated.push(productId);
       })
     );
 
-    console.log(`[stock/decrement] company=${companyId} updated=[${updated.join(',')}]`);
+    console.log(`[stock/decrement-fallback] company=${companyId} updated=[${updated.join(',')}]`);
     return NextResponse.json({ ok: true, updated }, { status: 200 });
 
   } catch (error: any) {
-    console.error('[stock/decrement] error:', error?.code, error?.message);
+    console.error('[stock/decrement-fallback] error:', error?.code, error?.message);
     return NextResponse.json({ error: error?.message || 'Erro ao atualizar estoque' }, { status: 500 });
   }
 }

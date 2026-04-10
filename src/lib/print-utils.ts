@@ -94,6 +94,7 @@ export function generateOrderPrintHtml(order: Order, company?: Company) {
                  <hr />
                 <p style="text-align: left;">Pagamento: ${order.paymentMethod}</p>
                 <p style="text-align: left;">Entrega: ${order.deliveryType}</p>
+                <div style="text-align: center; margin-top: 20px; font-size: 0.8em; opacity: 0.8; font-weight: normal;">sistema criado por PC MANIA<br>www.pcmania.net</div>
                 <script>
                     window.print();
                     window.onafterprint = () => window.close();

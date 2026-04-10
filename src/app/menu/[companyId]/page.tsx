@@ -8,8 +8,9 @@ import { useCollection, useDoc, useFirestore, useMemoFirebase } from '@/firebase
 import { collection, doc } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Clock, Plus, Minus, Pizza, Ham, GlassWater, Cake, Sandwich, LeafyGreen, IceCream, UtensilsCrossed, type LucideIcon } from 'lucide-react';
+import { Plus, Minus, Pizza, Ham, GlassWater, Cake, Sandwich, LeafyGreen, IceCream, UtensilsCrossed, type LucideIcon, Search, X, Clock } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Input } from '@/components/ui/input';
 import { useCart, type SelectedVariant } from '@/context/cart-context';
 import {
   Dialog,
@@ -27,6 +28,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useToast } from '@/hooks/use-toast';
 import { Textarea } from '@/components/ui/textarea';
 import { useParams } from 'next/navigation';
+import { Badge } from '@/components/ui/badge';
 
 
 type Company = {
@@ -62,6 +64,7 @@ export type Product = {
     ingredients?: string;
     sortOrder?: number;
     stockControlEnabled?: boolean;
+    isSoldByWeight?: boolean;
 };
 
 type Category = {
@@ -112,6 +115,7 @@ const ProductDetailDialog = ({
     const [selectedVariants, setSelectedVariants] = useState<SelectedVariant[]>([]);
     const [notes, setNotes] = useState('');
     const [quantity, setQuantity] = useState(1);
+    const [weight, setWeight] = useState('1.000');
     const { toast } = useToast();
 
     const imageUrl = product.imageUrl || (product.imageUrls && product.imageUrls.length > 0 ? product.imageUrls[0] : null);
@@ -144,7 +148,9 @@ const ProductDetailDialog = ({
         return product.price + optionsPrice;
     }, [product.price, selectedVariants]);
 
-    const finalPrice = unitPrice * quantity;
+    const finalPrice = product.isSoldByWeight 
+        ? unitPrice * (parseFloat(weight.replace(',', '.')) || 0)
+        : unitPrice * quantity;
 
     const handleConfirm = () => {
         for (const group of product.variants || []) {
@@ -154,7 +160,16 @@ const ProductDetailDialog = ({
                 return;
             }
         }
-        onAddToCart(product, quantity, notes, selectedVariants);
+        if (product.isSoldByWeight) {
+            const w = parseFloat(weight.replace(',', '.'));
+            if (isNaN(w) || w <= 0) {
+                toast({ variant: 'destructive', title: 'Peso Inválido', description: 'Por favor, insira um peso válido.' });
+                return;
+            }
+            onAddToCart(product, w, notes, selectedVariants);
+        } else {
+            onAddToCart(product, quantity, notes, selectedVariants);
+        }
         onOpenChange(false);
     };
 
@@ -163,6 +178,7 @@ const ProductDetailDialog = ({
             setSelectedVariants([]);
             setNotes('');
             setQuantity(1);
+            setWeight('1.000');
         }
     }, [open, product]);
 
@@ -257,6 +273,24 @@ const ProductDetailDialog = ({
 
                         {/* Notes */}
                         <Separator />
+                        
+                        {product.isSoldByWeight && (
+                            <div className="bg-primary/5 rounded-xl p-4 border border-primary/10 space-y-3">
+                                <Label className="text-primary font-bold">Informar Peso (Kg)</Label>
+                                <div className="relative">
+                                    <Input 
+                                        type="text" 
+                                        className="h-14 text-2xl font-black text-center pr-12" 
+                                        value={weight}
+                                        onChange={(e) => setWeight(e.target.value)}
+                                        placeholder="1.000"
+                                    />
+                                    <span className="absolute right-4 top-1/2 -translate-y-1/2 font-bold text-muted-foreground">Kg</span>
+                                </div>
+                                <p className="text-[10px] text-muted-foreground text-center">Ex: 0.500 para 500 gramas</p>
+                            </div>
+                        )}
+
                         <div className="space-y-2 pb-2">
                             <Label htmlFor="notes" className="font-semibold">Alguma observação?</Label>
                             <Textarea
@@ -273,23 +307,30 @@ const ProductDetailDialog = ({
 
                 {/* Footer: Quantity + Add to Cart */}
                 <div className="flex items-center gap-3 border-t px-5 py-4 bg-background">
-                    {/* Quantity selector */}
-                    <div className="flex items-center gap-2 rounded-lg border px-2 py-1">
-                        <button
-                            className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-foreground disabled:opacity-30 transition-colors"
-                            onClick={() => setQuantity(q => Math.max(1, q - 1))}
-                            disabled={quantity <= 1}
-                        >
-                            <Minus className="h-4 w-4" />
-                        </button>
-                        <span className="w-5 text-center font-bold text-base">{quantity}</span>
-                        <button
-                            className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-foreground transition-colors"
-                            onClick={() => setQuantity(q => q + 1)}
-                        >
-                            <Plus className="h-4 w-4" />
-                        </button>
-                    </div>
+                    {/* Quantity selector or Weight text */}
+                    {!product.isSoldByWeight ? (
+                        <div className="flex items-center gap-2 rounded-lg border px-2 py-1">
+                            <button
+                                className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-foreground disabled:opacity-30 transition-colors"
+                                onClick={() => setQuantity(q => Math.max(1, q - 1))}
+                                disabled={quantity <= 1}
+                            >
+                                <Minus className="h-4 w-4" />
+                            </button>
+                            <span className="w-5 text-center font-bold text-base">{quantity}</span>
+                            <button
+                                className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-foreground transition-colors"
+                                onClick={() => setQuantity(q => q + 1)}
+                            >
+                                <Plus className="h-4 w-4" />
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center px-1">
+                            <span className="text-[10px] uppercase font-bold text-muted-foreground leading-none">Peso</span>
+                            <span className="text-sm font-black">{(parseFloat(weight.replace(',', '.')) || 0).toFixed(3)}kg</span>
+                        </div>
+                    )}
                     {/* Add to cart button */}
                     <Button className="flex-1 h-11 text-base font-semibold" onClick={handleConfirm}>
                         Adicionar · R$ {finalPrice.toFixed(2)}
@@ -320,7 +361,12 @@ const ProductCard = ({ product }: { product: Product }) => {
                         <h3 className="text-base font-bold leading-tight text-foreground">{product.name}</h3>
                         <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{product.description}</p>
                     </div>
-                    <div className="mt-4 font-semibold text-primary">R$ {product.price.toFixed(2)}</div>
+                    <div className="mt-4 flex items-center gap-2">
+                        <span className="font-semibold text-primary">R$ {product.price.toFixed(2)}</span>
+                        {product.isSoldByWeight && (
+                            <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-primary/30 text-primary/70">por Kg</Badge>
+                        )}
+                    </div>
                 </div>
 
                 {imageUrl ? (
@@ -361,6 +407,7 @@ export default function MenuPage() {
   const params = useParams();
   const companyId = params?.companyId as string;
   const firestore = useFirestore();
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Fetch company data
   const companyRef = useMemoFirebase(() => {
@@ -386,7 +433,18 @@ export default function MenuPage() {
   const productsByCategory = useMemo(() => {
     if (!products || !categories) return {};
 
-    const activeProducts = products.filter(p => p.isActive);
+    const activeProducts = products.filter(p => {
+        const matchesActive = p.isActive;
+        if (!matchesActive) return false;
+        
+        if (!searchQuery.trim()) return true;
+        
+        const queryNorm = searchQuery.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        const nameNorm = p.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        const descNorm = (p.description || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        
+        return nameNorm.includes(queryNorm) || descNorm.includes(queryNorm);
+    });
 
     const categoriesById = new Map(categories.map(c => [c.id, c.name]));
 
@@ -398,6 +456,12 @@ export default function MenuPage() {
         acc[categoryName].push(product);
         return acc;
     }, {} as { [key: string]: Product[] });
+    
+    // Filtramos para manter apenas categorias que possuem produtos após a busca
+    const filteredGrouped = Object.fromEntries(
+        Object.entries(grouped).filter(([_, items]) => items.length > 0)
+    );
+
     const sortedCategoriesList = [...categories].sort((a, b) => {
         if (a.sortOrder !== undefined && b.sortOrder !== undefined) return a.sortOrder - b.sortOrder;
         if (a.sortOrder !== undefined) return -1;
@@ -407,7 +471,7 @@ export default function MenuPage() {
 
     const categoryOrder = sortedCategoriesList.map(c => c.name);
 
-    const sortedCategoryNames = Object.keys(grouped).sort((a, b) => {
+    const sortedCategoryNames = Object.keys(filteredGrouped).sort((a, b) => {
         const indexA = categoryOrder.indexOf(a);
         const indexB = categoryOrder.indexOf(b);
         if (a === 'Outros') return 1;
@@ -420,7 +484,7 @@ export default function MenuPage() {
 
     const finalGrouped: { [key: string]: Product[] } = {};
     for (const name of sortedCategoryNames) {
-        finalGrouped[name] = grouped[name].sort((a, b) => {
+        finalGrouped[name] = filteredGrouped[name].sort((a, b) => {
             if (a.sortOrder !== undefined && b.sortOrder !== undefined) return a.sortOrder - b.sortOrder;
             if (a.sortOrder !== undefined) return -1;
             if (b.sortOrder !== undefined) return 1;
@@ -430,7 +494,7 @@ export default function MenuPage() {
     
     return finalGrouped;
 
-  }, [products, categories]);
+  }, [products, categories, searchQuery]);
 
   const isLoading = isLoadingCompany || isLoadingProducts || isLoadingCategories;
 
@@ -472,6 +536,29 @@ export default function MenuPage() {
       )}
 
       <div className="space-y-12 pb-24">
+        {/* Search Bar */}
+        {!isLoading && (
+            <div className="max-w-2xl mx-auto mb-8 sticky top-20 z-10 md:static">
+                <div className="relative group">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                    <Input 
+                        placeholder="Buscar pratos ou bebidas..." 
+                        className="pl-12 pr-10 h-14 text-lg rounded-2xl border-2 bg-background/50 backdrop-blur-md shadow-sm transition-all focus:border-primary focus:ring-0" 
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                    {searchQuery && (
+                        <button 
+                            onClick={() => setSearchQuery('')}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 h-6 w-6 flex items-center justify-center rounded-full bg-muted hover:bg-muted-foreground/20 transition-colors"
+                        >
+                            <X className="h-4 w-4" />
+                        </button>
+                    )}
+                </div>
+            </div>
+        )}
+
         {/* Sticky Category Navbar */}
         {!isLoading && Object.keys(productsByCategory).length > 0 && (
             <div className="sticky top-0 z-20 -mx-4 mb-8 overflow-x-auto bg-background/80 px-4 py-3 backdrop-blur-xl border-b shadow-sm sm:mx-0 sm:rounded-b-2xl sm:px-6">
