@@ -35,6 +35,7 @@ async function createInitialDocuments(firestore: any, user: User, firstName: str
         email: user.email,
         isActive: true, 
         planId: 'trial', 
+        trialUsed: true,
         soundNotificationEnabled: true,
         createdAt: new Date(),
         subscriptionEndDate: trialEndDate,

@@ -57,8 +57,17 @@ type Company = {
   email?: string;
   phone?: string;
   isActive?: boolean;
+  planId?: string;
   subscriptionEndDate?: Timestamp; 
   createdAt?: Timestamp | any;
+};
+
+type Plan = {
+    id: string;
+    name: string;
+    price: number;
+    billingType: 'monthly' | 'per_order';
+    pricePerOrder?: number;
 };
 
 
@@ -71,6 +80,9 @@ export default function ManageCompaniesPage() {
   const [isBulkOpen, setIsBulkOpen] = useState(false);
   const [bulkMessage, setBulkMessage] = useState('');
   const [bulkQueue, setBulkQueue] = useState<{ id: string, name: string, phone: string, sent: boolean }[]>([]);
+  
+  const [selectedCompanyForPlan, setSelectedCompanyForPlan] = useState<Company | null>(null);
+  const [isPlanDialogOpen, setIsPlanDialogOpen] = useState(false);
 
   const handleStartBulk = () => {
       const queue = companies?.filter(c => c.phone && c.phone.replace(/\D/g, '').length >= 10).map(c => ({
@@ -108,10 +120,26 @@ export default function ManageCompaniesPage() {
 
   const { data: companies, isLoading: isLoadingCompanies } = useCollection<Company>(companiesRef);
 
-  const handleToggleActive = (companyId: string, currentStatus: boolean) => {
+  const plansRef = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'plans');
+  }, [firestore]);
+  const { data: plans, isLoading: isLoadingPlans } = useCollection<Plan>(plansRef);
+
+  const handleToggleActive = (companyId: string, currentStatus: boolean, hasPlan: boolean) => {
     if (!firestore) return;
+    const company = companies?.find(c => c.id === companyId);
     const companyDocRef = doc(firestore, 'companies', companyId);
     
+    // Se estiver ativando e não tiver plano, abre o diálogo de plano primeiro
+    if (!currentStatus && (!hasPlan || !company?.planId)) {
+        if (company) {
+            setSelectedCompanyForPlan(company);
+            setIsPlanDialogOpen(true);
+            return;
+        }
+    }
+
     const updateData: { isActive: boolean, subscriptionEndDate?: Date } = { 
         isActive: !currentStatus 
     };
@@ -160,7 +188,22 @@ export default function ManageCompaniesPage() {
     });
   };
   
-  const isLoading = isUserLoading || isLoadingCompanies;
+  const handleUpdatePlan = (companyId: string, planId: string) => {
+    if (!firestore) return;
+    const companyDocRef = doc(firestore, 'companies', companyId);
+    
+    updateDocument(companyDocRef, { 
+        planId,
+        isActive: true, // Quando muda plano manualmente, assume que quer ativar
+        subscriptionEndDate: addDays(new Date(), 30)
+    }).then(() => {
+        toast({ title: 'Plano Atualizado!', description: 'A empresa foi atualizada com o novo plano.' });
+        setIsPlanDialogOpen(false);
+        setSelectedCompanyForPlan(null);
+    });
+  };
+
+  const isLoading = isUserLoading || isLoadingCompanies || isLoadingPlans;
 
   const filteredCompanies = (companies || []).filter(c => {
     const nameMatch = (c.name || '').toLowerCase().includes(searchQuery.toLowerCase());
@@ -206,6 +249,7 @@ export default function ManageCompaniesPage() {
               <TableHead>Nome da Empresa</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Contato</TableHead>
+              <TableHead>Plano</TableHead>
               <TableHead>Data de Assinatura</TableHead>
               <TableHead>Validade da Assinatura</TableHead>
               <TableHead>Status</TableHead>
@@ -215,7 +259,7 @@ export default function ManageCompaniesPage() {
           <TableBody>
              {isLoading && (
               <TableRow>
-                <TableCell colSpan={7} className="text-center">Carregando empresas...</TableCell>
+                <TableCell colSpan={8} className="text-center">Carregando empresas...</TableCell>
               </TableRow>
             )}
             {!isLoading && filteredCompanies.map((company) => (
@@ -223,6 +267,11 @@ export default function ManageCompaniesPage() {
                 <TableCell className="font-medium">{company.name}</TableCell>
                 <TableCell>{company.email || 'Não informado'}</TableCell>
                 <TableCell>{company.phone || 'Não informado'}</TableCell>
+                <TableCell>
+                    {plans?.find(p => p.id === company.planId)?.name || (
+                        <Badge variant="outline" className="text-muted-foreground border-dashed">Sem Plano</Badge>
+                    )}
+                </TableCell>
                 <TableCell>
                   {(() => {
                     const date = company.createdAt;
@@ -250,32 +299,47 @@ export default function ManageCompaniesPage() {
                         <Button variant="outline" size="icon" onClick={() => handleSendIndividual(company)} title="Enviar Mensagem" className="rounded-full text-green-600 hover:text-green-700 hover:bg-green-50 z-10">
                             <MessageCircle className="h-4 w-4" />
                         </Button>
-                         <Switch
+                        <Switch
                             checked={!!company.isActive}
-                            onCheckedChange={() => handleToggleActive(company.id, !!company.isActive)}
+                            onCheckedChange={() => handleToggleActive(company.id, !!company.isActive, !!company.planId)}
                             aria-label={`Ativar ou desativar ${company.name}`}
                         />
-                        <AlertDialog>
-                           <AlertDialogTrigger asChild>
-                               <Button variant="ghost" size="icon">
-                                <Trash2 className="h-4 w-4 text-destructive" />
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon">
+                                    <MoreHorizontal className="h-4 w-4" />
                                </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Excluir {company.name}?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Essa ação não pode ser desfeita. Isso excluirá permanentemente os dados da empresa no <strong>banco de dados (Firestore)</strong>. A conta de <strong>autenticação do usuário (login)</strong> não será afetada e precisará ser removida manually no Firebase Console para liberar o e-mail.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleDeleteCompany(company.id)} className="bg-destructive hover:bg-destructive/90">
-                                Excluir
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                <DropdownMenuLabel>Opções da Empresa</DropdownMenuLabel>
+                                <DropdownMenuItem onClick={() => {
+                                    setSelectedCompanyForPlan(company);
+                                    setIsPlanDialogOpen(true);
+                                }}>Mudar Plano</DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <div className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 text-destructive hover:bg-destructive/10 w-full">
+                                            Excluir Empresa
+                                        </div>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Excluir {company.name}?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                Essa ação não pode ser desfeita. Isso excluirá permanentemente os dados da empresa.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                            <AlertDialogAction onClick={() => handleDeleteCompany(company.id)} className="bg-destructive hover:bg-destructive/90">
+                                                Excluir
+                                            </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     </div>
                 </TableCell>
               </TableRow>
@@ -351,6 +415,37 @@ export default function ManageCompaniesPage() {
                     </ScrollArea>
                 </div>
             )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isPlanDialogOpen} onOpenChange={setIsPlanDialogOpen}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Alterar Plano da Empresa</DialogTitle>
+                <DialogDescription>
+                    Selecione o plano de assinatura para <strong>{selectedCompanyForPlan?.name}</strong>. Isso ativará a empresa por 30 dias.
+                </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+                {plans?.map(plan => (
+                    <Button 
+                        key={plan.id} 
+                        variant={selectedCompanyForPlan?.planId === plan.id ? "default" : "outline"}
+                        className="justify-between h-auto py-4 px-6"
+                        onClick={() => handleUpdatePlan(selectedCompanyForPlan!.id, plan.id)}
+                    >
+                        <div className="text-left">
+                            <div className="font-bold">{plan.name}</div>
+                            <div className="text-xs opacity-70">
+                                {plan.billingType === 'per_order' 
+                                    ? `R$ ${plan.pricePerOrder?.toFixed(2)} por pedido` 
+                                    : `R$ ${plan.price?.toFixed(2)} por mês`}
+                            </div>
+                        </div>
+                        {selectedCompanyForPlan?.planId === plan.id && <Badge>Atual</Badge>}
+                    </Button>
+                ))}
+            </div>
         </DialogContent>
       </Dialog>
     </Card>

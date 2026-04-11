@@ -143,6 +143,15 @@ export default function POSPage() {
         }).filter(item => item.quantity > 0));
     };
 
+    const updateItemPrice = (cartItemId: string, newPrice: number) => {
+        setCart(prev => prev.map(item => {
+            if (item.id === cartItemId) {
+                return { ...item, finalPrice: newPrice };
+            }
+            return item;
+        }));
+    };
+
     const total = cart.reduce((sum, item) => sum + (item.finalPrice * item.quantity), 0);
     const totalWithDiscount = Math.max(0, total - parseFloat(discount || '0'));
     const change = Math.max(0, (parseFloat(amountReceived || '0')) - totalWithDiscount);
@@ -424,27 +433,39 @@ export default function POSPage() {
                                                 </p>
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                {!item.product.isSoldByWeight ? (
-                                                    <div className="flex items-center border rounded-md px-1">
-                                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => updateQuantity(item.id, -1)}>
-                                                            <Minus className="h-3 w-3" />
+                                                <div className="flex flex-col items-end gap-1">
+                                                    {!item.product.isSoldByWeight ? (
+                                                        <div className="flex items-center border rounded-md px-1">
+                                                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => updateQuantity(item.id, -1)}>
+                                                                <Minus className="h-3 w-3" />
+                                                            </Button>
+                                                            <span className="w-6 text-center text-sm font-bold">{item.quantity}</span>
+                                                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => updateQuantity(item.id, 1)}>
+                                                                <Plus className="h-3 w-3" />
+                                                            </Button>
+                                                        </div>
+                                                    ) : (
+                                                        <Button variant="outline" size="sm" className="h-8 text-[10px]" onClick={() => {
+                                                            setSelectedProductForWeight(item.product);
+                                                            setCurrentWeight(item.quantity.toFixed(3));
+                                                            setIsWeightDialogOpen(true);
+                                                            removeFromCart(item.id);
+                                                        }}>
+                                                            Alterar Peso
                                                         </Button>
-                                                        <span className="w-6 text-center text-sm font-bold">{item.quantity}</span>
-                                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => updateQuantity(item.id, 1)}>
-                                                            <Plus className="h-3 w-3" />
-                                                        </Button>
+                                                    )}
+                                                    
+                                                    <div className="flex items-center gap-1">
+                                                        <span className="text-[10px] text-muted-foreground">R$</span>
+                                                        <input 
+                                                            type="number" 
+                                                            className="w-16 h-6 text-xs text-right border rounded bg-muted/50 px-1 focus:outline-none focus:ring-1 focus:ring-primary"
+                                                            value={item.finalPrice}
+                                                            onChange={(e) => updateItemPrice(item.id, parseFloat(e.target.value) || 0)}
+                                                            step="0.01"
+                                                        />
                                                     </div>
-                                                ) : (
-                                                     <Button variant="outline" size="sm" className="h-8 text-[10px]" onClick={() => {
-                                                         setSelectedProductForWeight(item.product);
-                                                         setCurrentWeight(item.quantity.toFixed(3));
-                                                         setIsWeightDialogOpen(true);
-                                                         // We'll need a way to replace the item or just remove it and add new
-                                                         removeFromCart(item.id);
-                                                     }}>
-                                                        Alterar Peso
-                                                     </Button>
-                                                )}
+                                                </div>
                                                 <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeFromCart(item.id)}>
                                                     <Trash2 className="h-4 w-4" />
                                                 </Button>

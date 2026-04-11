@@ -58,6 +58,8 @@ type Plan = {
     id: string;
     name: string;
     price: number;
+    billingType: 'monthly' | 'per_order';
+    pricePerOrder?: number;
 };
 
 type CompanyEarnings = {
@@ -167,24 +169,7 @@ export default function AdminDashboardPage() {
     }, [firestore, user]);
 
     const stats = useMemo(() => {
-        const activeCompanies = rawCompanies.filter(c => !!c.isActive);
-        const inactiveCount = rawCompanies.length - activeCompanies.length;
-
-        // Platform Earnings (from Active Companies not on trial)
-        const platformEarnings = activeCompanies
-            .filter(company => company.planId && company.planId !== 'trial')
-            .map(company => {
-                const plan = rawPlans[company.planId!];
-                const planPrice = plan ? Number(plan.price) || 0 : 0;
-                return {
-                    name: company.name,
-                    Ganho: planPrice,
-                };
-            }).filter(earning => earning.name && earning.Ganho > 0);
-        
-        const totalRevenue = platformEarnings.reduce((sum, company) => sum + company.Ganho, 0);
-
-        // Date-filtered orders
+        // 1. First, filter orders by date range
         let filteredOrders = rawOrders;
         if (dateRange?.from) {
             const start = startOfDay(dateRange.from);
@@ -196,7 +181,40 @@ export default function AdminDashboardPage() {
             });
         }
 
-        // Orders by company for table
+        const activeCompanies = rawCompanies.filter(c => !!c.isActive);
+        const inactiveCount = rawCompanies.length - activeCompanies.length;
+
+        // 2. Then calculate earnings (Fixed vs Variable)
+        let fixedRevenue = 0;
+        let variableRevenue = 0;
+
+        const salesByCompany = activeCompanies.map(company => {
+            const plan = rawPlans[company.planId!];
+            let companyFixed = 0;
+            let companyVariable = 0;
+
+            if (plan) {
+                if (plan.billingType === 'monthly') {
+                    companyFixed = Number(plan.price) || 0;
+                } else if (plan.billingType === 'per_order') {
+                    const companyOrders = filteredOrders.filter(o => o.companyId === company.id);
+                    companyVariable = companyOrders.length * (Number(plan.pricePerOrder) || 0);
+                    companyFixed = Number(plan.price) || 0;
+                }
+            }
+
+            fixedRevenue += companyFixed;
+            variableRevenue += companyVariable;
+
+            return {
+                name: company.name,
+                Ganho: companyFixed + companyVariable,
+                Fixo: companyFixed,
+                Variavel: companyVariable
+            };
+        }).filter(s => s.Ganho > 0);
+
+        // 3. Orders by company for table
         const ordersByCompany = rawCompanies.map(company => {
              const companyOrders = filteredOrders.filter(o => o.companyId === company.id);
              return {
@@ -209,12 +227,13 @@ export default function AdminDashboardPage() {
         }).sort((a,b) => b.quantidadePedidos - a.quantidadePedidos);
 
         return {
-            totalRevenue,
+            fixedRevenue,
+            variableRevenue,
             totalCompanies: rawCompanies.length,
             activeCount: activeCompanies.length,
             inactiveCount,
             totalOrdersInPeriod: filteredOrders.length,
-            salesByCompany: platformEarnings,
+            salesByCompany,
             ordersByCompany
         };
 
@@ -270,15 +289,25 @@ export default function AdminDashboardPage() {
            </div>
        </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Ganhos da Plataforma</CardTitle>
+            <CardTitle className="text-sm font-medium">Ganhos em Assinatura (Fixo)</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">R${stats?.totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-            <p className="text-xs text-muted-foreground">de assinaturas ativas</p>
+            <div className="text-2xl font-bold text-green-600">R${stats?.fixedRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            <p className="text-xs text-muted-foreground">receita mensal recorrente</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Ganhos por Contrato (Variável)</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">R${stats?.variableRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            <p className="text-xs text-muted-foreground">comissão sobre pedidos (período)</p>
           </CardContent>
         </Card>
         <Card>

@@ -96,7 +96,28 @@ type PlatformSettings = {
     pixKey?: string;
 };
 
-const SubscriptionView = ({ isExpired, trialEndDate }: { isExpired?: boolean, trialEndDate?: Date }) => {
+type CompanySettingsData = {
+    id?: string;
+    name?: string;
+    phone?: string;
+    themeColors?: string;
+    soundNotificationEnabled?: boolean;
+    closedMessage?: string;
+    averagePrepTime?: number;
+    numberOfTables?: number;
+    comandasEnabled?: boolean;
+    ownerId?: string;
+    planId?: string;
+    isActive?: boolean;
+    subscriptionEndDate?: any;
+    trialUsed?: boolean;
+    paymentMethods?: any;
+    pixKey?: any;
+    businessHours?: any;
+    whatsappTemplates?: any;
+};
+
+const SubscriptionView = ({ isExpired, trialEndDate, companyData }: { isExpired?: boolean, trialEndDate?: Date, companyData?: CompanySettingsData }) => {
     const firestore = useFirestore();
     const { toast } = useToast();
     
@@ -202,6 +223,9 @@ const SubscriptionView = ({ isExpired, trialEndDate }: { isExpired?: boolean, tr
         return <p>Carregando planos de assinatura...</p>
     }
 
+    const currentPlan = plans?.find(p => p.id === companyData?.planId);
+    const isPaidPlan = currentPlan && currentPlan.duration !== 'trial';
+
     if (!selectedPlan) {
         return (
             <div className="space-y-6 p-4">
@@ -209,9 +233,11 @@ const SubscriptionView = ({ isExpired, trialEndDate }: { isExpired?: boolean, tr
                     {isExpired ? (
                         <Alert variant="destructive" className="bg-destructive/10">
                             <AlertTriangle className="h-5 w-5" />
-                            <AlertTitle>Seu período de acesso expirou!</AlertTitle>
+                            <AlertTitle>{isPaidPlan ? "Sua mensalidade está vencida!" : "Seu período de acesso expirou!"}</AlertTitle>
                             <AlertDescription>
-                                Para continuar vendendo e acessando seu painel, selecione um plano abaixo. Seus dados estão salvos.
+                                {isPaidPlan 
+                                    ? "Regularize seu pagamento para continuar usando o sistema. Seus dados estão salvos e seguros."
+                                    : "Seu período de teste acabou. Para continuar vendendo e acessando seu painel, selecione um plano abaixo."}
                             </AlertDescription>
                         </Alert>
                     ) : (
@@ -220,11 +246,32 @@ const SubscriptionView = ({ isExpired, trialEndDate }: { isExpired?: boolean, tr
                             <p className="text-muted-foreground mt-1">Seu acesso gratuito vai até: <strong className="text-foreground">{trialEndDate ? format(trialEndDate, 'dd/MM/yyyy') : '--/--'}</strong></p>
                         </div>
                     )}
-                    <h2 className="text-3xl font-bold tracking-tight">Escolha seu Plano</h2>
+
+                    {isExpired && isPaidPlan && currentPlan && (
+                        <div className="bg-blue-50 border border-blue-200 p-6 rounded-xl flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm">
+                            <div className="text-left">
+                                <h3 className="text-xl font-bold text-blue-900 leading-tight">Renovar Plano Atual</h3>
+                                <p className="text-blue-700 text-sm">Pague agora para liberar seu acesso imediatamente no plano <strong>{currentPlan.name}</strong>.</p>
+                            </div>
+                            <Button size="lg" className="bg-blue-600 hover:bg-blue-700 text-white font-bold h-14 px-8 rounded-full shadow-lg hover:shadow-xl transition-all gap-2" onClick={() => handleSelectPlan(currentPlan)}>
+                                <DollarSign className="h-5 w-5" /> Pagar Mensalidade (R$ {currentPlan.price.toFixed(2)})
+                            </Button>
+                        </div>
+                    )}
+
+                    <h2 className="text-3xl font-bold tracking-tight">
+                        {isExpired && isPaidPlan ? "Ou escolha um novo plano" : "Escolha seu Plano"}
+                    </h2>
                     <p className="text-muted-foreground">Selecione o plano que melhor se adapta ao seu negócio para ativar sua loja permanentemente.</p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {plans?.map((plan) => (
+                    {plans?.filter(plan => {
+                        // Não mostrar planos de teste se já usou ou se o plano atual é pago
+                        if (plan.duration === 'trial') {
+                            return !companyData?.trialUsed && companyData?.planId === 'trial';
+                        }
+                        return true;
+                    }).map((plan) => (
                         <Card key={plan.id} className="flex flex-col border-2 hover:border-primary transition-all">
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2"><Crown className="text-primary"/> {plan.name}</CardTitle>
@@ -305,7 +352,7 @@ export default function SettingsPage() {
       return doc(firestore, 'companies', user.uid)
   }, [firestore, user]);
   
-  const { data: companyData, isLoading: isLoadingCompany } = useDoc(companyRef);
+  const { data: companyData, isLoading: isLoadingCompany } = useDoc<CompanySettingsData>(companyRef);
 
   const deliveryZonesRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -553,7 +600,7 @@ export default function SettingsPage() {
   const isInactive = companyData?.isActive === false;
 
   if (isInactive || isTrialExpired) {
-    return <SubscriptionView isExpired={isTrialExpired} trialEndDate={trialEndDate} />;
+    return <SubscriptionView isExpired={isTrialExpired} trialEndDate={trialEndDate} companyData={companyData} />;
   }
 
   return (

@@ -61,6 +61,7 @@ export async function POST(req: Request) {
         await updateDoc(companyRef, {
             isActive: true,
             planId: planId || 'unknown',
+            trialUsed: true,
             subscriptionEndDate: Timestamp.fromDate(subscriptionEndDate),
         });
 
