@@ -83,6 +83,8 @@ export default function ManageCompaniesPage() {
   
   const [selectedCompanyForPlan, setSelectedCompanyForPlan] = useState<Company | null>(null);
   const [isPlanDialogOpen, setIsPlanDialogOpen] = useState(false);
+  const [isExpiryDialogOpen, setIsExpiryDialogOpen] = useState(false);
+  const [newExpiryDate, setNewExpiryDate] = useState<string>('');
 
   const handleStartBulk = () => {
       const queue = companies?.filter(c => c.phone && c.phone.replace(/\D/g, '').length >= 10).map(c => ({
@@ -194,11 +196,28 @@ export default function ManageCompaniesPage() {
     
     updateDocument(companyDocRef, { 
         planId,
-        isActive: true, // Quando muda plano manualmente, assume que quer ativar
+        isActive: true, 
         subscriptionEndDate: addDays(new Date(), 30)
     }).then(() => {
         toast({ title: 'Plano Atualizado!', description: 'A empresa foi atualizada com o novo plano.' });
         setIsPlanDialogOpen(false);
+        setSelectedCompanyForPlan(null);
+    });
+  };
+
+  const handleUpdateExpiryDate = () => {
+    if (!firestore || !selectedCompanyForPlan || !newExpiryDate) return;
+    const companyDocRef = doc(firestore, 'companies', selectedCompanyForPlan.id);
+    
+    const [year, month, day] = newExpiryDate.split('-').map(Number);
+    const date = new Date(year, month - 1, day, 23, 59, 59);
+    
+    updateDocument(companyDocRef, { 
+        subscriptionEndDate: date,
+        isActive: true
+    }).then(() => {
+        toast({ title: 'Validade Atualizada!', description: `Nova data: ${format(date, 'dd/MM/yyyy')}` });
+        setIsExpiryDialogOpen(false);
         setSelectedCompanyForPlan(null);
     });
   };
@@ -316,6 +335,16 @@ export default function ManageCompaniesPage() {
                                     setSelectedCompanyForPlan(company);
                                     setIsPlanDialogOpen(true);
                                 }}>Mudar Plano</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => {
+                                    setSelectedCompanyForPlan(company);
+                                    if (company.subscriptionEndDate) {
+                                        const d = company.subscriptionEndDate.toDate();
+                                        setNewExpiryDate(format(d, 'yyyy-MM-dd'));
+                                    } else {
+                                        setNewExpiryDate(format(new Date(), 'yyyy-MM-dd'));
+                                    }
+                                    setIsExpiryDialogOpen(true);
+                                }}>Mudar Validade</DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
@@ -446,6 +475,31 @@ export default function ManageCompaniesPage() {
                     </Button>
                 ))}
             </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={isExpiryDialogOpen} onOpenChange={setIsExpiryDialogOpen}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Alterar Validade da Assinatura</DialogTitle>
+                <DialogDescription>
+                    Defina manualmente a data de vencimento da assinatura para <strong>{selectedCompanyForPlan?.name}</strong>.
+                </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                    <label htmlFor="expiry-date" className="text-sm font-medium">Data de Vencimento</label>
+                    <Input 
+                        id="expiry-date"
+                        type="date"
+                        value={newExpiryDate}
+                        onChange={(e) => setNewExpiryDate(e.target.value)}
+                    />
+                </div>
+            </div>
+            <DialogFooter>
+                <Button variant="outline" onClick={() => setIsExpiryDialogOpen(false)}>Cancelar</Button>
+                <Button onClick={handleUpdateExpiryDate} disabled={!newExpiryDate}>Salvar Nova Data</Button>
+            </DialogFooter>
         </DialogContent>
       </Dialog>
     </Card>
