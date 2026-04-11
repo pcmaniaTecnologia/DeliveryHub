@@ -600,7 +600,7 @@ export default function SettingsPage() {
   const isInactive = companyData?.isActive === false;
 
   if (isInactive || isTrialExpired) {
-    return <SubscriptionView isExpired={isTrialExpired} trialEndDate={trialEndDate} companyData={companyData} />;
+    return <SubscriptionView isExpired={isTrialExpired} trialEndDate={trialEndDate} companyData={companyData || undefined} />;
   }
 
   return (
