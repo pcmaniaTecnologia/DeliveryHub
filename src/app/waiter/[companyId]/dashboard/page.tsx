@@ -3,7 +3,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, collection, type Timestamp } from 'firebase/firestore';
+import { doc, collection, type Timestamp, query, where } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -66,7 +66,9 @@ export default function WaiterDashboardPage() {
 
     const ordersRef = useMemoFirebase(() => {
         if (!firestore || !companyId) return null;
-        return collection(firestore, `companies/${companyId}/orders`);
+        const colRef = collection(firestore, `companies/${companyId}/orders`);
+        // Otimização: Buscamos apenas pedidos ativos para as comandas
+        return query(colRef, where('status', 'not-in', ['Entregue', 'Cancelado']));
     }, [firestore, companyId]);
 
     const { data: allOrders, isLoading: isLoadingOrders } = useCollection<Order>(ordersRef);
