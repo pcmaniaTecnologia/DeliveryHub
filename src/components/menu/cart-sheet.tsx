@@ -136,6 +136,10 @@ export default function CartSheet({ companyId }: { companyId: string}) {
   const [selectedPayment, setSelectedPayment] = useState<string>('');
   const [cashAmount, setCashAmount] = useState('');
 
+  // Multi-payment state
+  const [isMultiPayment, setIsMultiPayment] = useState(false);
+  const [multiPayments, setMultiPayments] = useState<{ method: string, amount: string, cashAmount?: string }[]>([]);
+
   const selectedZone = useMemo(() => {
     if (deliveryType !== 'Delivery' || !addressNeighborhood) return null;
     return deliveryZones?.find(z => z.neighborhood === addressNeighborhood);
@@ -173,7 +177,13 @@ export default function CartSheet({ companyId }: { companyId: string}) {
         return;
     }
 
-    if (!selectedPayment) {
+    if (isMultiPayment) {
+        const totalPaid = multiPayments.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
+        if (Math.abs(totalPaid - finalTotal) > 0.01) {
+            toast({ variant: 'destructive', title: `O total dos pagamentos (R$ ${totalPaid.toFixed(2)}) deve ser igual ao total do pedido (R$ ${finalTotal.toFixed(2)})` });
+            return;
+        }
+    } else if (!selectedPayment) {
       toast({ variant: 'destructive', title: 'Selecione a forma de pagamento' });
       return;
     }
@@ -200,7 +210,14 @@ export default function CartSheet({ companyId }: { companyId: string}) {
         deliveryAddress: fullAddress,
         deliveryType,
         deliveryFee,
-        paymentMethod: selectedPayment === 'Dinheiro' && cashAmount ? `Dinheiro (Troco para R$${parseFloat(cashAmount).toFixed(2)})` : selectedPayment,
+        paymentMethod: isMultiPayment 
+            ? multiPayments.map(p => {
+                if (p.method === 'Dinheiro' && p.cashAmount) {
+                    return `${p.method}: R$ ${parseFloat(p.amount).toFixed(2)} (Troco p/ R$ ${parseFloat(p.cashAmount).toFixed(2)})`;
+                }
+                return `${p.method}: R$ ${parseFloat(p.amount).toFixed(2)}`;
+            }).join(' | ')
+            : (selectedPayment === 'Dinheiro' && cashAmount ? `Dinheiro (Troco para R$ ${parseFloat(cashAmount).toFixed(2)})` : selectedPayment),
         orderItems: cartItems.map(item => ({
             productId: item.product.id,
             productName: item.product.name,
@@ -225,6 +242,15 @@ export default function CartSheet({ companyId }: { companyId: string}) {
                 return `- ${item.quantity}x ${item.product.name} (R$${item.finalPrice.toFixed(2)})${variantsSummary}${notesSummary}`;
             }).join('\n');
 
+            const paymentText = isMultiPayment 
+                ? multiPayments.map(p => {
+                    if (p.method === 'Dinheiro' && p.cashAmount) {
+                        return `- ${p.method}: R$ ${parseFloat(p.amount).toFixed(2)} (Troco p/ R$ ${parseFloat(p.cashAmount).toFixed(2)})`;
+                    }
+                    return `- ${p.method}: R$ ${parseFloat(p.amount).toFixed(2)}`;
+                }).join('\n')
+                : (selectedPayment === 'Dinheiro' && cashAmount ? `Dinheiro (Troco para R$ ${parseFloat(cashAmount).toFixed(2)})` : selectedPayment);
+
             const message = `*Novo Pedido!* 🎉\n` +
                             `*ID:* ${docRef.id.substring(0, 6).toUpperCase()}\n` +
                             `*Cliente:* ${customerName}\n` +
@@ -233,8 +259,8 @@ export default function CartSheet({ companyId }: { companyId: string}) {
                             `--- *Itens* ---\n${itemsSummary}\n\n` +
                             `*Subtotal:* R$${totalPrice.toFixed(2)}\n` +
                             `${deliveryFee > 0 ? `*Entrega:* R$${deliveryFee.toFixed(2)}\n` : ''}` +
-                            `*Total:* *R$${finalTotal.toFixed(2)}*\n` +
-                            `*Pagamento:* ${orderData.paymentMethod}`;
+                            `*Total:* *R$${finalTotal.toFixed(2)}*\n\n` +
+                            `*Pagamento:* \n${paymentText}`;
 
             const whatsappUrl = `https://wa.me/55${companyData.phone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
             setWhatsappLink(whatsappUrl);
@@ -276,6 +302,10 @@ export default function CartSheet({ companyId }: { companyId: string}) {
         setIsOrderFinished(true);
         clearCart();
         setIsCheckoutOpen(false);
+        setIsMultiPayment(false);
+        setMultiPayments([]);
+        setSelectedPayment('');
+        setCashAmount('');
     } catch (error) {
         toast({ variant: 'destructive', title: 'Erro ao enviar pedido' });
     } finally {
@@ -370,27 +400,127 @@ export default function CartSheet({ companyId }: { companyId: string}) {
                                 </div>
                             )}
                             <Separator />
-                            <h3 className="font-semibold">Pagamento <span className="text-destructive">*</span></h3>
-                            <RadioGroup value={selectedPayment} onValueChange={setSelectedPayment}>
-                                {enabledPaymentMethods.map(m => (
-                                    <div key={m.id} className="flex items-center space-x-2">
-                                        <RadioGroupItem value={m.id} id={m.id} /><Label htmlFor={m.id}>{m.label}</Label>
+                            <div className="flex items-center justify-between">
+                                <h3 className="font-semibold">Pagamento <span className="text-destructive">*</span></h3>
+                                <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="text-[10px] h-7 px-2 border" 
+                                    onClick={() => {
+                                        setIsMultiPayment(!isMultiPayment);
+                                        if (!isMultiPayment && selectedPayment) {
+                                            setMultiPayments([{ method: selectedPayment, amount: finalTotal.toFixed(2) }]);
+                                        } else if (isMultiPayment) {
+                                            setMultiPayments([]);
+                                        }
+                                    }}
+                                >
+                                    {isMultiPayment ? 'Voltar para Único' : 'Dividir Pagamento'}
+                                </Button>
+                            </div>
+
+                            {!isMultiPayment ? (
+                                <>
+                                    <RadioGroup value={selectedPayment} onValueChange={setSelectedPayment}>
+                                        {enabledPaymentMethods.map(m => (
+                                            <div key={m.id} className="flex items-center space-x-2">
+                                                <RadioGroupItem value={m.id} id={m.id} /><Label htmlFor={m.id}>{m.label}</Label>
+                                            </div>
+                                        ))}
+                                    </RadioGroup>
+                                    {selectedPayment === 'Dinheiro' && (
+                                        <div className="grid gap-2 pl-6 pt-2">
+                                            <Label className="text-xs">Precisa de troco? Troco para quanto? (opcional)</Label>
+                                            <Input type="number" value={cashAmount} onChange={e => setCashAmount(e.target.value)} placeholder="Ex: 50.00 (deixe vazio se não precisar)" />
+                                        </div>
+                                    )}
+                                    {selectedPayment === 'PIX' && companyData?.pixKey && (
+                                        <div className="grid gap-2 pl-6 pt-2">
+                                            <Label className="text-sm font-semibold text-primary">Chave PIX para pagamento:</Label>
+                                            <div className="bg-primary/10 p-3 rounded-md mt-1 mb-2 border border-primary/20">
+                                                <p className="font-mono text-sm break-all font-bold select-all">{companyData.pixKey}</p>
+                                            </div>
+                                            <p className="text-xs text-muted-foreground mt-1">O pedido será liberado após a confirmação do pagamento pelo estabelecimento.</p>
+                                        </div>
+                                    )}
+                                </>
+                            ) : (
+                                <div className="space-y-4">
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {enabledPaymentMethods.map(m => {
+                                            const isSelected = multiPayments.some(p => p.method === m.id);
+                                            return (
+                                                <Button 
+                                                    key={m.id}
+                                                    variant={isSelected ? 'default' : 'outline'}
+                                                    className="h-10 text-xs gap-2"
+                                                    onClick={() => {
+                                                        if (isSelected) {
+                                                            setMultiPayments(multiPayments.filter(p => p.method !== m.id));
+                                                        } else {
+                                                            const currentSum = multiPayments.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
+                                                            const remaining = Math.max(0, finalTotal - currentSum);
+                                                            setMultiPayments([...multiPayments, { method: m.id, amount: remaining > 0 ? remaining.toFixed(2) : "" }]);
+                                                        }
+                                                    }}
+                                                >
+                                                    <m.icon className="h-4 w-4" />
+                                                    {m.label}
+                                                </Button>
+                                            );
+                                        })}
                                     </div>
-                                ))}
-                            </RadioGroup>
-                            {selectedPayment === 'Dinheiro' && (
-                                <div className="grid gap-2 pl-6 pt-2">
-                                    <Label className="text-xs">Precisa de troco? Troco para quanto? (opcional)</Label>
-                                    <Input type="number" value={cashAmount} onChange={e => setCashAmount(e.target.value)} placeholder="Ex: 50.00 (deixe vazio se não precisar)" />
-                                </div>
-                            )}
-                            {selectedPayment === 'PIX' && companyData?.pixKey && (
-                                <div className="grid gap-2 pl-6 pt-2">
-                                    <Label className="text-sm font-semibold text-primary">Chave PIX para pagamento:</Label>
-                                    <div className="bg-primary/10 p-3 rounded-md mt-1 mb-2 border border-primary/20">
-                                        <p className="font-mono text-sm break-all font-bold select-all">{companyData.pixKey}</p>
-                                    </div>
-                                    <p className="text-xs text-muted-foreground mt-1">O pedido será liberado após a confirmação do pagamento pelo estabelecimento.</p>
+
+                                    {multiPayments.length > 0 && (
+                                        <div className="space-y-3 pt-2">
+                                            {multiPayments.map((p, idx) => (
+                                                <div key={p.method} className="space-y-2 p-3 border rounded-lg bg-muted/20">
+                                                    <div className="flex items-center justify-between">
+                                                        <Label className="text-sm font-bold">{p.method}</Label>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-xs text-muted-foreground font-bold">R$</span>
+                                                            <Input 
+                                                                type="text" 
+                                                                className="w-24 h-8" 
+                                                                value={p.amount} 
+                                                                onChange={(e) => {
+                                                                    const newPayments = [...multiPayments];
+                                                                    newPayments[idx].amount = e.target.value;
+                                                                    setMultiPayments(newPayments);
+                                                                }}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    {p.method === 'Dinheiro' && (
+                                                        <div className="grid gap-1.5 pl-2 border-l-2 border-primary/20">
+                                                            <Label className="text-[10px]">Troco para quanto?</Label>
+                                                            <Input 
+                                                                type="number" 
+                                                                className="h-7 text-xs" 
+                                                                placeholder="50.00" 
+                                                                value={p.cashAmount || ''}
+                                                                onChange={(e) => {
+                                                                    const newPayments = [...multiPayments];
+                                                                    newPayments[idx].cashAmount = e.target.value;
+                                                                    setMultiPayments(newPayments);
+                                                                }}
+                                                            />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                            <div className="flex justify-between items-center text-xs font-bold pt-2 border-t">
+                                                <span>Total Pago: R$ {multiPayments.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0).toFixed(2)}</span>
+                                                <span className={Math.abs(multiPayments.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0) - finalTotal) < 0.01 ? "text-green-600" : "text-destructive"}>
+                                                    {multiPayments.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0) < finalTotal 
+                                                        ? `Falta: R$ ${(finalTotal - multiPayments.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0)).toFixed(2)}`
+                                                        : multiPayments.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0) > finalTotal 
+                                                            ? `Excesso: R$ ${(multiPayments.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0) - finalTotal).toFixed(2)}`
+                                                            : '✓ Valor Completo'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
