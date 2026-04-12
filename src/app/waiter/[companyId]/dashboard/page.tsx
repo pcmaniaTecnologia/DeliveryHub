@@ -2,8 +2,9 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
+import { useFirestore, useDoc, useCollection, useMemoFirebase, useAuth, useUser } from '@/firebase';
 import { doc, collection, type Timestamp } from 'firebase/firestore';
+import { initiateAnonymousSignIn } from '@/firebase/non-blocking-login';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,10 +41,21 @@ export default function WaiterDashboardPage() {
     const [selectedTable, setSelectedTable] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState('');
 
+    const { user, isUserLoading } = useUser();
+    const auth = useAuth();
+
     useEffect(() => {
         const saved = localStorage.getItem(`waiter_name_${companyId}`);
         if (saved) setWaiterName(saved);
-    }, [companyId]);
+
+        // Anonymous login for waiters to ensure they have read permissions
+        if (!user && !isUserLoading && auth) {
+            console.log("WaiterDashboard: Initiating anonymous sign-in...");
+            initiateAnonymousSignIn(auth).catch(err => {
+                console.error("WaiterDashboard: Error signing in anonymously:", err);
+            });
+        }
+    }, [companyId, user, isUserLoading, auth]);
 
     const handleSetName = () => {
         if (!nameInput.trim()) return;
