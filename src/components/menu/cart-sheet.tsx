@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Sheet,
   SheetContent,
@@ -126,9 +127,14 @@ export default function CartSheet({ companyId }: { companyId: string}) {
   
   const { data: deliveryZones, isLoading: isLoadingZones } = useCollection<DeliveryZone>(deliveryZonesRef);
 
+  const searchParams = useSearchParams();
+  const tableParam = searchParams?.get('table');
+  const waiterParam = searchParams?.get('waiter');
+  const isAdmin = searchParams?.get('admin') === 'true';
+
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
-  const [deliveryType, setDeliveryType] = useState<'Delivery' | 'Retirada'>('Delivery');
+  const [deliveryType, setDeliveryType] = useState<'Delivery' | 'Retirada' | 'Mesa'>('Delivery');
   const [addressStreet, setAddressStreet] = useState('');
   const [addressNumber, setAddressNumber] = useState('');
   const [addressNeighborhood, setAddressNeighborhood] = useState('');
@@ -139,6 +145,17 @@ export default function CartSheet({ companyId }: { companyId: string}) {
   // Multi-payment state
   const [isMultiPayment, setIsMultiPayment] = useState(false);
   const [multiPayments, setMultiPayments] = useState<{ method: string, amount: string, cashAmount?: string }[]>([]);
+
+  // Effect to handle table orders from URL
+  useEffect(() => {
+    if (tableParam) {
+      setDeliveryType('Mesa');
+      // If we're at a table, we might not need customer phone/name immediately, 
+      // but the system requires them. Let's set some defaults if they're empty.
+      if (!customerName) setCustomerName('Cliente na Mesa');
+      if (!customerPhone) setCustomerPhone('(00) 00000-0000');
+    }
+  }, [tableParam]);
 
   const selectedZone = useMemo(() => {
     if (deliveryType !== 'Delivery' || !addressNeighborhood) return null;
@@ -198,7 +215,9 @@ export default function CartSheet({ companyId }: { companyId: string}) {
         const ordersRef = collection(firestore, 'companies', companyId, 'orders');
     const fullAddress = deliveryType === 'Delivery'
       ? `${addressStreet}, ${addressNumber} - ${addressNeighborhood}${addressComplement ? ` (${addressComplement})` : ''}`
-      : 'Retirada no local';
+      : deliveryType === 'Mesa'
+        ? `Consumo na Mesa ${tableParam}`
+        : 'Retirada no local';
 
     const orderData = {
         companyId,
@@ -210,6 +229,8 @@ export default function CartSheet({ companyId }: { companyId: string}) {
         deliveryAddress: fullAddress,
         deliveryType,
         deliveryFee,
+        tableNumber: tableParam || null,
+        waiterName: waiterParam || (isAdmin ? 'Admin' : null),
         paymentMethod: isMultiPayment 
             ? multiPayments.map(p => {
                 if (p.method === 'Dinheiro' && p.cashAmount) {
@@ -369,6 +390,15 @@ export default function CartSheet({ companyId }: { companyId: string}) {
                                 <Button variant={deliveryType === 'Delivery' ? 'default' : 'outline'} className="flex-1" onClick={() => setDeliveryType('Delivery')}>Delivery</Button>
                                 <Button variant={deliveryType === 'Retirada' ? 'default' : 'outline'} className="flex-1" onClick={() => setDeliveryType('Retirada')}>Retirada</Button>
                             </div>
+
+                            {deliveryType === 'Mesa' && (
+                                <div className="bg-primary/10 p-4 rounded-xl border border-primary/20 text-center space-y-1">
+                                    <p className="text-xs text-primary font-bold uppercase tracking-wider">Pedido para</p>
+                                    <p className="text-3xl font-black text-primary">MESA {tableParam}</p>
+                                    {waiterParam && <p className="text-[10px] text-muted-foreground">Atendimento: {waiterParam}</p>}
+                                </div>
+                            )}
+
                             {deliveryType === 'Delivery' && (
                                 <div className="space-y-3 mt-2">
                                     <div className="grid grid-cols-3 gap-2">

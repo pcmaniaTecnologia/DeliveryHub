@@ -79,12 +79,12 @@ export default function WaiterDashboardPage() {
         );
 
         return activeOrders.reduce((acc, order) => {
-            const table = order.tableNumber || '0';
+            const table = String(order.tableNumber || '0').trim();
             if (!acc[table]) {
                 acc[table] = { orders: [], total: 0 };
             }
             acc[table].orders.push(order);
-            acc[table].total += order.totalAmount;
+            acc[table].total += Number(order.totalAmount || 0);
             return acc;
         }, {} as Record<string, { orders: any[], total: number }>);
     }, [allOrders, companyData]);
