@@ -74,7 +74,7 @@ export default function ComandasPage() {
 
         // Group by table number
         const grouped = tableOrders.reduce((acc, order) => {
-            const table = String(order.tableNumber || 'Sem Número').trim();
+            const table = order.tableNumber || 'Sem Número';
             const orderTime = order.orderDate && typeof order.orderDate.toMillis === 'function' 
                 ? order.orderDate.toMillis() 
                 : (order.orderDate ? new Date(order.orderDate as any).getTime() : Date.now());
@@ -90,7 +90,7 @@ export default function ComandasPage() {
                 };
             }
             acc[table].orders.push(order);
-            acc[table].totalAmount += Number(order.totalAmount || 0);
+            acc[table].totalAmount += (order.totalAmount || 0);
             if (order.waiterName) acc[table].waiters.add(order.waiterName);
             if (order.customerName && order.customerName !== 'Cliente na Mesa') acc[table].customerNames.add(order.customerName);
             

@@ -85,10 +85,6 @@ export default function POSPage() {
     const [discount, setDiscount] = useState('0.00');
     const [amountReceived, setAmountReceived] = useState('');
 
-    // Multi-payment state
-    const [isMultiPayment, setIsMultiPayment] = useState(false);
-    const [payments, setPayments] = useState<{ method: string, amount: number, received?: number }[]>([]);
-
     // Filtered Products
     const filteredProducts = useMemo(() => {
         if (!productsData) return [];
@@ -203,15 +199,6 @@ export default function POSPage() {
         try {
             const ordersRef = collection(firestore, 'companies', user.uid, 'orders');
             
-            const fullPaymentMethod = isMultiPayment 
-                ? payments.map(p => {
-                    if (p.method === 'Dinheiro' && p.received && p.received > p.amount) {
-                        return `${p.method}: R$ ${p.amount.toFixed(2)} (Rec: R$ ${p.received.toFixed(2)}, Troco: R$ ${(p.received - p.amount).toFixed(2)})`;
-                    }
-                    return `${p.method}: R$ ${p.amount.toFixed(2)}`;
-                }).join(' | ')
-                : (paymentMethod === 'Dinheiro' && amountReceived ? `Dinheiro (Troco para R$ ${parseFloat(amountReceived).toFixed(2)})` : paymentMethod);
-
             const orderData = {
                 companyId: user.uid,
                 customerId: 'balcao',
@@ -222,7 +209,7 @@ export default function POSPage() {
                 deliveryAddress: 'Venda de Balcão',
                 deliveryType: 'Balcão',
                 deliveryFee: 0,
-                paymentMethod: fullPaymentMethod,
+                paymentMethod: paymentMethod,
                 discount: parseFloat(discount || '0'),
                 orderItems: cart.map(item => ({
                     productId: item.product.id,
@@ -235,11 +222,8 @@ export default function POSPage() {
                 totalAmount: totalWithDiscount,
                 subtotal: total,
                 origin: 'PDV',
-                amountReceived: isMultiPayment ? (payments.find(p => p.method === 'Dinheiro')?.received || 0) : parseFloat(amountReceived || '0'),
-                change: isMultiPayment 
-                    ? payments.reduce((acc, p) => acc + (p.method === 'Dinheiro' && p.received ? Math.max(0, p.received - p.amount) : 0), 0)
-                    : change,
-                payments: isMultiPayment ? payments : [{ method: paymentMethod, amount: totalWithDiscount, received: parseFloat(amountReceived || '0') }]
+                amountReceived: parseFloat(amountReceived || '0'),
+                change: change
             };
 
             const docRef = await addDocument(ordersRef, orderData);
@@ -274,8 +258,6 @@ export default function POSPage() {
             setPaymentMethod('Dinheiro');
             setDiscount('0.00');
             setAmountReceived('');
-            setIsMultiPayment(false);
-            setPayments([]);
             setSearchQuery('');
             setSelectedCategory(null);
             
@@ -587,154 +569,52 @@ export default function POSPage() {
                         <Separator />
                         
                         <div className="space-y-4">
-                            <div className="flex items-center justify-between">
-                                <Label>Forma de Pagamento</Label>
-                                <Button 
-                                    variant="ghost" 
-                                    size="sm" 
-                                    className="text-[10px] h-7 px-2 border" 
-                                    onClick={() => {
-                                        setIsMultiPayment(!isMultiPayment);
-                                        if (!isMultiPayment) {
-                                            setPayments([{ method: paymentMethod, amount: totalWithDiscount }]);
-                                        }
-                                    }}
-                                >
-                                    {isMultiPayment ? 'Voltar para Único' : 'Dividir Pagamento'}
-                                </Button>
-                            </div>
-
-                            {!isMultiPayment ? (
-                                <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod} className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <RadioGroupItem value="Dinheiro" id="cash" className="peer sr-only" />
-                                        <Label
-                                            htmlFor="cash"
-                                            className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
-                                        >
-                                            <DollarSign className="mb-2 h-5 w-5" />
-                                            <span className="text-xs">Dinheiro</span>
-                                        </Label>
-                                    </div>
-                                    <div>
-                                        <RadioGroupItem value="PIX" id="pix" className="peer sr-only" />
-                                        <Label
-                                            htmlFor="pix"
-                                            className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
-                                        >
-                                            <Landmark className="mb-2 h-5 w-5" />
-                                            <span className="text-xs">PIX</span>
-                                        </Label>
-                                    </div>
-                                    <div>
-                                        <RadioGroupItem value="Cartão de Crédito" id="credit" className="peer sr-only" />
-                                        <Label
-                                            htmlFor="credit"
-                                            className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
-                                        >
-                                            <CreditCard className="mb-2 h-5 w-5" />
-                                            <span className="text-xs">C. Crédito</span>
-                                        </Label>
-                                    </div>
-                                    <div>
-                                        <RadioGroupItem value="Cartão de Débito" id="debit" className="peer sr-only" />
-                                        <Label
-                                            htmlFor="debit"
-                                            className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
-                                        >
-                                            <CreditCard className="mb-2 h-5 w-5" />
-                                            <span className="text-xs">C. Débito</span>
-                                        </Label>
-                                    </div>
-                                </RadioGroup>
-                            ) : (
-                                <div className="space-y-3">
-                                    {payments.map((p, idx) => (
-                                        <div key={idx} className="flex flex-col gap-2 p-3 border rounded-lg bg-muted/20">
-                                            <div className="flex items-center gap-2">
-                                                <select 
-                                                    className="flex-1 h-9 rounded-md border bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                                    value={p.method}
-                                                    onChange={(e) => {
-                                                        const newPayments = [...payments];
-                                                        newPayments[idx].method = e.target.value;
-                                                        setPayments(newPayments);
-                                                    }}
-                                                >
-                                                    <option value="Dinheiro">Dinheiro</option>
-                                                    <option value="PIX">PIX</option>
-                                                    <option value="Cartão de Crédito">C. Crédito</option>
-                                                    <option value="Cartão de Débito">C. Débito</option>
-                                                </select>
-                                                <Input 
-                                                    type="number" 
-                                                    className="w-24 h-9" 
-                                                    value={p.amount} 
-                                                    onChange={(e) => {
-                                                        const newPayments = [...payments];
-                                                        newPayments[idx].amount = parseFloat(e.target.value) || 0;
-                                                        setPayments(newPayments);
-                                                    }}
-                                                />
-                                                <Button 
-                                                    variant="ghost" 
-                                                    size="icon" 
-                                                    className="h-9 w-9 text-destructive"
-                                                    onClick={() => setPayments(payments.filter((_, i) => i !== idx))}
-                                                >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
-                                            </div>
-                                            {p.method === 'Dinheiro' && (
-                                                <div className="flex items-center gap-2 mt-1">
-                                                    <Label className="text-[10px] whitespace-nowrap">Recebido (Troco):</Label>
-                                                    <Input 
-                                                        type="number" 
-                                                        className="h-7 text-xs" 
-                                                        placeholder="0.00"
-                                                        value={p.received || ''}
-                                                        onChange={(e) => {
-                                                            const newPayments = [...payments];
-                                                            newPayments[idx].received = parseFloat(e.target.value) || 0;
-                                                            setPayments(newPayments);
-                                                        }}
-                                                    />
-                                                    {p.received && p.received > p.amount && (
-                                                        <Badge variant="outline" className="text-[10px] bg-green-50 text-green-700 border-green-200">
-                                                            Troco: R$ {(p.received - p.amount).toFixed(2)}
-                                                        </Badge>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
-                                    <Button 
-                                        variant="outline" 
-                                        size="sm" 
-                                        className="w-full text-xs gap-1 border-dashed"
-                                        onClick={() => {
-                                            const currentSum = payments.reduce((acc, p) => acc + p.amount, 0);
-                                            const remaining = Math.max(0, totalWithDiscount - currentSum);
-                                            setPayments([...payments, { method: 'PIX', amount: remaining }]);
-                                        }}
+                            <Label>Forma de Pagamento</Label>
+                            <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod} className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <RadioGroupItem value="Dinheiro" id="cash" className="peer sr-only" />
+                                    <Label
+                                        htmlFor="cash"
+                                        className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
                                     >
-                                        <Plus className="h-3 w-3" /> Adicionar Outro Método
-                                    </Button>
-                                    <div className="flex justify-between items-center text-xs font-bold pt-2 border-t mt-2">
-                                        <span>Total Pago: R$ {payments.reduce((acc, p) => acc + p.amount, 0).toFixed(2)}</span>
-                                        <span className={Math.abs(payments.reduce((acc, p) => acc + p.amount, 0) - totalWithDiscount) < 0.01 ? "text-green-600" : "text-destructive"}>
-                                            {payments.reduce((acc, p) => acc + p.amount, 0) < totalWithDiscount 
-                                                ? `Falta: R$ ${(totalWithDiscount - payments.reduce((acc, p) => acc + p.amount, 0)).toFixed(2)}`
-                                                : payments.reduce((acc, p) => acc + p.amount, 0) > totalWithDiscount 
-                                                    ? `Excesso: R$ ${(payments.reduce((acc, p) => acc + p.amount, 0) - totalWithDiscount).toFixed(2)}`
-                                                    : '✓ Valor Completo'}
-                                        </span>
-                                    </div>
+                                        <DollarSign className="mb-2 h-5 w-5" />
+                                        <span className="text-xs">Dinheiro</span>
+                                    </Label>
                                 </div>
-                            )}
+                                <div>
+                                    <RadioGroupItem value="PIX" id="pix" className="peer sr-only" />
+                                    <Label
+                                        htmlFor="pix"
+                                        className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                                    >
+                                        <Landmark className="mb-2 h-5 w-5" />
+                                        <span className="text-xs">PIX</span>
+                                    </Label>
+                                </div>
+                                <div>
+                                    <RadioGroupItem value="Cartão de Crédito" id="credit" className="peer sr-only" />
+                                    <Label
+                                        htmlFor="credit"
+                                        className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                                    >
+                                        <CreditCard className="mb-2 h-5 w-5" />
+                                        <span className="text-xs">C. Crédito</span>
+                                    </Label>
+                                </div>
+                                <div>
+                                    <RadioGroupItem value="Cartão de Débito" id="debit" className="peer sr-only" />
+                                    <Label
+                                        htmlFor="debit"
+                                        className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                                    >
+                                        <CreditCard className="mb-2 h-5 w-5" />
+                                        <span className="text-xs">C. Débito</span>
+                                    </Label>
+                                </div>
+                            </RadioGroup>
                         </div>
 
-                        {!isMultiPayment && paymentMethod === 'Dinheiro' && (
+                        {paymentMethod === 'Dinheiro' && (
                             <div className="bg-orange-50 border border-orange-200 p-4 rounded-xl space-y-4">
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
@@ -759,16 +639,7 @@ export default function POSPage() {
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setIsCheckoutOpen(false)} disabled={isSubmitting}>Cancelar</Button>
-                        <Button 
-                            type="submit" 
-                            onClick={handleCheckout} 
-                            disabled={
-                                isSubmitting || 
-                                cart.length === 0 || 
-                                (isMultiPayment && Math.abs(payments.reduce((acc, p) => acc + p.amount, 0) - totalWithDiscount) > 0.01)
-                            } 
-                            className="gap-2"
-                        >
+                        <Button type="submit" onClick={handleCheckout} disabled={isSubmitting || cart.length === 0} className="gap-2">
                             {isSubmitting ? 'Processando...' : <><CheckCircle2 className="h-4 w-4" /> Concluir Venda [F9]</>}
                         </Button>
                     </DialogFooter>

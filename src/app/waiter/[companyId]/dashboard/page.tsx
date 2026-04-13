@@ -2,14 +2,13 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { useFirestore, useDoc, useCollection, useMemoFirebase, useAuth, useUser } from '@/firebase';
+import { useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection, type Timestamp } from 'firebase/firestore';
-import { initiateAnonymousSignIn } from '@/firebase/non-blocking-login';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Users, PlusCircle, Receipt, ShoppingBag, LogOut, Search, User } from 'lucide-react';
+import { Loader2, Users, PlusCircle, Receipt, ShoppingBag, LogOut, Search } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 type OrderItem = {
@@ -36,37 +35,26 @@ export default function WaiterDashboardPage() {
     const router = useRouter();
     const firestore = useFirestore();
 
-    const [waiterSession, setWaiterSession] = useState<any>(null);
+    const [waiterName, setWaiterName] = useState<string | null>(null);
+    const [nameInput, setNameInput] = useState('');
     const [selectedTable, setSelectedTable] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState('');
 
-    const { user, isUserLoading } = useUser();
-    const auth = useAuth();
-
     useEffect(() => {
-        const saved = localStorage.getItem(`waiter_session_${companyId}`);
-        if (saved) {
-            setWaiterSession(JSON.parse(saved));
-        } else {
-            // Re-check simple name for migration/fallback
-            const simpleName = localStorage.getItem(`waiter_name_${companyId}`);
-            if (!simpleName) {
-                router.replace(`/waiter/${companyId}`);
-            }
-        }
+        const saved = localStorage.getItem(`waiter_name_${companyId}`);
+        if (saved) setWaiterName(saved);
+    }, [companyId]);
 
-        // Anonymous login for waiters if not already signed in
-        if (!user && !isUserLoading && auth) {
-            initiateAnonymousSignIn(auth).catch(err => {
-                console.error("WaiterDashboard: Error signing in anonymously:", err);
-            });
-        }
-    }, [companyId, user, isUserLoading, auth, router]);
+    const handleSetName = () => {
+        if (!nameInput.trim()) return;
+        localStorage.setItem(`waiter_name_${companyId}`, nameInput);
+        setWaiterName(nameInput);
+    };
 
-    const handleLogout = () => {
+    const handleLogoutName = () => {
         localStorage.removeItem(`waiter_name_${companyId}`);
-        localStorage.removeItem(`waiter_session_${companyId}`);
-        router.push(`/waiter/${companyId}`);
+        setWaiterName(null);
+        setNameInput('');
     };
 
     const companyRef = useMemoFirebase(() => {
@@ -81,7 +69,7 @@ export default function WaiterDashboardPage() {
         return collection(firestore, `companies/${companyId}/orders`);
     }, [firestore, companyId]);
 
-    const { data: allOrders, isLoading: isLoadingOrders, error: orderError } = useCollection<Order>(ordersRef);
+    const { data: allOrders, isLoading: isLoadingOrders } = useCollection<Order>(ordersRef);
 
     const tableStates = useMemo(() => {
         if (!allOrders || !companyData) return {};
@@ -91,66 +79,77 @@ export default function WaiterDashboardPage() {
         );
 
         return activeOrders.reduce((acc, order) => {
-            const table = String(order.tableNumber || '0').trim();
+            const table = order.tableNumber || '0';
             if (!acc[table]) {
                 acc[table] = { orders: [], total: 0 };
             }
             acc[table].orders.push(order);
-            acc[table].total += Number(order.totalAmount || 0);
+            acc[table].total += order.totalAmount;
             return acc;
         }, {} as Record<string, { orders: any[], total: number }>);
     }, [allOrders, companyData]);
 
     if (isLoadingCompany || isLoadingOrders) {
+        return <div className="flex min-h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+    }
+
+    if (!waiterName) {
         return (
-            <div className="flex min-h-screen flex-col items-center justify-center gap-4">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <p className="text-sm text-muted-foreground animate-pulse">Sincronizando mesas...</p>
+            <div className="flex min-h-screen items-center justify-center p-4 bg-muted/30">
+                <Card className="w-full max-w-md">
+                    <CardHeader className="text-center">
+                        <div className="mx-auto bg-primary/10 w-16 h-16 rounded-full flex items-center justify-center mb-4">
+                            <Users className="w-8 h-8 text-primary" />
+                        </div>
+                        <CardTitle className="text-2xl">Acesso do Garçom</CardTitle>
+                        <p className="text-muted-foreground">{companyData?.name || 'Bem-vindo!'}</p>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">Digite seu nome para começar:</label>
+                            <Input 
+                                placeholder="Seu nome aqui..." 
+                                value={nameInput} 
+                                onChange={(e) => setNameInput(e.target.value)}
+                                onKeyPress={(e) => e.key === 'Enter' && handleSetName()}
+                            />
+                        </div>
+                        <Button className="w-full h-12 text-lg" onClick={handleSetName} disabled={!nameInput.trim()}>
+                            Entrar no Sistema
+                        </Button>
+                    </CardContent>
+                </Card>
             </div>
         );
     }
-
-    const waiterName = waiterSession?.name || localStorage.getItem(`waiter_name_${companyId}`) || 'Garçom';
 
     const numTables = companyData?.numberOfTables || 0;
 
     return (
         <div className="container mx-auto p-4 space-y-6 pt-8 pb-32">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+            <header className="flex flex-col sm:flex-row justify-between items-start gap-4">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Comandas</h1>
-                    <p className="text-muted-foreground text-sm">Gerencie o consumo das mesas em tempo real.</p>
+                    <p className="text-muted-foreground">Olá, <span className="font-bold text-foreground">{waiterName}</span>. Gerencie as mesas abaixo.</p>
                 </div>
-                <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2 bg-muted px-3 py-1.5 rounded-full border">
-                        <User className="h-4 w-4 text-primary" />
-                        <span className="text-xs font-semibold">{waiterName}</span>
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <div className="relative flex-1 sm:w-64">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input 
+                            placeholder="Mesa ou nome do cliente..." 
+                            className="pl-9"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                        />
                     </div>
-                    <Button variant="ghost" size="icon" onClick={handleLogout} title="Sair">
-                        <LogOut className="h-4 w-4 text-muted-foreground" />
+                    <Button variant="ghost" size="sm" className="text-muted-foreground gap-2 shrink-0" onClick={handleLogoutName}>
+                        <LogOut className="w-4 h-4" /> Sair
                     </Button>
                 </div>
-            </div>
-
-            {orderError && (
-                <div className="bg-destructive/10 border border-destructive/20 text-destructive p-4 rounded-xl mb-6 text-sm">
-                    <p className="font-bold">Erro ao carregar pedidos:</p>
-                    <p className="opacity-80">{orderError.message}</p>
-                </div>
-            )}
-
-            <div className="relative w-full sm:w-64 mb-6">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input 
-                    placeholder="Mesa ou nome do cliente..." 
-                    className="pl-9"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                />
-            </div>
+            </header>
 
             {numTables === 0 ? (
-                <Card className="text-center p-12 bg-muted/20 border-dashed">
+                <Card className="text-center p-12 bg-muted/20">
                     <p className="text-lg font-semibold text-muted-foreground">Nenhuma mesa configurada para este estabelecimento.</p>
                 </Card>
             ) : (
@@ -160,6 +159,7 @@ export default function WaiterDashboardPage() {
                         const tableData = tableStates[tableNum];
                         const isOccupied = !!tableData;
                         
+                        // Busca por número da mesa ou nome do cliente
                         const searchLower = searchQuery.toLowerCase().trim();
                         if (searchLower) {
                             const matchesTable = tableNum.includes(searchLower) || `mesa ${tableNum}`.includes(searchLower);
@@ -174,7 +174,7 @@ export default function WaiterDashboardPage() {
                             <button
                                 key={tableNum}
                                 onClick={() => isOccupied ? setSelectedTable({ tableNumber: tableNum, ...tableData }) : router.push(`/waiter/${companyId}/dashboard/menu?table=${tableNum}&waiter=${encodeURIComponent(waiterName)}`)}
-                                className={`relative flex flex-col items-center justify-center min-h-[140px] rounded-2xl border-2 transition-all active:scale-95 shadow-sm p-4 ${
+                                className={`relative flex flex-col items-center justify-center min-h-[120px] rounded-2xl border-2 transition-all active:scale-95 shadow-sm p-4 ${
                                     isOccupied 
                                     ? 'bg-orange-50 border-orange-200 hover:border-orange-400' 
                                     : 'bg-card border-muted hover:border-primary/50'
@@ -185,14 +185,14 @@ export default function WaiterDashboardPage() {
                                 <span className="text-lg font-bold">Mesa {tableNum}</span>
                                 {isOccupied && (
                                     <>
+                                        {tableData.orders.some((o: any) => o.customerName && o.customerName !== 'Cliente na Mesa') && (
+                                            <span className="text-[10px] text-muted-foreground truncate w-full text-center px-1">
+                                                {tableData.orders.find((o: any) => o.customerName && o.customerName !== 'Cliente na Mesa')?.customerName}
+                                            </span>
+                                        )}
                                         <span className="text-xs font-black text-orange-700 bg-orange-200/50 px-2 py-0.5 rounded-full mt-1">
                                             R$ {tableData.total.toFixed(2)}
                                         </span>
-                                        {tableData.orders[0]?.customerName && tableData.orders[0]?.customerName !== 'Cliente na Mesa' && (
-                                            <span className="text-[10px] text-muted-foreground truncate w-full mt-1">
-                                                {tableData.orders[0].customerName}
-                                            </span>
-                                        )}
                                     </>
                                 )}
                             </button>
@@ -214,17 +214,13 @@ export default function WaiterDashboardPage() {
                         <div className="flex-1 overflow-y-auto pr-2 space-y-4 py-2">
                              <div className="bg-primary/5 rounded-xl p-4 border border-primary/10">
                                 <h3 className="font-bold flex items-center gap-2 mb-4 text-primary"><ShoppingBag className="w-4 h-4" /> Consumo Atual</h3>
-                                <div className="space-y-4">
-                                    {selectedTable.orders.map((order: any, orderIdx: number) => (
+                                <div className="space-y-3">
+                                    {selectedTable.orders.map((order: any) => (
                                         <div key={order.id} className="space-y-1">
-                                            <div className="flex justify-between items-center text-[10px] text-muted-foreground uppercase font-bold border-b pb-1 mb-1">
-                                                <span>Pedido #{order.id.substring(0,4)}</span>
-                                                {order.waiterName && <span>Por: {order.waiterName}</span>}
-                                            </div>
                                             {order.orderItems.map((item: any, idx: number) => (
                                                 <div key={idx} className="flex justify-between text-sm">
                                                     <span className="font-medium">{item.quantity}x {item.productName}</span>
-                                                    <span className="font-bold text-xs font-mono">R$ {(item.finalPrice || (item.unitPrice * item.quantity)).toFixed(2)}</span>
+                                                    <span className="text-muted-foreground text-xs">R$ {(item.finalPrice || item.unitPrice).toFixed(2)}</span>
                                                 </div>
                                             ))}
                                         </div>
@@ -236,7 +232,7 @@ export default function WaiterDashboardPage() {
                         <div className="pt-4 border-t grid grid-cols-2 gap-3">
                             <Button variant="outline" onClick={() => setSelectedTable(null)}>Voltar</Button>
                             <Button className="gap-2" onClick={() => router.push(`/waiter/${companyId}/dashboard/menu?table=${selectedTable.tableNumber}&waiter=${encodeURIComponent(waiterName)}`)}>
-                                <PlusCircle className="h-4 w-4" /> Adicionar
+                                <PlusCircle className="h-4 w-4" /> Adicionar Produtos
                             </Button>
                         </div>
                     </DialogContent>
