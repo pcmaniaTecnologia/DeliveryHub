@@ -29,10 +29,10 @@ export function FirebaseErrorListener() {
     };
   }, []);
 
-  // Move logging to a separate useEffect to prevent state updates during render
   useEffect(() => {
     if (error) {
-      console.error("Firebase Permission Error caught by listener:", error);
+      // Use console.warn instead of console.error to avoid triggering the dev overlay
+      console.warn("Firebase Permission Error caught by listener:", error);
     }
   }, [error]);
 

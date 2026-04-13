@@ -23,7 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { BellRing, Clock, DollarSign, PlusCircle, Trash2, Copy, Printer, Crown, AlertTriangle, CheckCircle, Send } from 'lucide-react';
+import { BellRing, Clock, DollarSign, PlusCircle, Trash2, Copy, Printer, Crown, AlertTriangle, CheckCircle, Send, Loader2 } from 'lucide-react';
 import { useFirestore, useDoc, setDocument, useMemoFirebase, useUser, useCollection, addDocument, deleteDocument, updateDocument, useAuth, deleteAuthUser } from '@/firebase';
 import { doc, collection } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -361,6 +361,7 @@ export default function SettingsPage() {
   const [isWaiterDialogOpen, setIsWaiterDialogOpen] = useState(false);
   const [newWaiterName, setNewWaiterName] = useState('');
   const [newWaiterPin, setNewWaiterPin] = useState('');
+  const [isAddingWaiter, setIsAddingWaiter] = useState(false);
 
   const companyRef = useMemoFirebase(() => {
       if (!firestore || !user) return null;
@@ -609,6 +610,8 @@ export default function SettingsPage() {
       return;
     }
 
+    setIsAddingWaiter(true);
+
     const newWaiter = {
       name: newWaiterName.trim(),
       pin: newWaiterPin.trim(),
@@ -622,6 +625,15 @@ export default function SettingsPage() {
         setNewWaiterName('');
         setNewWaiterPin('');
         setIsWaiterDialogOpen(false);
+    }).catch((err: any) => {
+        console.error("Erro ao adicionar garçom:", err);
+        toast({ 
+            variant: 'destructive', 
+            title: 'Erro ao cadastrar', 
+            description: 'Verifique se você publicou as regras do Firebase ou se tem permissão.' 
+        });
+    }).finally(() => {
+        setIsAddingWaiter(false);
     });
   };
 
@@ -648,20 +660,21 @@ export default function SettingsPage() {
   const trialEndDate = companyData?.subscriptionEndDate?.toDate();
   const isTrialExpired = trialEndDate && isAfter(new Date(), trialEndDate);
   const isInactive = companyData?.isActive === false;
-
   if (isInactive || isTrialExpired) {
     return <SubscriptionView isExpired={isTrialExpired} trialEndDate={trialEndDate} companyData={companyData || undefined} />;
   }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Configurações</h2>
-        <p className="text-muted-foreground">Gerencie sua loja e conta.</p>
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Configurações v1.2</h1>
+          <p className="text-muted-foreground">Gerencie sua loja, entregas e equipe.</p>
+        </div>
       </div>
 
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-6">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-7">
           <TabsTrigger value="profile">Empresa</TabsTrigger>
           <TabsTrigger value="hours">Horários</TabsTrigger>
           <TabsTrigger value="delivery">Entrega</TabsTrigger>
@@ -669,6 +682,7 @@ export default function SettingsPage() {
           <TabsTrigger value="waiters">Garçons</TabsTrigger>
           <TabsTrigger value="notifications">Mensagens</TabsTrigger>
           <TabsTrigger value="subscription">Assinatura</TabsTrigger>
+          <TabsTrigger value="account" className="text-destructive">Conta</TabsTrigger>
         </TabsList>
 
         <TabsContent value="profile">
@@ -968,8 +982,11 @@ export default function SettingsPage() {
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setIsWaiterDialogOpen(false)}>Cancelar</Button>
-                <Button onClick={handleAddWaiter}>Confirmar Cadastro</Button>
+                <Button variant="outline" onClick={() => setIsWaiterDialogOpen(false)} disabled={isAddingWaiter}>Cancelar</Button>
+                <Button onClick={handleAddWaiter} disabled={isAddingWaiter}>
+                  {isAddingWaiter ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Confirmar Cadastro
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -1034,53 +1051,55 @@ export default function SettingsPage() {
                 </CardFooter>
              </Card>
         </TabsContent>
-      </Tabs>
 
-      <Card className="border-destructive/20 bg-destructive/5">
-        <CardHeader>
-          <CardTitle className="text-destructive">Zona de Perigo</CardTitle>
-          <CardDescription>Ações irreversíveis para sua conta.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="destructive">Excluir minha Loja e Dados</Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Você tem certeza absoluta?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Esta ação não pode ser desfeita. Isso excluirá permanentemente sua loja, 
-                  todos os produtos, pedidos e removerá seu acesso ao sistema.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={async () => {
-                    if (!user || !auth) return;
-                    try {
-                        const companyDocRef = doc(firestore!, 'companies', user.uid);
-                        const companyUserDocRef = doc(firestore!, 'users', user.uid);
-                        
-                        await Promise.all([
-                            deleteDocument(companyDocRef),
-                            deleteDocument(companyUserDocRef)
-                        ]);
-                        
-                        await deleteAuthUser(user);
-                        router.push('/signup');
-                        toast({ title: "Conta excluída", description: "Sua loja foi removida com sucesso." });
-                    } catch (e) {
-                         toast({ variant: 'destructive', title: "Erro ao excluir", description: "Tente novamente ou contate o suporte." });
-                    }
-                }}>
-                  Sim, excluir tudo
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </CardContent>
-      </Card>
+        <TabsContent value="account">
+            <Card className="border-destructive/20 bg-destructive/5">
+                <CardHeader>
+                <CardTitle className="text-destructive">Zona de Perigo</CardTitle>
+                <CardDescription>Ações irreversíveis para sua conta.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                    <Button variant="destructive">Excluir minha Loja e Dados</Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Você tem certeza absoluta?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                        Esta ação não pode ser desfeita. Isso excluirá permanentemente sua loja, 
+                        todos os produtos, pedidos e removerá seu acesso ao sistema.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={async () => {
+                            if (!user || !auth) return;
+                            try {
+                                const companyDocRef = doc(firestore!, 'companies', user.uid);
+                                const companyUserDocRef = doc(firestore!, 'users', user.uid);
+                                
+                                await Promise.all([
+                                    deleteDocument(companyDocRef),
+                                    deleteDocument(companyUserDocRef)
+                                ]);
+                                
+                                await deleteAuthUser(user);
+                                router.push('/signup');
+                                toast({ title: "Conta excluída", description: "Sua loja foi removida com sucesso." });
+                            } catch (e) {
+                                toast({ variant: 'destructive', title: "Erro ao excluir", description: "Tente novamente ou contate o suporte." });
+                            }
+                        }}>
+                        Sim, excluir tudo
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+                </CardContent>
+            </Card>
+         </TabsContent>
+      </Tabs>
     </div>
   );
 }
