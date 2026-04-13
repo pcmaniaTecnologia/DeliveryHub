@@ -29,11 +29,12 @@ export function FirebaseErrorListener() {
     };
   }, []);
 
-  // On re-render, if an error exists in state, log it instead of throwing.
-  // This prevents 'Application error' crashes while still capturing the issue.
-  if (error) {
-    console.error("Firebase Permission Error caught by listener:", error);
-  }
+  // Move logging to a separate useEffect to prevent state updates during render
+  useEffect(() => {
+    if (error) {
+      console.error("Firebase Permission Error caught by listener:", error);
+    }
+  }, [error]);
 
   // This component renders nothing.
   return null;

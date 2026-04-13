@@ -36,8 +36,7 @@ export default function WaiterDashboardPage() {
     const router = useRouter();
     const firestore = useFirestore();
 
-    const [waiterName, setWaiterName] = useState<string | null>(null);
-    const [nameInput, setNameInput] = useState('');
+    const [waiterSession, setWaiterSession] = useState<any>(null);
     const [selectedTable, setSelectedTable] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState('');
 
@@ -45,28 +44,29 @@ export default function WaiterDashboardPage() {
     const auth = useAuth();
 
     useEffect(() => {
-        const saved = localStorage.getItem(`waiter_name_${companyId}`);
-        if (saved) setWaiterName(saved);
+        const saved = localStorage.getItem(`waiter_session_${companyId}`);
+        if (saved) {
+            setWaiterSession(JSON.parse(saved));
+        } else {
+            // Re-check simple name for migration/fallback
+            const simpleName = localStorage.getItem(`waiter_name_${companyId}`);
+            if (!simpleName) {
+                router.replace(`/waiter/${companyId}`);
+            }
+        }
 
-        // Anonymous login for waiters to ensure they have read permissions
+        // Anonymous login for waiters if not already signed in
         if (!user && !isUserLoading && auth) {
-            console.log("WaiterDashboard: Initiating anonymous sign-in...");
             initiateAnonymousSignIn(auth).catch(err => {
                 console.error("WaiterDashboard: Error signing in anonymously:", err);
             });
         }
-    }, [companyId, user, isUserLoading, auth]);
+    }, [companyId, user, isUserLoading, auth, router]);
 
-    const handleSetName = () => {
-        if (!nameInput.trim()) return;
-        localStorage.setItem(`waiter_name_${companyId}`, nameInput);
-        setWaiterName(nameInput);
-    };
-
-    const handleLogoutName = () => {
+    const handleLogout = () => {
         localStorage.removeItem(`waiter_name_${companyId}`);
-        setWaiterName(null);
-        setNameInput('');
+        localStorage.removeItem(`waiter_session_${companyId}`);
+        router.push(`/waiter/${companyId}`);
     };
 
     const companyRef = useMemoFirebase(() => {
@@ -102,38 +102,15 @@ export default function WaiterDashboardPage() {
     }, [allOrders, companyData]);
 
     if (isLoadingCompany || isLoadingOrders) {
-        return <div className="flex min-h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
-    }
-
-    if (!waiterName) {
         return (
-            <div className="flex min-h-screen items-center justify-center p-4 bg-muted/30">
-                <Card className="w-full max-w-md">
-                    <CardHeader className="text-center">
-                        <div className="mx-auto bg-primary/10 w-16 h-16 rounded-full flex items-center justify-center mb-4">
-                            <Users className="w-8 h-8 text-primary" />
-                        </div>
-                        <CardTitle className="text-2xl">Acesso do Garçom</CardTitle>
-                        <p className="text-muted-foreground">{companyData?.name || 'Bem-vindo!'}</p>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium">Digite seu nome para começar:</label>
-                            <Input 
-                                placeholder="Seu nome aqui..." 
-                                value={nameInput} 
-                                onChange={(e) => setNameInput(e.target.value)}
-                                onKeyPress={(e) => e.key === 'Enter' && handleSetName()}
-                            />
-                        </div>
-                        <Button className="w-full h-12 text-lg" onClick={handleSetName} disabled={!nameInput.trim()}>
-                            Entrar no Sistema
-                        </Button>
-                    </CardContent>
-                </Card>
+            <div className="flex min-h-screen flex-col items-center justify-center gap-4">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground animate-pulse">Sincronizando mesas...</p>
             </div>
         );
     }
+
+    const waiterName = waiterSession?.name || localStorage.getItem(`waiter_name_${companyId}`) || 'Garçom';
 
     const numTables = companyData?.numberOfTables || 0;
 
@@ -149,7 +126,7 @@ export default function WaiterDashboardPage() {
                         <User className="h-4 w-4 text-primary" />
                         <span className="text-xs font-semibold">{waiterName}</span>
                     </div>
-                    <Button variant="ghost" size="icon" onClick={handleLogoutName} title="Sair">
+                    <Button variant="ghost" size="icon" onClick={handleLogout} title="Sair">
                         <LogOut className="h-4 w-4 text-muted-foreground" />
                     </Button>
                 </div>
