@@ -26,11 +26,11 @@ service cloud.firestore {
     }
     
     function isCompanyMember(companyId) {
-      return exists(/databases/$(database)/documents/companies/$(companyId)/users/$(request.auth.uid));
+      return request.auth.uid == companyId || exists(/databases/$(database)/documents/companies/$(companyId)/users/$(request.auth.uid));
     }
     
     function isCompanyAdmin(companyId) {
-      return get(/databases/$(database)/documents/companies/$(companyId)/users/$(request.auth.uid)).data.role == 'admin';
+      return request.auth.uid == companyId || (exists(/databases/$(database)/documents/companies/$(companyId)/users/$(request.auth.uid)) && get(/databases/$(database)/documents/companies/$(companyId)/users/$(request.auth.uid)).data.role == 'admin');
     }
 
     // ------------------------------------------------------------------------
@@ -121,6 +121,12 @@ service cloud.firestore {
       allow create: if (isCompanyMember(companyId) || isSuperAdmin()) && request.resource.data.companyId == companyId;
       allow update: if (isCompanyMember(companyId) || isSuperAdmin()) && resource != null;
       allow delete: if (isCompanyMember(companyId) || isSuperAdmin()) && resource != null;
+    }
+
+    match /companies/{companyId}/waiters/{waiterId} {
+      allow get, list: if isCompanyMember(companyId) || isSuperAdmin();
+      allow create: if isCompanyAdmin(companyId) || isSuperAdmin();
+      allow update, delete: if (isCompanyAdmin(companyId) || isSuperAdmin()) && resource != null;
     }
 
     match /customers/{customerId} {
