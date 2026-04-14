@@ -51,7 +51,7 @@ export async function recordCashierSale(
             // 2. Update session totals
             const sessDocRef = doc(firestore, 'companies', companyId, 'cashier_sessions', sessionId);
             await updateDocument(sessDocRef, {
-                totalSales: increment(amount)
+                totalSales: increment(numericAmount)
             });
 
             return { success: true, sessionId };
@@ -144,7 +144,7 @@ export function parseSalesByPaymentMethod(orders: any[]): SalesByPaymentMethod {
             ? paymentStr.split(/\s*\|\s*/) 
             : paymentStr.split(/,\s*(?![0-9]{2}\))/); // Avoid splitting decimal commas
 
-        const categorizedParts: { method: string, amount: number | null }[] = parts.map(part => {
+        const categorizedParts = parts.map(part => {
             const p = part.trim();
             if (!p) return null;
 
@@ -164,7 +164,7 @@ export function parseSalesByPaymentMethod(orders: any[]): SalesByPaymentMethod {
             }
 
             return { method: methodName, amount };
-        }).filter(Boolean) as any;
+        }).filter(Boolean) as any[];
 
         // Stage 3: Categorize and accumulate
         if (categorizedParts.length === 1) {
