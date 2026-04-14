@@ -76,31 +76,3 @@ export function isStoreOpen(businessHoursStr?: string): { isOpen: boolean; messa
     return { isOpen: true }; 
   }
 }
-
-/**
- * Agrupa as vendas por método de pagamento para exibição sumária no caixa.
- */
-export function parseSalesByPaymentMethod(sales: any[]) {
-  const result = {
-    cash: 0,
-    pix: 0,
-    credit: 0,
-    debit: 0,
-  };
-
-  if (!sales || !Array.isArray(sales) || sales.length === 0) {
-    return result;
-  }
-  
-  sales.forEach(sale => {
-      const method = sale.paymentMethod;
-      const amount = typeof sale.totalAmount === 'number' ? sale.totalAmount : 0;
-
-      if (method === 'Dinheiro') result.cash += amount;
-      else if (method === 'PIX') result.pix += amount;
-      else if (method === 'Cartão de Crédito') result.credit += amount;
-      else if (method === 'Cartão de Débito') result.debit += amount;
-  });
-
-  return result;
-}

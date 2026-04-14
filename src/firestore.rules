@@ -18,19 +18,19 @@ service cloud.firestore {
     }
 
     function isSuperAdmin() {
-      return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+      return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
     }
 
     function isOwner(userId) {
-      return request.auth.uid == userId;
+      return isSignedIn() && request.auth.uid == userId;
     }
     
     function isCompanyMember(companyId) {
-      return request.auth.uid == companyId || exists(/databases/$(database)/documents/companies/$(companyId)/users/$(request.auth.uid));
+      return isSignedIn() && exists(/databases/$(database)/documents/companies/$(companyId)/users/$(request.auth.uid));
     }
     
     function isCompanyAdmin(companyId) {
-      return request.auth.uid == companyId || (exists(/databases/$(database)/documents/companies/$(companyId)/users/$(request.auth.uid)) && get(/databases/$(database)/documents/companies/$(companyId)/users/$(request.auth.uid)).data.role == 'admin');
+      return isSignedIn() && get(/databases/$(database)/documents/companies/$(companyId)/users/$(request.auth.uid)).data.role == 'admin';
     }
 
     // ------------------------------------------------------------------------
@@ -51,10 +51,9 @@ service cloud.firestore {
       allow list: if isSuperAdmin();
       
       // Allow user to create their own company document.
-      // The ownerId must be sent in the request and must match the user's UID.
       allow create: if isOwner(companyId) && request.resource.data.ownerId == request.auth.uid;
       
-      // Allow update if user is the owner (and proves it by sending ownerId) OR is a super admin.
+      // Allow update if user is the owner OR is a super admin.
       allow update: if (isOwner(companyId) && request.resource.data.ownerId == request.auth.uid) || isSuperAdmin();
       
       // Allow delete if user is the owner OR is a super admin.
@@ -118,15 +117,17 @@ service cloud.firestore {
     
     match /companies/{companyId}/deliveryZones/{deliveryZoneId} {
       allow get, list: if true;
-      allow create: if (isCompanyMember(companyId) || isSuperAdmin()) && request.resource.data.companyId == companyId;
-      allow update: if (isCompanyMember(companyId) || isSuperAdmin()) && resource != null;
-      allow delete: if (isCompanyMember(companyId) || isSuperAdmin()) && resource != null;
+      allow create: if isOwner(companyId) || isCompanyMember(companyId) || isSuperAdmin();
+      allow update: if (isOwner(companyId) || isCompanyMember(companyId) || isSuperAdmin()) && resource != null;
+      allow delete: if (isOwner(companyId) || isCompanyMember(companyId) || isSuperAdmin()) && resource != null;
     }
 
     match /companies/{companyId}/waiters/{waiterId} {
-      allow get, list: if isCompanyMember(companyId) || isSuperAdmin();
-      allow create: if isCompanyAdmin(companyId) || isSuperAdmin();
-      allow update, delete: if (isCompanyAdmin(companyId) || isSuperAdmin()) && resource != null;
+      // O dono da empresa (request.auth.uid == companyId) tem acesso total.
+      allow read: if isOwner(companyId) || isSuperAdmin();
+      allow create: if isOwner(companyId) || isSuperAdmin();
+      allow update: if (isOwner(companyId) || isSuperAdmin()) && resource != null;
+      allow delete: if (isOwner(companyId) || isSuperAdmin()) && resource != null;
     }
 
     match /customers/{customerId} {

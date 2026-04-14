@@ -2,7 +2,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useDoc, useFirestore, useMemoFirebase, useAuth, initiateAnonymousSignIn } from '@/firebase';
+import { useDoc, useFirestore, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { hexToHsl } from '@/lib/utils';
 import { Package2 } from 'lucide-react';
@@ -24,7 +24,6 @@ export default function MenuLayout({
   const firestore = useFirestore();
   const params = useParams();
   const companyId = params?.companyId as string;
-  const auth = useAuth();
 
   const companyRef = useMemoFirebase(() => {
     if (!firestore || !companyId) return null;
@@ -34,20 +33,13 @@ export default function MenuLayout({
   const { data: companyData, isLoading } = useDoc<CompanyData>(companyRef);
 
   useEffect(() => {
-    if (auth) {
-        const unsubscribe = auth.onAuthStateChanged((user) => {
-            if (!user) {
-                initiateAnonymousSignIn(auth).catch(err => console.error("Erro no login anônimo", err));
-            }
-        });
-        return () => unsubscribe();
-    }
-  }, [auth]);
-
-  useEffect(() => {
     if (companyData?.themeColors) {
         try {
-            const { primary, accent, background } = JSON.parse(companyData.themeColors);
+            // Suporta tanto string JSON quanto objeto direto do Firestore
+            const parsed = typeof companyData.themeColors === 'string'
+                ? JSON.parse(companyData.themeColors)
+                : companyData.themeColors;
+            const { primary, accent, background } = parsed || {};
             if (primary) {
                 const primaryHsl = hexToHsl(primary);
                 if (primaryHsl) {
@@ -61,7 +53,7 @@ export default function MenuLayout({
                     document.documentElement.style.setProperty('--accent', `${accentHsl.h} ${accentHsl.s}% ${accentHsl.l}%`);
                  }
             }
-             if (background) {
+            if (background) {
                 const backgroundHsl = hexToHsl(background);
                 if (backgroundHsl) {
                   document.documentElement.style.setProperty('--background', `${backgroundHsl.h} ${backgroundHsl.s}% ${backgroundHsl.l}%`);
@@ -69,8 +61,8 @@ export default function MenuLayout({
                   document.documentElement.style.setProperty('--popover', `${backgroundHsl.h} ${backgroundHsl.s}% ${backgroundHsl.l}%`);
                 }
             }
-        } catch (error) {
-            console.error("Failed to parse or apply theme colors:", error);
+        } catch (_) {
+            // Silencioso: mantém cores padrão se o parse falhar
         }
     }
 }, [companyData]);

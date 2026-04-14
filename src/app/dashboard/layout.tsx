@@ -161,7 +161,11 @@ export default function DashboardLayout({
   useEffect(() => {
     if (companyData?.themeColors) {
         try {
-            const { primary, accent } = JSON.parse(companyData.themeColors);
+            // Suporta tanto string JSON quanto objeto direto do Firestore
+            const parsed = typeof companyData.themeColors === 'string'
+                ? JSON.parse(companyData.themeColors)
+                : companyData.themeColors;
+            const { primary, accent } = parsed || {};
             if (primary) {
                 const primaryHsl = hexToHsl(primary);
                 if (primaryHsl) {
@@ -175,8 +179,8 @@ export default function DashboardLayout({
                     document.documentElement.style.setProperty('--accent', `${accentHsl.h} ${accentHsl.s}% ${accentHsl.l}%`);
                  }
             }
-        } catch (error) {
-            console.error("Erro ao aplicar cores do tema:", error);
+        } catch (_) {
+            // Silencioso: mantém cores padrão se o parse falhar
         }
     }
 }, [companyData]);

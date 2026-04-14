@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -23,8 +23,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { BellRing, Clock, DollarSign, PlusCircle, Trash2, Copy, Printer, Crown, AlertTriangle, CheckCircle, Send } from 'lucide-react';
-import { useFirestore, useDoc, setDocument, useMemoFirebase, useUser, useCollection, addDocument, deleteDocument, updateDocument, useAuth, deleteAuthUser } from '@/firebase';
+import { BellRing, Clock, DollarSign, PlusCircle, Trash2, Copy, Printer, Crown, AlertTriangle, CheckCircle, Send, Loader2 } from 'lucide-react';
+import { useFirestore, useDoc, setDocument, useMemoFirebase, useUser, useCollection, addDocument, deleteDocument, updateDocument, useAuth } from '@/firebase';
+import { firebaseConfig } from '@/firebase/config';
 import { doc, collection } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -115,9 +116,20 @@ type CompanySettingsData = {
     pixKey?: any;
     businessHours?: any;
     whatsappTemplates?: any;
+    waiterPin?: string; // Global pin option if wanted, but we'll use per-waiter docs
 };
 
-const SubscriptionView = ({ isExpired, trialEndDate, companyData }: { isExpired?: boolean, trialEndDate?: Date, companyData?: CompanySettingsData }) => {
+type Waiter = {
+    id: string;
+    name: string;
+    pin: string;
+    isActive: boolean;
+    lastLogin?: any;
+    waiterUid?: string; // Linked Firebase Auth UID
+};
+
+// Componente interno que usa useSearchParams (exige Suspense boundary no Next.js 14+)
+const SubscriptionViewInner = ({ isExpired, trialEndDate, companyData }: { isExpired?: boolean, trialEndDate?: Date, companyData?: CompanySettingsData }) => {
     const firestore = useFirestore();
     const { toast } = useToast();
     
@@ -149,13 +161,26 @@ const SubscriptionView = ({ isExpired, trialEndDate, companyData }: { isExpired?
                     description: "Aguarde enquanto confirmamos com o Mercado Pago.",
                 });
                 try {
+                    const idToken = await user.getIdToken();
                     const res = await fetch('/api/payments/verify', {
                         method: 'POST',
-                        body: JSON.stringify({ payment_id: paymentId, companyId: user.uid })
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ payment_id: paymentId, companyId: user.uid, idToken })
                     });
                     const data = await res.json();
+
                     
                     if (data.approved) {
+                        // Atualiza o Firestore client-side (usuário autenticado como dono)
+                        const { doc: firestoreDoc, updateDoc, Timestamp } = await import('firebase/firestore');
+                        const companyRef = firestoreDoc(firestore, 'companies', user.uid);
+                        await updateDoc(companyRef, {
+                            isActive: true,
+                            planId: data.planId || 'unknown',
+                            trialUsed: true,
+                            subscriptionEndDate: Timestamp.fromDate(new Date(data.subscriptionEndDate)),
+                        });
+
                         toast({
                             title: "🎉 Assinatura Aprovada!",
                             description: `Plano ${data.planName || ''} ativado por ${data.daysAdded || 30} dias com sucesso!`,
@@ -186,15 +211,24 @@ const SubscriptionView = ({ isExpired, trialEndDate, companyData }: { isExpired?
         }
     }, [paymentId, user, isVerifying, firestore, router, toast]);
 
+
     const handleCheckout = async () => {
         if (!selectedPlan || !user) return;
         setIsCheckingOut(true);
         try {
+            // Obtém o ID token do usuário autenticado para que o servidor possa ler o Firestore
+            const idToken = await user.getIdToken();
             const res = await fetch('/api/payments/checkout', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ planId: selectedPlan.id, companyId: user.uid })
+                body: JSON.stringify({
+                    planId: selectedPlan.id,
+                    companyId: user.uid,
+                    idToken,
+                    baseUrl: window.location.origin,
+                })
             });
+
             const data = await res.json();
             if (data.init_point) {
                 window.location.href = data.init_point;
@@ -304,6 +338,7 @@ const SubscriptionView = ({ isExpired, trialEndDate, companyData }: { isExpired?
         <div className="space-y-6">
             <div className="text-center">
                 <h2 className="text-3xl font-bold tracking-tight">Finalizar Assinatura</h2>
+
                 <p className="text-muted-foreground mt-2">Ative sua loja agora mesmo realizando o pagamento.</p>
             </div>
             <Card className="max-w-lg mx-auto shadow-xl">
@@ -335,6 +370,13 @@ const SubscriptionView = ({ isExpired, trialEndDate, companyData }: { isExpired?
     )
 }
 
+// Wrapper com Suspense para cumprir requisito do Next.js 14+
+const SubscriptionView = (props: { isExpired?: boolean, trialEndDate?: Date, companyData?: CompanySettingsData }) => (
+    <Suspense fallback={<p>Carregando planos...</p>}>
+        <SubscriptionViewInner {...props} />
+    </Suspense>
+);
+
 export default function SettingsPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -342,10 +384,16 @@ export default function SettingsPage() {
   const auth = useAuth();
   const router = useRouter();
 
+  const [newTime, setNewTime] = useState('');
+
   const [isZoneDialogOpen, setIsZoneDialogOpen] = useState(false);
   const [newNeighborhood, setNewNeighborhood] = useState('');
   const [newFee, setNewFee] = useState('');
-  const [newTime, setNewTime] = useState('');
+
+  const [isWaiterDialogOpen, setIsWaiterDialogOpen] = useState(false);
+  const [newWaiterName, setNewWaiterName] = useState('');
+  const [newWaiterPin, setNewWaiterPin] = useState('');
+  const [isAddingWaiter, setIsAddingWaiter] = useState(false);
 
   const companyRef = useMemoFirebase(() => {
       if (!firestore || !user) return null;
@@ -360,6 +408,13 @@ export default function SettingsPage() {
   }, [firestore, user]);
 
   const { data: deliveryZones, isLoading: isLoadingZones } = useCollection<DeliveryZone>(deliveryZonesRef);
+
+  const waitersRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return collection(firestore, 'companies', user.uid, 'waiters');
+  }, [firestore, user]);
+
+  const { data: waiters, isLoading: isLoadingWaiters } = useCollection<Waiter>(waitersRef);
   
   const planRef = useMemoFirebase(() => {
     if (!firestore || !companyData?.planId || companyData.planId === 'trial') return null;
@@ -414,34 +469,43 @@ export default function SettingsPage() {
       setComandasEnabled(companyData.comandasEnabled ?? true);
       if (companyData.themeColors) {
         try {
-          const colors = JSON.parse(companyData.themeColors);
-          setPrimaryColor(colors.primary || '#29ABE2');
-          setAccentColor(colors.accent || '#29E2D1');
-        } catch (e) {
-          console.error("Error parsing theme colors", e);
+          // Suporta tanto string JSON quanto objeto direto do Firestore
+          const colors = typeof companyData.themeColors === 'string'
+            ? JSON.parse(companyData.themeColors)
+            : companyData.themeColors;
+          setPrimaryColor(colors?.primary || '#29ABE2');
+          setAccentColor(colors?.accent || '#29E2D1');
+        } catch (_) {
+          // Silencioso: mantém a cor padrão se o parse falhar
         }
       }
-       if (companyData.paymentMethods) {
+      if (companyData.paymentMethods) {
         setPaymentMethods(companyData.paymentMethods);
       }
       if (companyData.pixKey) {
         setPixKey(companyData.pixKey);
       }
-       if (companyData.businessHours) {
+      if (companyData.businessHours) {
         try {
-          const hours = JSON.parse(companyData.businessHours);
-          setBusinessHours(hours);
-        } catch (e) {
-          console.error("Error parsing business hours", e);
+          // Suporta tanto string JSON quanto objeto direto do Firestore
+          const hours = typeof companyData.businessHours === 'string'
+            ? JSON.parse(companyData.businessHours)
+            : companyData.businessHours;
+          if (hours) setBusinessHours(hours);
+        } catch (_) {
+          // Silencioso: mantém horário padrão se o parse falhar
         }
       }
       if (companyData.whatsappTemplates) {
-          try {
-              const templates = JSON.parse(companyData.whatsappTemplates);
-              setWhatsappTemplates(templates);
-          } catch(e) {
-               console.error("Error parsing whatsapp templates", e);
-          }
+        try {
+          // Suporta tanto string JSON quanto objeto direto do Firestore
+          const templates = typeof companyData.whatsappTemplates === 'string'
+            ? JSON.parse(companyData.whatsappTemplates)
+            : companyData.whatsappTemplates;
+          if (templates) setWhatsappTemplates(templates);
+        } catch (_) {
+          // Silencioso: mantém templates padrão se o parse falhar
+        }
       }
     }
   }, [companyData]);
@@ -581,7 +645,46 @@ export default function SettingsPage() {
     });
   };
 
-  const isLoading = isUserLoadingAuth || isLoadingCompany || isLoadingZones || isLoadingPlan;
+  const handleAddWaiter = () => {
+    if (!waitersRef || !newWaiterName || !newWaiterPin) {
+      toast({ variant: 'destructive', title: 'Preencha Nome e PIN' });
+      return;
+    }
+
+    setIsAddingWaiter(true);
+
+    const newWaiter = {
+      name: newWaiterName.trim(),
+      pin: newWaiterPin.trim(),
+      isActive: true,
+      companyId: user?.uid,
+      createdAt: new Date(),
+    };
+
+    addDocument(waitersRef, newWaiter).then(() => {
+        toast({ title: 'Garçom Cadastrado!', description: `${newWaiterName} agora pode acessar o sistema.` });
+        setNewWaiterName('');
+        setNewWaiterPin('');
+        setIsWaiterDialogOpen(false);
+    }).catch((err: any) => {
+        console.warn("Erro ao adicionar garçom (visto pelo usuário via toast):", err);
+        toast({ 
+            variant: 'destructive', 
+            title: 'Erro ao cadastrar', 
+            description: `Mensagem: ${err.message || 'Sem detalhes'}` 
+        });
+    }).finally(() => {
+        setIsAddingWaiter(false);
+    });
+  };
+
+  const handleDeleteWaiter = (waiterId: string) => {
+    if (!firestore || !user) return;
+    const waiterRef = doc(firestore, 'companies', user.uid, 'waiters', waiterId);
+    deleteDocument(waiterRef);
+  };
+
+  const isLoading = isUserLoadingAuth || isLoadingCompany || isLoadingZones || isLoadingPlan || isLoadingWaiters;
 
   const weekDays: { key: keyof BusinessHours; label: string }[] = [
     { key: 'monday', label: 'Segunda-feira' },
@@ -598,24 +701,26 @@ export default function SettingsPage() {
   const trialEndDate = companyData?.subscriptionEndDate?.toDate();
   const isTrialExpired = trialEndDate && isAfter(new Date(), trialEndDate);
   const isInactive = companyData?.isActive === false;
-
   if (isInactive || isTrialExpired) {
     return <SubscriptionView isExpired={isTrialExpired} trialEndDate={trialEndDate} companyData={companyData || undefined} />;
   }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Configurações</h2>
-        <p className="text-muted-foreground">Gerencie sua loja e conta.</p>
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Configurações</h1>
+          <p className="text-muted-foreground">Gerencie sua loja, entregas e equipe.</p>
+        </div>
       </div>
 
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-6">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-7">
           <TabsTrigger value="profile">Empresa</TabsTrigger>
           <TabsTrigger value="hours">Horários</TabsTrigger>
           <TabsTrigger value="delivery">Entrega</TabsTrigger>
           <TabsTrigger value="payments">Pagamentos</TabsTrigger>
+          <TabsTrigger value="waiters">Garçons</TabsTrigger>
           <TabsTrigger value="notifications">Mensagens</TabsTrigger>
           <TabsTrigger value="subscription">Assinatura</TabsTrigger>
         </TabsList>
@@ -831,6 +936,102 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
+        <TabsContent value="waiters">
+          <Dialog open={isWaiterDialogOpen} onOpenChange={setIsWaiterDialogOpen}>
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Equipe de Garçons</CardTitle>
+                    <CardDescription>Cadastre os garçons que terão acesso às comandas via celular.</CardDescription>
+                  </div>
+                  <DialogTrigger asChild>
+                    <Button size="sm" className="gap-1" disabled={isLoading}><PlusCircle className="h-4 w-4" /> Novo Garçom</Button>
+                  </DialogTrigger>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="rounded-md border">
+                    <Table>
+                    <TableHeader>
+                        <TableRow>
+                        <TableHead>Nome</TableHead>
+                        <TableHead>PIN de Acesso</TableHead>
+                        <TableHead>Identificador UID</TableHead>
+                        <TableHead className="text-right">Ações</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {!isLoading && (waiters?.length || 0) > 0 ? (
+                            waiters?.map((waiter) => (
+                                <TableRow key={waiter.id}>
+                                    <TableCell className="font-medium">{waiter.name}</TableCell>
+                                    <TableCell><code className="bg-muted px-2 py-0.5 rounded text-primary font-bold">****</code></TableCell>
+                                    <TableCell className="text-xs text-muted-foreground font-mono">
+                                        {waiter.waiterUid ? waiter.waiterUid.substring(0, 8) + '...' : <span className="text-orange-500">Aguardando login</span>}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button variant="ghost" size="icon"><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>Excluir Garçom?</AlertDialogTitle>
+                                                    <AlertDialogDescription>O acesso de <strong>{waiter.name}</strong> será revogado imediatamente.</AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={() => handleDeleteWaiter(waiter.id)} className="bg-destructive">Excluir</AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                    </TableCell>
+                                </TableRow>
+                            ))
+                        ) : (
+                            <TableRow>
+                                <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">Nenhum garçom cadastrado.</TableCell>
+                            </TableRow>
+                        )}
+                    </TableBody>
+                    </Table>
+                </div>
+              </CardContent>
+              <CardFooter className="bg-muted/30 border-t py-4">
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3 text-orange-500" />
+                      Lembre de passar o PIN para o garçom. Por segurança, ele não é exibido após o cadastro.
+                  </p>
+              </CardFooter>
+            </Card>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Cadastrar Novo Garçom</DialogTitle>
+                <DialogDescription>O garçom usará o nome e o PIN para logar no sistema de comandas.</DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="space-y-2">
+                    <Label htmlFor="w-name">Nome Completo</Label>
+                    <Input id="w-name" placeholder="Ex: João Silva" value={newWaiterName} onChange={(e) => setNewWaiterName(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="w-pin">PIN de Acesso (Senha Numérica)</Label>
+                    <Input id="w-pin" type="text" maxLength={6} placeholder="Ex: 1234" value={newWaiterPin} onChange={(e) => setNewWaiterPin(e.target.value.replace(/\D/g, ""))} />
+                    <p className="text-[10px] text-muted-foreground">Apenas números para facilitar o acesso no celular.</p>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsWaiterDialogOpen(false)} disabled={isAddingWaiter}>Cancelar</Button>
+                <Button onClick={handleAddWaiter} disabled={isAddingWaiter}>
+                  {isAddingWaiter ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Confirmar Cadastro
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </TabsContent>
+
         <TabsContent value="notifications">
           <Card>
             <CardHeader>
@@ -891,52 +1092,6 @@ export default function SettingsPage() {
              </Card>
         </TabsContent>
       </Tabs>
-
-      <Card className="border-destructive/20 bg-destructive/5">
-        <CardHeader>
-          <CardTitle className="text-destructive">Zona de Perigo</CardTitle>
-          <CardDescription>Ações irreversíveis para sua conta.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="destructive">Excluir minha Loja e Dados</Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Você tem certeza absoluta?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Esta ação não pode ser desfeita. Isso excluirá permanentemente sua loja, 
-                  todos os produtos, pedidos e removerá seu acesso ao sistema.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={async () => {
-                    if (!user || !auth) return;
-                    try {
-                        const companyDocRef = doc(firestore!, 'companies', user.uid);
-                        const companyUserDocRef = doc(firestore!, 'users', user.uid);
-                        
-                        await Promise.all([
-                            deleteDocument(companyDocRef),
-                            deleteDocument(companyUserDocRef)
-                        ]);
-                        
-                        await deleteAuthUser(user);
-                        router.push('/signup');
-                        toast({ title: "Conta excluída", description: "Sua loja foi removida com sucesso." });
-                    } catch (e) {
-                         toast({ variant: 'destructive', title: "Erro ao excluir", description: "Tente novamente ou contate o suporte." });
-                    }
-                }}>
-                  Sim, excluir tudo
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </CardContent>
-      </Card>
     </div>
   );
 }
