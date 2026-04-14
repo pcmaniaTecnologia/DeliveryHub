@@ -160,13 +160,26 @@ const SubscriptionView = ({ isExpired, trialEndDate, companyData }: { isExpired?
                     description: "Aguarde enquanto confirmamos com o Mercado Pago.",
                 });
                 try {
+                    const idToken = await user.getIdToken();
                     const res = await fetch('/api/payments/verify', {
                         method: 'POST',
-                        body: JSON.stringify({ payment_id: paymentId, companyId: user.uid })
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ payment_id: paymentId, companyId: user.uid, idToken })
                     });
                     const data = await res.json();
+
                     
                     if (data.approved) {
+                        // Atualiza o Firestore client-side (usuário autenticado como dono)
+                        const { doc: firestoreDoc, updateDoc, Timestamp } = await import('firebase/firestore');
+                        const companyRef = firestoreDoc(firestore, 'companies', user.uid);
+                        await updateDoc(companyRef, {
+                            isActive: true,
+                            planId: data.planId || 'unknown',
+                            trialUsed: true,
+                            subscriptionEndDate: Timestamp.fromDate(new Date(data.subscriptionEndDate)),
+                        });
+
                         toast({
                             title: "🎉 Assinatura Aprovada!",
                             description: `Plano ${data.planName || ''} ativado por ${data.daysAdded || 30} dias com sucesso!`,
@@ -197,15 +210,24 @@ const SubscriptionView = ({ isExpired, trialEndDate, companyData }: { isExpired?
         }
     }, [paymentId, user, isVerifying, firestore, router, toast]);
 
+
     const handleCheckout = async () => {
         if (!selectedPlan || !user) return;
         setIsCheckingOut(true);
         try {
+            // Obtém o ID token do usuário autenticado para que o servidor possa ler o Firestore
+            const idToken = await user.getIdToken();
             const res = await fetch('/api/payments/checkout', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ planId: selectedPlan.id, companyId: user.uid })
+                body: JSON.stringify({
+                    planId: selectedPlan.id,
+                    companyId: user.uid,
+                    idToken,
+                    baseUrl: window.location.origin,
+                })
             });
+
             const data = await res.json();
             if (data.init_point) {
                 window.location.href = data.init_point;
