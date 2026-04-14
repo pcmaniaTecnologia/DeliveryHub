@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { useRouter } from 'next/navigation';
+import { recordCashierSale } from '@/lib/cashier-utils';
 
 type OrderItem = {
     id: string;
@@ -227,12 +228,14 @@ export default function ComandasPage() {
         try {
             const ordersRef = collection(firestore, 'companies', effectiveCompanyId, 'orders');
             const itemsBeingPaid = tableItems.filter(item => selectedItemsKeys.has(item.uniqueKey));
-            const paymentSummary = payments.map(p => `${p.method} (R$ ${p.amount.toFixed(2)})`).join(', ');
+            const paymentSummary = payments.map(p => `${p.method}: R$ ${p.amount.toFixed(2)}`).join(' | ');
             
             // 2. Identify unique orders involved
             const ordersToProcess = new Set(itemsBeingPaid.map(i => i.orderId));
+            const finalizedOrderIds: string[] = [];
             
             for (const orderId of Array.from(ordersToProcess)) {
+                finalizedOrderIds.push(orderId);
                 const originalOrder = selectedTable.orders.find((o: Order) => o.id === orderId);
                 if (!originalOrder) continue;
 
@@ -247,8 +250,7 @@ export default function ComandasPage() {
                     await updateDocument(orderRef, {
                         status: 'Entregue',
                         paymentMethod: paymentSummary,
-                        // Guardamos os pagamentos parciais como uma nota se necessário, 
-                        // mas evitando campos novos que possam quebrar regras de segurança.
+                        payments: payments,
                         notes: (originalOrder.notes ? originalOrder.notes + " | " : "") + "Pagamentos: " + paymentSummary
                     });
                 } else {
@@ -264,6 +266,7 @@ export default function ComandasPage() {
                         tableNumber: selectedTable.tableNumber,
                         deliveryFee: 0,
                         paymentMethod: paymentSummary,
+                        payments: payments,
                         orderItems: itemsSelectedInThisOrder.map(item => ({
                             productId: item.productId,
                             productName: item.productName,
@@ -278,6 +281,7 @@ export default function ComandasPage() {
                     });
 
                     // 2. Atualizamos o novo pedido para 'Entregue'
+                    finalizedOrderIds.push(newOrderRef.id);
                     await updateDocument(doc(firestore, `companies/${effectiveCompanyId}/orders`, newOrderRef.id), {
                         status: 'Entregue'
                     });
@@ -289,6 +293,30 @@ export default function ComandasPage() {
                         totalAmount: newTotal
                     });
                 }
+            }
+
+            // Registra a venda no caixa se houver um aberto
+            try {
+                // Usamos o total que foi pago nesta transação (itemsToPayTotal)
+                const result = await recordCashierSale(
+                    firestore, 
+                    effectiveCompanyId, 
+                    itemsToPayTotal, 
+                    `Comanda Mesa ${selectedTable.tableNumber} (${itemsBeingPaid.length} itens)`, 
+                    Array.from(ordersToProcess)[0],
+                    paymentSummary
+                );
+
+                if (result.success && result.sessionId) {
+                    // Vincula o sessionId a todos os pedidos processados nesta batida
+                    for (const id of finalizedOrderIds) {
+                        await updateDocument(doc(firestore, `companies/${effectiveCompanyId}/orders`, id), {
+                            sessionId: result.sessionId
+                        });
+                    }
+                }
+            } catch (cashierErr) {
+                console.error('Erro ao registrar comanda no caixa:', cashierErr);
             }
 
             toast({ title: "Pagamento realizado!", description: `Mesa ${selectedTable.tableNumber} atualizada.` });
@@ -343,7 +371,7 @@ export default function ComandasPage() {
                     <p className="text-muted-foreground mt-1 text-center max-w-sm">Não encontramos nenhuma mesa ou cliente com "{searchQuery}".</p>
                 </Card>
             ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
                     {filteredTables.map((table) => {
                         if (table.isFree) {
                             return (
@@ -410,7 +438,7 @@ export default function ComandasPage() {
             {/* Modal for Table Details */}
             {selectedTable && (
                 <Dialog open={!!selectedTable} onOpenChange={(open) => !open && setSelectedTable(null)}>
-                    <DialogContent className="max-w-xl max-h-[85vh] flex flex-col">
+                    <DialogContent className="sm:max-w-xl w-[98vw] max-h-[92vh] flex flex-col p-4 sm:p-6">
                         <DialogHeader>
                             <DialogTitle className="text-2xl flex justify-between items-center pr-6">
                                 <span>Mesa {selectedTable.tableNumber}</span>
