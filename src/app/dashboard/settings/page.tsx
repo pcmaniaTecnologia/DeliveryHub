@@ -703,14 +703,14 @@ export default function SettingsPage() {
       </div>
 
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-7">
-          <TabsTrigger value="profile">Empresa</TabsTrigger>
-          <TabsTrigger value="hours">Horários</TabsTrigger>
-          <TabsTrigger value="delivery">Entrega</TabsTrigger>
-          <TabsTrigger value="payments">Pagamentos</TabsTrigger>
-          <TabsTrigger value="waiters">Garçons</TabsTrigger>
-          <TabsTrigger value="notifications">Mensagens</TabsTrigger>
-          <TabsTrigger value="subscription">Assinatura</TabsTrigger>
+        <TabsList className="flex flex-wrap h-auto w-full justify-start gap-1 bg-transparent p-0 mb-6">
+          <TabsTrigger value="profile" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground border rounded-md px-3 py-1.5 text-xs sm:text-sm">Empresa</TabsTrigger>
+          <TabsTrigger value="hours" className="data-[state=active]:bg-primary data-[state=activeMechanism]:text-primary-foreground border rounded-md px-3 py-1.5 text-xs sm:text-sm">Horários</TabsTrigger>
+          <TabsTrigger value="delivery" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground border rounded-md px-3 py-1.5 text-xs sm:text-sm">Entrega</TabsTrigger>
+          <TabsTrigger value="payments" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground border rounded-md px-3 py-1.5 text-xs sm:text-sm">Pagamentos</TabsTrigger>
+          <TabsTrigger value="waiters" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground border rounded-md px-3 py-1.5 text-xs sm:text-sm">Garçons</TabsTrigger>
+          <TabsTrigger value="notifications" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground border rounded-md px-3 py-1.5 text-xs sm:text-sm">Mensagens</TabsTrigger>
+          <TabsTrigger value="subscription" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground border rounded-md px-3 py-1.5 text-xs sm:text-sm">Assinatura</TabsTrigger>
         </TabsList>
 
         <TabsContent value="profile">
@@ -813,15 +813,15 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               {weekDays.map(({ key, label }, index) => (
-                <div key={`${key}-${index}`} className="flex items-center justify-between rounded-lg border p-4">
+                <div key={`${key}-${index}`} className="flex flex-col sm:flex-row sm:items-center justify-between rounded-lg border p-3 sm:p-4 gap-3 sm:gap-4">
                   <div className="flex items-center gap-4">
                     <Switch checked={businessHours[key]?.isOpen} onCheckedChange={(checked) => handleHoursChange(key, 'isOpen', checked)} id={`switch-${key}-${index}`} disabled={isLoading} />
-                    <Label htmlFor={`switch-${key}-${index}`} className="w-24">{label}</Label>
+                    <Label htmlFor={`switch-${key}-${index}`} className="w-24 font-semibold">{label}</Label>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Input type="time" value={businessHours[key]?.openTime} onChange={(e) => handleHoursChange(key, 'openTime', e.target.value)} disabled={!businessHours[key]?.isOpen || isLoading} className="w-32" />
-                    <span>às</span>
-                    <Input type="time" value={businessHours[key]?.closeTime} onChange={(e) => handleHoursChange(key, 'closeTime', e.target.value)} disabled={!businessHours[key]?.isOpen || isLoading} className="w-32" />
+                    <Input type="time" value={businessHours[key]?.openTime} onChange={(e) => handleHoursChange(key, 'openTime', e.target.value)} disabled={!businessHours[key]?.isOpen || isLoading} className="w-full sm:w-32" />
+                    <span className="text-muted-foreground text-xs">às</span>
+                    <Input type="time" value={businessHours[key]?.closeTime} onChange={(e) => handleHoursChange(key, 'closeTime', e.target.value)} disabled={!businessHours[key]?.isOpen || isLoading} className="w-full sm:w-32" />
                   </div>
                 </div>
               ))}
@@ -844,7 +844,8 @@ export default function SettingsPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                <Table>
+                <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+                  <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Bairro</TableHead>
@@ -868,6 +869,7 @@ export default function SettingsPage() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               </CardContent>
             </Card>
             <DialogContent>
@@ -939,7 +941,8 @@ export default function SettingsPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="rounded-md border">
+                <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+                  <div className="rounded-md border">
                     <Table>
                     <TableHeader>
                         <TableRow>
@@ -984,6 +987,7 @@ export default function SettingsPage() {
                         )}
                     </TableBody>
                     </Table>
+                  </div>
                 </div>
               </CardContent>
               <CardFooter className="bg-muted/30 border-t py-4">

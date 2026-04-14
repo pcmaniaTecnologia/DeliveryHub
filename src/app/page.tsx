@@ -1,521 +1,140 @@
-
 'use client';
-import { Banknote, CreditCard, DollarSign, Package, PieChart, Landmark, ShoppingCart, Users, Calendar as CalendarIcon, Printer, ShieldCheck, AlertTriangle, Box } from 'lucide-react';
+
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { Package2 } from 'lucide-react';
+import { useUser, useAuth, initiateEmailSignIn } from '@/firebase';
+import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
-  CardDescription,
-  CardFooter,
 } from '@/components/ui/card';
-import {
-  Bar,
-  BarChart,
-  ResponsiveContainer,
-  XAxis,
-  YAxis,
-  Tooltip,
-  Legend,
-} from 'recharts';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart';
-import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
-import { collection, type Timestamp, doc } from 'firebase/firestore';
-import { useState, useMemo } from 'react';
-import { subDays, format, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { DateRange } from 'react-day-picker';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { cn } from '@/lib/utils';
-import { Calendar } from '@/components/ui/calendar';
-import { Separator } from '@/components/ui/separator';
-import { parseSalesByPaymentMethod } from '@/lib/finance-utils';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useToast } from '@/hooks/use-toast';
+import { FirebaseError } from 'firebase/app';
 
+export default function LoginPage() {
+  const { user, isUserLoading } = useUser();
+  const router = useRouter();
+  const auth = useAuth();
+  const { toast } = useToast();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-type Order = {
-  id: string;
-  customerId: string;
-  orderDate: Timestamp;
-  status: 'Novo' | 'Aguardando pagamento' | 'Em preparo' | 'Pronto para retirada' | 'Saiu para entrega' | 'Entregue' | 'Cancelado';
-  totalAmount: number;
-  paymentMethod: string;
-  customerName?: string; // Will be added dynamically
-};
+  useEffect(() => {
+    if (!isUserLoading && user) {
+      router.push('/dashboard');
+    }
+  }, [user, isUserLoading, router]);
 
-type Customer = {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-}
-
-type SalesByPaymentMethod = {
-    cash: number;
-    pix: number;
-    credit: number;
-    debit: number;
-};
-
-type Product = {
-    id: string;
-    name: string;
-    stockControlEnabled?: boolean;
-    stock: number;
-    isActive: boolean;
-};
-
-const chartConfig = {
-  sales: {
-    label: 'Vendas',
-    color: 'hsl(var(--primary))',
-  },
-};
-
-function RecentOrdersTable({ orders }: { orders: Order[] }) {
-    return (
-        <Table>
-            <TableHeader>
-                <TableRow>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Total</TableHead>
-                </TableRow>
-            </TableHeader>
-            <TableBody>
-                {orders.map(order => (
-                    <TableRow key={order.id}>
-                        <TableCell>
-                            <div className="font-medium">{order.customerName || 'Cliente Anônimo'}</div>
-                            <div className="hidden text-sm text-muted-foreground md:inline">{order.customerId.substring(0, 10)}...</div>
-                        </TableCell>
-                        <TableCell>
-                             <Badge variant={order.status === 'Cancelado' ? 'destructive' : 'default'} className="whitespace-nowrap">{order.status}</Badge>
-                        </TableCell>
-                        <TableCell className="text-right">R${order.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
-                    </TableRow>
-                ))}
-            </TableBody>
-        </Table>
-    );
-}
-
-export default function DashboardPage() {
-    const { user, isUserLoading } = useUser();
-    const firestore = useFirestore();
-
-    const ordersRef = useMemoFirebase(() => {
-        if (!firestore || !user?.uid) return null;
-        return collection(firestore, `companies/${user.uid}/orders`);
-    }, [firestore, user?.uid]);
-    
-    const { data: orders, isLoading: isLoadingOrders } = useCollection<Order>(ordersRef);
-
-    const productsRef = useMemoFirebase(() => {
-        if (!firestore || !user?.uid) return null;
-        return collection(firestore, `companies/${user.uid}/products`);
-    }, [firestore, user?.uid]);
-    const { data: products, isLoading: isLoadingProducts } = useCollection<Product>(productsRef);
-
-    const adminRef = useMemoFirebase(() => {
-        if (!firestore || !user?.uid) return null;
-        return doc(firestore, 'roles_admin', user.uid);
-    }, [firestore, user?.uid]);
-    const { data: adminData, isLoading: isLoadingAdmin } = useDoc(adminRef);
-
-    const [activePreset, setActivePreset] = useState<'today' | 'week' | 'month' | null>('today');
-    const [dateRange, setDateRange] = useState<DateRange | undefined>({
-        from: startOfDay(new Date()),
-        to: endOfDay(new Date()),
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!auth) return;
+    if (!email || !password) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro de login',
+        description: 'Por favor, preencha o e-mail e a senha.',
       });
-      
-    const handlePresetChange = (preset: 'today' | 'week' | 'month') => {
-        setActivePreset(preset);
-        const now = new Date();
-        let fromDate: Date;
-        switch(preset) {
-            case 'week':
-                fromDate = startOfDay(subDays(now, 6));
-                break;
-            case 'month':
-                fromDate = startOfDay(subDays(now, 29));
-                break;
-            case 'today':
-            default:
-                fromDate = startOfDay(now);
-                break;
-        }
-        setDateRange({ from: fromDate, to: endOfDay(now) });
-    };
-
-    const handleDateRangeChange = (range: DateRange | undefined) => {
-        if (range) {
-            setDateRange({
-                from: range.from ? startOfDay(range.from) : undefined,
-                to: range.to ? endOfDay(range.to) : range.from ? endOfDay(range.from) : undefined,
-              });
-            setActivePreset(null); // Deselect preset when custom range is chosen
-        }
+      return;
     }
-
-
-    const { 
-        totalSales, 
-        totalOrders, 
-        avgTicket, 
-        pendingOrders,
-        salesChartData,
-        recentOrdersWithDetails,
-        salesByPaymentMethod
-    } = useMemo(() => {
-        if (!orders) {
-            return { 
-                totalSales: 0, 
-                totalOrders: 0, 
-                avgTicket: 0, 
-                pendingOrders: 0,
-                salesChartData: [],
-                recentOrders: [],
-                recentOrdersWithDetails: [],
-                salesByPaymentMethod: { cash: 0, pix: 0, credit: 0, debit: 0 }
-            };
-        }
-
-        const filteredOrders = orders.filter(order => {
-            if (!dateRange?.from) return false;
-            const orderDate = order.orderDate.toDate();
-            const toDate = dateRange.to || dateRange.from;
-            return isWithinInterval(orderDate, { start: dateRange.from, end: toDate });
+    setIsLoading(true);
+    try {
+      await initiateEmailSignIn(auth, email, password);
+      // The redirect is handled by the useEffect hook watching the user state.
+    } catch (error: any) {
+      if (error instanceof FirebaseError && (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found')) {
+         toast({
+            variant: 'destructive',
+            title: 'Credenciais inválidas',
+            description: 'Verifique seu e-mail e senha.',
+         });
+      } else {
+        console.error('Falha no login:', error);
+        toast({
+          variant: 'destructive',
+          title: 'Erro de login',
+          description: error.message || 'Ocorreu um erro ao tentar fazer login.',
         });
-
-        const successfulOrders = filteredOrders.filter(order => order.status !== 'Cancelado');
-
-        const totalSales = successfulOrders.reduce((sum, order) => sum + order.totalAmount, 0);
-        const totalOrders = successfulOrders.length;
-        const avgTicket = totalOrders > 0 ? totalSales / totalOrders : 0;
-        
-        // Pending orders should probably not be filtered by date range, but all pending orders ever
-        const pendingOrders = orders.filter(order => ['Novo', 'Aguardando pagamento', 'Em preparo'].includes(order.status)).length;
-        
-        const salesByPaymentMethod = parseSalesByPaymentMethod(successfulOrders);
-
-        // Sales chart always shows last 7 days regardless of filter
-        const salesChartData = Array.from({ length: 7 }).map((_, i) => {
-            const date = subDays(new Date(), i);
-            const dayStart = startOfDay(date);
-            const dayEnd = endOfDay(date);
-            
-            const daySales = orders
-                .filter(order => {
-                    const orderDate = order.orderDate.toDate();
-                    return isWithinInterval(orderDate, { start: dayStart, end: dayEnd }) && order.status !== 'Cancelado';
-                })
-                .reduce((sum, order) => sum + order.totalAmount, 0);
-
-            return {
-                date: format(date, 'dd/MM', { locale: ptBR }),
-                Vendas: daySales
-            };
-        }).reverse();
-        
-        const recentOrders = [...orders]
-            .sort((a, b) => b.orderDate.toDate().getTime() - a.orderDate.toDate().getTime())
-            .slice(0, 5);
-        
-        const recentOrdersWithDetails = recentOrders;
-
-        return { totalSales, totalOrders, avgTicket, pendingOrders, salesChartData, recentOrdersWithDetails, salesByPaymentMethod };
-
-    }, [orders, dateRange]);
-
-    const { outOfStockProducts, totalStockTracked } = useMemo(() => {
-        if (!products) return { outOfStockProducts: [], totalStockTracked: 0 };
-        const tracked = products.filter(p => p.stockControlEnabled);
-        const zero = tracked.filter(p => p.stock <= 0 && p.isActive);
-        return { outOfStockProducts: zero, totalStockTracked: tracked.length };
-    }, [products]);
-    
-    const isLoading = isUserLoading || isLoadingOrders || isLoadingAdmin;
-    
-    const dateRangeLabel = useMemo(() => {
-        if (!dateRange?.from) return '';
-
-        const from = format(dateRange.from, 'P', { locale: ptBR });
-        const to = dateRange.to ? format(dateRange.to, 'P', { locale: ptBR }) : from;
-
-        if (from === to) {
-            return `(${from})`;
-        }
-        return `(${from} - ${to})`;
-    }, [dateRange]);
-
-    const handlePrint = () => {
-        const formatCurrency = (value: number) => `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-        const printHtml = `
-            <html>
-                <head>
-                    <title>Fechamento de Caixa</title>
-                    <style>
-                        body { font-family: Arial, sans-serif; margin: 20px; }
-                        h2, h3 { text-align: center; }
-                        div { margin-bottom: 15px; }
-                        span { display: inline-block; }
-                        .item { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px dashed #ccc; }
-                        .total { display: flex; justify-content: space-between; font-weight: bold; font-size: 1.2em; padding-top: 10px; border-top: 2px solid #000; }
-                    </style>
-                </head>
-                <body>
-                    <h2>Fechamento de Caixa</h2>
-                    <h3>${dateRangeLabel.replace(/[()]/g, '')}</h3>
-                    
-                    <div class="item"><span>Dinheiro</span> <span>${formatCurrency(salesByPaymentMethod.cash)}</span></div>
-                    <div class="item"><span>PIX</span> <span>${formatCurrency(salesByPaymentMethod.pix)}</span></div>
-                    <div class="item"><span>Cartão de Crédito</span> <span>${formatCurrency(salesByPaymentMethod.credit)}</span></div>
-                    <div class="item"><span>Cartão de Débito</span> <span>${formatCurrency(salesByPaymentMethod.debit)}</span></div>
-                    
-                    <div class="total"><span>Total</span> <span>${formatCurrency(totalSales)}</span></div>
-
-                    <script>
-                        window.print();
-                        window.onafterprint = () => window.close();
-                    </script>
-                </body>
-            </html>
-        `;
-        
-        const printWindow = window.open('', '_blank');
-        if (printWindow) {
-            printWindow.document.write(printHtml);
-            printWindow.document.close();
-        }
-    };
-
-
-    if (isLoading || isLoadingProducts) {
-        return (
-            <div className="flex min-h-screen items-center justify-center">
-                <p>Carregando painel...</p>
-            </div>
-        );
+      }
+      setIsLoading(false);
     }
-  
+  };
+
+  if (isUserLoading || user) {
+    return (
+        <div className="flex min-h-screen flex-col items-center justify-center">
+            <p>Carregando...</p>
+        </div>
+    )
+  }
+
   return (
-      <div className="space-y-6">
-        {adminData && (
-            <Card className="bg-destructive/10 border-destructive">
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-destructive">
-                        <ShieldCheck />
-                        Acesso de Administrador
-                    </CardTitle>
-                    <CardDescription className="text-destructive/80">
-                        Você tem acesso ao painel de administração da plataforma.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <p>Use o painel do administrador para gerenciar todas as empresas, visualizar relatórios globais e supervisionar a plataforma.</p>
-                    <p className="text-sm text-destructive/90 mt-2">Logado como: <strong>{user?.email}</strong></p>
-                </CardContent>
-                <CardFooter>
-                    <Link href="/admin">
-                        <Button variant="destructive">
-                            Ir para o Painel do Admin
-                        </Button>
-                    </Link>
-                </CardFooter>
-            </Card>
-        )}
-        <div>
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                    <h2 className="text-2xl font-bold tracking-tight md:text-3xl">Dashboard</h2>
-                    <p className="text-sm text-muted-foreground">Bem-vindo ao DeliveryHub. Aqui está o resumo da sua operação.</p>
+    <div className="flex min-h-screen flex-col items-center justify-center bg-muted/40 p-4">
+      <Card className="w-full max-w-sm">
+        <CardHeader className="text-center">
+          <div className="mb-4 flex justify-center">
+            <Package2 className="h-10 w-10 text-primary" />
+          </div>
+          <CardTitle className="text-2xl font-bold">BEM VINDO AO DeliveryHub</CardTitle>
+          <CardDescription>Digite seu e-mail abaixo para fazer login em sua conta</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleLogin}>
+            <div className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="m@exemplo.com"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={isLoading}
+                />
+              </div>
+              <div className="grid gap-2">
+                <div className="flex items-center">
+                  <Label htmlFor="password">Senha</Label>
+                  <Link
+                    href="/forgot-password"
+                    className="ml-auto inline-block text-sm underline"
+                  >
+                    Esqueceu sua senha?
+                  </Link>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                    <Popover>
-                    <PopoverTrigger asChild>
-                        <Button
-                        id="date"
-                        variant={"outline"}
-                        className={cn(
-                            "w-[240px] justify-start text-left font-normal",
-                            !dateRange && "text-muted-foreground"
-                        )}
-                        >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {dateRange?.from ? (
-                            dateRange.to ? (
-                            <>
-                                {format(dateRange.from, "LLL dd, y", { locale: ptBR })} -{" "}
-                                {format(dateRange.to, "LLL dd, y", { locale: ptBR })}
-                            </>
-                            ) : (
-                            format(dateRange.from, "LLL dd, y", { locale: ptBR })
-                            )
-                        ) : (
-                            <span>Selecione uma data</span>
-                        )}
-                        </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="end">
-                        <Calendar
-                        initialFocus
-                        mode="range"
-                        defaultMonth={dateRange?.from}
-                        selected={dateRange}
-                        onSelect={handleDateRangeChange}
-                        numberOfMonths={2}
-                        locale={ptBR}
-                        />
-                    </PopoverContent>
-                    </Popover>
-                    <Button onClick={() => handlePresetChange('today')} variant={activePreset === 'today' ? 'default' : 'outline'}>Hoje</Button>
-                    <Button onClick={() => handlePresetChange('week')} variant={activePreset === 'week' ? 'default' : 'outline'}>Semana</Button>
-                    <Button onClick={() => handlePresetChange('month')} variant={activePreset === 'month' ? 'default' : 'outline'}>Mês</Button>
-                </div>
+                <Input 
+                  id="password" 
+                  type="password" 
+                  required 
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={isLoading}
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? 'Entrando...' : 'Entrar'}
+              </Button>
             </div>
-
-            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 mt-6">
-                <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total de Vendas {dateRangeLabel}</CardTitle>
-                    <DollarSign className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">R${totalSales.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                </CardContent>
-                </Card>
-                <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total de Pedidos {dateRangeLabel}</CardTitle>
-                    <ShoppingCart className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">+{totalOrders}</div>
-                </CardContent>
-                </Card>
-                <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Ticket Médio {dateRangeLabel}</CardTitle>
-                    <Package className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">R${avgTicket.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                </CardContent>
-                </Card>
-                <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Pedidos Pendentes</CardTitle>
-                    <Users className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">{pendingOrders}</div>
-                </CardContent>
-                </Card>
-            </div>
-        </div>
-
-        <div className="grid gap-4 grid-cols-1 lg:grid-cols-7">
-            <Card className="col-span-4">
-            <CardHeader className="pb-2">
-                <CardTitle className="text-base sm:text-xl">Visão Geral de Vendas (Últimos 7 dias)</CardTitle>
-            </CardHeader>
-            <CardContent className="px-1 sm:px-6">
-                <ChartContainer config={chartConfig} className="h-[250px] sm:h-[350px] w-full">
-                <ResponsiveContainer>
-                    <BarChart data={salesChartData}>
-                    <XAxis dataKey="date" stroke="#888888" fontSize={12} tickLine={false} axisLine={false}/>
-                    <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `R$${value}`}/>
-                    <Tooltip content={<ChartTooltipContent />} />
-                    <Legend />
-                    <Bar dataKey="Vendas" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="Vendas" />
-                    </BarChart>
-                </ResponsiveContainer>
-                </ChartContainer>
-            </CardContent>
-            </Card>
-
-            <div className="col-span-1 lg:col-span-3">
-                <Card className={cn(outOfStockProducts.length > 0 ? "border-orange-500 bg-orange-50/10" : "")}>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <Box className="h-5 w-5 text-muted-foreground" />
-                            Alerta de Estoque
-                        </CardTitle>
-                        <CardDescription>
-                            Produtos com controle de estoque habilitado.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="space-y-4">
-                            <div className="flex items-center">
-                                <Package className="h-5 w-5 mr-3 text-muted-foreground" />
-                                <span className="flex-1">Itens Monitorados</span>
-                                <span className="font-medium">{totalStockTracked} produtos</span>
-                            </div>
-                            
-                            {outOfStockProducts.length > 0 ? (
-                                <div className="pt-2">
-                                    <div className="flex items-center text-orange-600 font-semibold mb-2">
-                                        <AlertTriangle className="h-4 w-4 mr-2" />
-                                        <span>Itens Zerados ou Negativos:</span>
-                                    </div>
-                                    <div className="max-h-[160px] overflow-y-auto space-y-2 pr-2">
-                                        {outOfStockProducts.map(p => (
-                                            <div key={p.id} className="flex items-center justify-between text-sm p-2 bg-orange-100/50 rounded-md border border-orange-200/50">
-                                                <span className="font-medium truncate mr-2">{p.name}</span>
-                                                <Badge variant="destructive" className="h-5 text-[10px] px-1.5">
-                                                    Qtd: {p.stock}
-                                                </Badge>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="flex flex-col items-center justify-center py-6 text-center">
-                                    <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center mb-2">
-                                        <ShieldCheck className="h-6 w-6 text-green-600" />
-                                    </div>
-                                    <p className="text-sm font-medium text-green-700">Tudo em dia!</p>
-                                    <p className="text-xs text-muted-foreground">Nenhum produto zerado no estoque.</p>
-                                </div>
-                            )}
-                        </div>
-                    </CardContent>
-                    <CardFooter className="flex-col items-stretch pt-2">
-                        <Link href="/dashboard/products">
-                            <Button variant="outline" className="w-full text-xs">
-                                Gerenciar Estoque
-                            </Button>
-                        </Link>
-                    </CardFooter>
-                </Card>
-            </div>
-        </div>
-
-        <Card className="col-span-4 lg:col-span-7">
-            <CardHeader>
-                <CardTitle>Pedidos Recentes</CardTitle>
-            </CardHeader>
-            <CardContent>
-                <RecentOrdersTable orders={recentOrdersWithDetails} />
-            </CardContent>
-            </Card>
+          </form>
+          <div className="mt-4 text-center text-sm">
+            Não tem uma conta?{' '}
+            <Link href="/signup" className="underline">
+              Inscreva-se
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
+      <div className="mt-4 text-center text-sm text-muted-foreground">
+        Criado por PC MANIA
       </div>
+    </div>
   );
 }
-
-    
-
-    

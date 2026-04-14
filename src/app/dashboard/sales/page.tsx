@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { recordCashierSale, parseSalesByPaymentMethod } from '../../../lib/finance-utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useUser, useFirestore, useCollection, useMemoFirebase, addDocument, updateDocument } from '@/firebase';
@@ -19,7 +20,6 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import Image from 'next/image';
 import { useImpersonation } from '@/context/impersonation-context';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { recordCashierSale } from '../../../lib/cashier-utils';
 
 type Product = {
     id: string;

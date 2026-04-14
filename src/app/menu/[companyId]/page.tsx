@@ -1,1023 +1,625 @@
 
+
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import Image from 'next/image';
-import { MoreHorizontal, PlusCircle, Trash2, Search, ArrowUp, ArrowDown, Printer, FileText, AlertTriangle } from 'lucide-react';
-import { useForm, useFieldArray, Controller } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { Badge } from '@/components/ui/badge';
+import { useCollection, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection, doc } from 'firebase/firestore';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  CardFooter,
-} from '@/components/ui/card';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator
-} from '@/components/ui/dropdown-menu';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { Plus, Minus, Pizza, Ham, GlassWater, Cake, Sandwich, LeafyGreen, IceCream, UtensilsCrossed, type LucideIcon, Search, X, Clock } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Input } from '@/components/ui/input';
+import { useCart, type SelectedVariant } from '@/context/cart-context';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogClose,
   DialogFooter,
-  DialogTrigger,
 } from '@/components/ui/dialog';
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
-import { useUser, useFirestore, useCollection, useMemoFirebase, addDocument, deleteDocument, updateDocument } from '@/firebase';
-import { collection, doc, writeBatch, query, where, getDocs } from 'firebase/firestore';
-import { useToast } from '@/hooks/use-toast';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-
-const variantItemSchema = z.object({
-  name: z.string().min(1, "O nome do item é obrigatório."),
-  price: z.coerce.number().min(0, "O preço não pode ser negativo.").default(0),
-});
-
-const variantGroupSchema = z.object({
-  name: z.string().min(1, "O nome do grupo é obrigatório."),
-  min: z.coerce.number().int().min(0).default(0),
-  max: z.coerce.number().int().min(1).default(1),
-  items: z.array(variantItemSchema).min(1, "Adicione pelo menos um item ao grupo."),
-});
-
-const productFormSchema = z.object({
-  name: z.string().min(3, { message: 'O nome deve ter pelo menos 3 caracteres.' }),
-  description: z.string().optional(),
-  price: z.coerce.number().positive({ message: 'O preço deve ser um número positivo.' }),
-  categoryId: z.string().min(1, { message: 'A categoria é obrigatória.' }),
-  imageUrl: z.string().url({ message: 'Por favor, insira uma URL válida.' }).optional().or(z.literal('')),
-  isActive: z.boolean().default(true),
-  stockControlEnabled: z.boolean().default(false),
-  stock: z.coerce.number().int().default(0),
-  variants: z.array(variantGroupSchema).optional(),
-  isSoldByWeight: z.boolean().default(false),
-  replicateToCategory: z.boolean().default(false),
-});
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { useToast } from '@/hooks/use-toast';
+import { Textarea } from '@/components/ui/textarea';
+import { useParams } from 'next/navigation';
+import { Badge } from '@/components/ui/badge';
 
 
-type VariantItem = z.infer<typeof variantItemSchema>;
-type VariantGroup = z.infer<typeof variantGroupSchema>;
+type Company = {
+    name: string;
+    logoUrl?: string;
+    address?: string;
+    averagePrepTime?: number;
+};
 
-type Product = {
+type VariantItem = {
+  name: string;
+  price: number;
+};
+
+type VariantGroup = {
+  name: string;
+  min: number;
+  max: number;
+  items: VariantItem[];
+};
+
+export type Product = {
     id: string;
     name: string;
     description: string;
     price: number;
     categoryId: string;
+    category?: string;
     isActive: boolean;
-    stockControlEnabled?: boolean;
-    stock: number;
-    imageUrls: string[];
-    companyId: string;
+    imageUrl?: string;
+    imageUrls?: string[];
     variants?: VariantGroup[];
-    isSoldByWeight?: boolean;
+    ingredients?: string;
     sortOrder?: number;
-}
+    stockControlEnabled?: boolean;
+    isSoldByWeight?: boolean;
+};
 
 type Category = {
     id: string;
     name: string;
     companyId: string;
     sortOrder?: number;
-}
+};
 
-export default function ProductsPage() {
-  const { user, isUserLoading } = useUser();
+// Function to get an icon for a category
+const getCategoryIcon = (categoryName: string): LucideIcon => {
+    const normalizedName = categoryName.toLowerCase();
+    
+    const iconMap: { [key: string]: LucideIcon } = {
+        'pizzas': Pizza,
+        'hambúrgueres': Ham,
+        'burgers': Ham,
+        'bebidas': GlassWater,
+        'refrigerantes': GlassWater,
+        'sucos': GlassWater,
+        'sobremesas': Cake,
+        'doces': Cake,
+        'lanches': Sandwich,
+        'sanduíches': Sandwich,
+        'saladas': LeafyGreen,
+        'açaí': IceCream,
+        'porções': UtensilsCrossed,
+        'entradas': UtensilsCrossed,
+    };
+
+    const foundKey = Object.keys(iconMap).find(key => normalizedName.includes(key));
+    
+    return foundKey ? iconMap[foundKey] : UtensilsCrossed;
+};
+
+
+const ProductDetailDialog = ({
+    product,
+    open,
+    onOpenChange,
+    onAddToCart,
+}: {
+    product: Product;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    onAddToCart: (product: Product, quantity: number, notes?: string, variants?: SelectedVariant[]) => void;
+}) => {
+    const [selectedVariants, setSelectedVariants] = useState<SelectedVariant[]>([]);
+    const [notes, setNotes] = useState('');
+    const [quantity, setQuantity] = useState(1);
+    const [weight, setWeight] = useState('1.000');
+    const { toast } = useToast();
+
+    const imageUrl = product.imageUrl || (product.imageUrls && product.imageUrls.length > 0 ? product.imageUrls[0] : null);
+
+    const handleSelection = (groupName: string, itemName: string, price: number, isSingleChoice: boolean) => {
+        const group = product.variants?.find(v => v.name === groupName);
+        if (!group) return;
+        const isCurrentlySelected = selectedVariants.some(v => v.groupName === groupName && v.itemName === itemName);
+        const groupItemsSelectedCount = selectedVariants.filter(v => v.groupName === groupName).length;
+        if (isSingleChoice) {
+            setSelectedVariants(prev => [...prev.filter(v => v.groupName !== groupName), { groupName, itemName, price }]);
+        } else {
+            if (isCurrentlySelected) {
+                setSelectedVariants(prev => prev.filter(v => !(v.groupName === groupName && v.itemName === itemName)));
+            } else {
+                if (groupItemsSelectedCount >= group.max) {
+                    toast({ variant: 'destructive', title: 'Limite atingido', description: `Máximo de ${group.max} opção(ões) para "${groupName}".` });
+                } else {
+                    setSelectedVariants(prev => [...prev, { groupName, itemName, price }]);
+                }
+            }
+        }
+    };
+
+    const isSelected = (groupName: string, itemName: string) =>
+        selectedVariants.some(v => v.groupName === groupName && v.itemName === itemName);
+
+    const unitPrice = useMemo(() => {
+        const optionsPrice = selectedVariants.reduce((total, v) => total + v.price, 0);
+        return product.price + optionsPrice;
+    }, [product.price, selectedVariants]);
+
+    const finalPrice = product.isSoldByWeight 
+        ? unitPrice * (parseFloat(weight.replace(',', '.')) || 0)
+        : unitPrice * quantity;
+
+    const handleConfirm = () => {
+        for (const group of product.variants || []) {
+            const selectedCount = selectedVariants.filter(v => v.groupName === group.name).length;
+            if (selectedCount < group.min) {
+                toast({ variant: 'destructive', title: 'Seleção Incompleta', description: `Selecione pelo menos ${group.min} opção(ões) para "${group.name}".` });
+                return;
+            }
+        }
+        if (product.isSoldByWeight) {
+            const w = parseFloat(weight.replace(',', '.'));
+            if (isNaN(w) || w <= 0) {
+                toast({ variant: 'destructive', title: 'Peso Inválido', description: 'Por favor, insira um peso válido.' });
+                return;
+            }
+            onAddToCart(product, w, notes, selectedVariants);
+        } else {
+            onAddToCart(product, quantity, notes, selectedVariants);
+        }
+        onOpenChange(false);
+    };
+
+    useEffect(() => {
+        if (open) {
+            setSelectedVariants([]);
+            setNotes('');
+            setQuantity(1);
+            setWeight('1.000');
+        }
+    }, [open, product]);
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-lg p-0 overflow-hidden">
+                {/* Always include DialogTitle for accessibility */}
+                <DialogHeader className="sr-only">
+                    <DialogTitle>{product.name}</DialogTitle>
+                </DialogHeader>
+
+                {/* Product Image Banner */}
+                {imageUrl ? (
+                    <div className="relative h-52 w-full bg-muted">
+                        <Image src={imageUrl} alt={product.name} fill style={{ objectFit: 'cover' }} unoptimized />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                        <div className="absolute bottom-3 left-4 right-4">
+                            <h2 className="text-xl font-bold text-white drop-shadow">{product.name}</h2>
+                            <p className="text-sm text-white/80 mt-0.5">R$ {product.price.toFixed(2)}</p>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="px-5 pt-2">
+                        <p className="text-xl font-bold">{product.name}</p>
+                    </div>
+                )}
+
+                <ScrollArea className="max-h-[55vh]">
+                    <div className="space-y-4 px-5 py-4">
+                        {/* Description */}
+                        {product.description && (
+                            <p className="text-sm text-muted-foreground leading-relaxed">{product.description}</p>
+                        )}
+
+                        {/* Ingredients */}
+                        {product.ingredients && (
+                            <div className="rounded-lg bg-muted/50 p-3">
+                                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Ingredientes</p>
+                                <p className="text-sm text-foreground">{product.ingredients}</p>
+                            </div>
+                        )}
+
+                        {/* Variants/Add-ons */}
+                        {product.variants?.map((group) => {
+                            const isSingleChoice = group.max === 1 && group.min === 1;
+                            return (
+                                <div key={group.name} className="space-y-2">
+                                    <Separator />
+                                    <div className="flex items-center justify-between">
+                                        <h4 className="font-semibold">{group.name}</h4>
+                                        {group.min > 0 && <span className="text-xs bg-primary/10 text-primary rounded-full px-2 py-0.5 font-medium">Obrigatório</span>}
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                        {group.min > 0 && group.max > group.min
+                                            ? `Selecione de ${group.min} a ${group.max} opções`
+                                            : group.min > 0 && group.max === group.min
+                                            ? `Selecione ${group.min} ${group.min > 1 ? 'opções' : 'opção'}`
+                                            : `Selecione até ${group.max} ${group.max > 1 ? 'opções' : 'opção'}`}
+                                    </p>
+                                    {isSingleChoice ? (
+                                        <RadioGroup onValueChange={(value) => handleSelection(group.name, value.split(';')[0], parseFloat(value.split(';')[1]), true)}>
+                                            {group.items.map(item => (
+                                                <div key={item.name} className="flex items-center justify-between rounded-lg border px-3 py-2 has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5 transition-colors">
+                                                    <div className="flex items-center gap-2">
+                                                        <RadioGroupItem value={`${item.name};${item.price}`} id={`${group.name}-${item.name}`} />
+                                                        <Label htmlFor={`${group.name}-${item.name}`} className="cursor-pointer font-normal">{item.name}</Label>
+                                                    </div>
+                                                    {item.price > 0 && <span className="text-sm font-medium text-primary">+ R$ {item.price.toFixed(2)}</span>}
+                                                </div>
+                                            ))}
+                                        </RadioGroup>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            {group.items.map(item => (
+                                                <div key={item.name} className="flex items-center justify-between rounded-lg border px-3 py-2 has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5 transition-colors">
+                                                    <div className="flex items-center gap-2">
+                                                        <Checkbox
+                                                            id={`${group.name}-${item.name}`}
+                                                            checked={isSelected(group.name, item.name)}
+                                                            onCheckedChange={() => handleSelection(group.name, item.name, item.price, false)}
+                                                        />
+                                                        <Label htmlFor={`${group.name}-${item.name}`} className="cursor-pointer font-normal">{item.name}</Label>
+                                                    </div>
+                                                    {item.price > 0 && <span className="text-sm font-medium text-primary">+ R$ {item.price.toFixed(2)}</span>}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+
+                        {/* Notes */}
+                        <Separator />
+                        
+                        {product.isSoldByWeight && (
+                            <div className="bg-primary/5 rounded-xl p-4 border border-primary/10 space-y-3">
+                                <Label className="text-primary font-bold">Informar Peso (Kg)</Label>
+                                <div className="relative">
+                                    <Input 
+                                        type="text" 
+                                        className="h-14 text-2xl font-black text-center pr-12" 
+                                        value={weight}
+                                        onChange={(e) => setWeight(e.target.value)}
+                                        placeholder="1.000"
+                                    />
+                                    <span className="absolute right-4 top-1/2 -translate-y-1/2 font-bold text-muted-foreground">Kg</span>
+                                </div>
+                                <p className="text-[10px] text-muted-foreground text-center">Ex: 0.500 para 500 gramas</p>
+                            </div>
+                        )}
+
+                        <div className="space-y-2 pb-2">
+                            <Label htmlFor="notes" className="font-semibold">Alguma observação?</Label>
+                            <Textarea
+                                id="notes"
+                                placeholder="Ex: sem cebola, ponto da carne bem passado…"
+                                value={notes}
+                                onChange={(e) => setNotes(e.target.value)}
+                                className="resize-none"
+                                rows={2}
+                            />
+                        </div>
+                    </div>
+                </ScrollArea>
+
+                {/* Footer: Quantity + Add to Cart */}
+                <div className="flex items-center gap-3 border-t px-5 py-4 bg-background">
+                    {/* Quantity selector or Weight text */}
+                    {!product.isSoldByWeight ? (
+                        <div className="flex items-center gap-2 rounded-lg border px-2 py-1">
+                            <button
+                                className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-foreground disabled:opacity-30 transition-colors"
+                                onClick={() => setQuantity(q => Math.max(1, q - 1))}
+                                disabled={quantity <= 1}
+                            >
+                                <Minus className="h-4 w-4" />
+                            </button>
+                            <span className="w-5 text-center font-bold text-base">{quantity}</span>
+                            <button
+                                className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-foreground transition-colors"
+                                onClick={() => setQuantity(q => q + 1)}
+                            >
+                                <Plus className="h-4 w-4" />
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center px-1">
+                            <span className="text-[10px] uppercase font-bold text-muted-foreground leading-none">Peso</span>
+                            <span className="text-sm font-black">{(parseFloat(weight.replace(',', '.')) || 0).toFixed(3)}kg</span>
+                        </div>
+                    )}
+                    {/* Add to cart button */}
+                    <Button className="flex-1 h-11 text-base font-semibold" onClick={handleConfirm}>
+                        Adicionar · R$ {finalPrice.toFixed(2)}
+                    </Button>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+};
+
+
+const ProductCard = ({ product }: { product: Product }) => {
+    const { addToCart } = useCart();
+    const [isDetailOpen, setIsDetailOpen] = useState(false);
+
+    const imageUrl = useMemo(() =>
+        product.imageUrl || (product.imageUrls && product.imageUrls.length > 0 ? product.imageUrls[0] : null)
+    , [product]);
+
+    return (
+        <>
+            <div
+                className="group relative flex cursor-pointer overflow-hidden rounded-2xl border bg-card p-4 shadow-sm transition-all duration-300 hover:border-primary/40 hover:shadow-md"
+                onClick={() => setIsDetailOpen(true)}
+            >
+                <div className="flex flex-1 flex-col justify-between pr-4">
+                    <div>
+                        <h3 className="text-base font-bold leading-tight text-foreground">{product.name}</h3>
+                        <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{product.description}</p>
+                    </div>
+                    <div className="mt-4 flex items-center gap-2">
+                        <span className="font-semibold text-primary">R$ {product.price.toFixed(2)}</span>
+                        {product.isSoldByWeight && (
+                            <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-primary/30 text-primary/70">por Kg</Badge>
+                        )}
+                    </div>
+                </div>
+
+                {imageUrl ? (
+                    <div className="relative h-28 w-28 shrink-0 overflow-hidden rounded-xl bg-muted/20">
+                        <Image
+                            src={imageUrl}
+                            alt={product.name}
+                            fill
+                            style={{ objectFit: 'cover' }}
+                            className="transition-transform duration-500 group-hover:scale-110"
+                            unoptimized
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+                        <div className="absolute bottom-1 right-1 flex h-8 w-8 translate-x-4 translate-y-4 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md transition-transform duration-300 group-hover:translate-x-0 group-hover:translate-y-0">
+                            <Plus className="h-5 w-5" />
+                        </div>
+                    </div>
+                ) : (
+                    <div className="flex shrink-0 flex-col justify-end">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+                            <Plus className="h-5 w-5" />
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            <ProductDetailDialog
+                product={product}
+                open={isDetailOpen}
+                onOpenChange={setIsDetailOpen}
+                onAddToCart={addToCart}
+            />
+        </>
+    );
+};
+
+export default function MenuPage() {
+  const params = useParams();
+  const companyId = params?.companyId as string;
   const firestore = useFirestore();
-  const { toast } = useToast();
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [newCategoryName, setNewCategoryName] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
-  
-  const form = useForm<z.infer<typeof productFormSchema>>({
-    resolver: zodResolver(productFormSchema),
-    defaultValues: {
-      name: '',
-      description: '',
-      price: 0,
-      categoryId: '',
-      imageUrl: '',
-      isActive: true,
-      stockControlEnabled: false,
-      stock: 0,
-      variants: [],
-      isSoldByWeight: false,
-      replicateToCategory: false,
-    },
-  });
 
-  const { fields, append, remove } = useFieldArray({
-    control: form.control,
-    name: "variants",
-  });
+  // Fetch company data
+  const companyRef = useMemoFirebase(() => {
+    if (!firestore || !companyId) return null;
+    return doc(firestore, 'companies', companyId);
+  }, [firestore, companyId]);
+  const { data: company, isLoading: isLoadingCompany } = useDoc<Company>(companyRef);
 
-  useEffect(() => {
-    if (editingProduct) {
-      form.reset({
-        name: editingProduct.name,
-        description: editingProduct.description || '',
-        price: editingProduct.price,
-        categoryId: editingProduct.categoryId,
-        isActive: editingProduct.isActive,
-        stockControlEnabled: editingProduct.stockControlEnabled ?? false,
-        stock: editingProduct.stock ?? 0,
-        imageUrl: editingProduct.imageUrls?.[0] || '',
-        variants: editingProduct.variants || [],
-        isSoldByWeight: editingProduct.isSoldByWeight ?? false,
-        replicateToCategory: false,
-      });
-    } else {
-      form.reset({
-        name: '',
-        description: '',
-        price: 0,
-        categoryId: '',
-        imageUrl: '',
-        isActive: true,
-        stockControlEnabled: false,
-        stock: 0,
-        variants: [],
-        isSoldByWeight: false,
-        replicateToCategory: false,
-      });
-    }
-  }, [editingProduct, form]);
-  
+  // Fetch products
   const productsRef = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return collection(firestore, `companies/${user.uid}/products`);
-  }, [firestore, user]);
-
+    if (!firestore || !companyId) return null;
+    return collection(firestore, 'companies', companyId, 'products');
+  }, [firestore, companyId]);
   const { data: products, isLoading: isLoadingProducts } = useCollection<Product>(productsRef);
 
+  // Fetch categories
   const categoriesRef = useMemoFirebase(() => {
-      if (!firestore || !user) return null;
-      return collection(firestore, `companies/${user.uid}/categories`);
-  }, [firestore, user]);
-
+    if (!firestore || !companyId) return null;
+    return collection(firestore, 'companies', companyId, 'categories');
+  }, [firestore, companyId]);
   const { data: categories, isLoading: isLoadingCategories } = useCollection<Category>(categoriesRef);
 
-  const onSubmit = async (values: z.infer<typeof productFormSchema>) => {
-    if (!user || !firestore) return;
-    setIsSaving(true);
+  const productsByCategory = useMemo(() => {
+    if (!products || !categories) return {};
 
-    let finalImageUrl = values.imageUrl;
-
-    if (finalImageUrl && (finalImageUrl.includes('photos.app.goo.gl') || finalImageUrl.includes('photos.google.com') || finalImageUrl.includes('drive.google.com'))) {
-        try {
-            const res = await fetch(`/api/extract-og-image?url=${encodeURIComponent(finalImageUrl)}`);
-            if (res.ok) {
-                const data = await res.json();
-                if (data.imageUrl) {
-                    finalImageUrl = data.imageUrl;
-                }
-            } else {
-                toast({ variant: 'destructive', title: 'Aviso sobre a Imagem', description: 'Não conseguimos ler a imagem deste link. Talvez o álbum seja privado.' });
-            }
-        } catch(e) {
-            console.error('Error extracting image:', e);
-        }
-    }
-
-    const productData = {
-      ...values,
-      imageUrl: finalImageUrl,
-      companyId: user.uid,
-      imageUrls: finalImageUrl ? [finalImageUrl] : [],
-    };
-    
-    let promise;
-    if (editingProduct) {
-      const productDocRef = doc(firestore, `companies/${user.uid}/products/${editingProduct.id}`);
-      promise = updateDocument(productDocRef, productData);
-      
-      // Lógica de Replicação para Categoria
-      if (values.replicateToCategory && values.variants && values.variants.length > 0) {
-          const bulkUpdatePromise = (async () => {
-              const q = query(
-                  collection(firestore, `companies/${user.uid}/products`),
-                  where('categoryId', '==', values.categoryId)
-              );
-              const snapshot = await getDocs(q);
-              const batch = writeBatch(firestore);
-              
-              snapshot.docs.forEach((productDoc) => {
-                  if (productDoc.id !== editingProduct.id) {
-                      batch.update(productDoc.ref, { 
-                          variants: values.variants 
-                      });
-                  }
-              });
-              
-              await batch.commit();
-              return snapshot.size - 1; // Retorna quantos foram replicados
-          })();
-          
-          bulkUpdatePromise.then((count) => {
-              if (count > 0) {
-                  toast({
-                      title: 'Replicação Concluída!',
-                      description: `Os grupos de opções foram replicados para ${count} produto(s) desta categoria.`,
-                  });
-              }
-          });
-      }
-    } else {
-        if (!productsRef) {
-            setIsSaving(false);
-            return;
-        }
-        promise = addDocument(productsRef, { 
-            ...productData, 
-            stock: 0, // Default stock
-            sortOrder: Date.now(),
-        });
-    }
-
-    promise.then(() => {
-        toast({
-            title: editingProduct ? 'Produto Atualizado!' : 'Produto Adicionado!',
-            description: `${values.name} foi salvo com sucesso.`,
-        });
-        form.reset();
-        setIsDialogOpen(false);
-        setEditingProduct(null);
-    }).catch(() => {
-        toast({ variant: 'destructive', title: 'Erro', description: 'Ocorreu um erro ao salvar o produto.' });
-    }).finally(() => {
-        setIsSaving(false);
-    });
-  };
-
-  const handleOpenDialog = (product: Product | null = null) => {
-    setEditingProduct(product);
-    setIsDialogOpen(true);
-  };
-  
-  const handleDeleteProduct = (productId: string) => {
-    if (!firestore || !user) return;
-    const productDocRef = doc(firestore, `companies/${user.uid}/products/${productId}`);
-    deleteDocument(productDocRef).then(() => {
-        toast({
-            title: 'Produto Excluído',
-            description: 'O produto foi removido do seu catálogo.',
-            variant: 'destructive'
-        });
-    });
-  }
-
-    const handleDuplicateProduct = (product: Product) => {
-    if (!productsRef) return;
-    
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { id, ...productDataToCopy } = product;
-    const duplicatedData = {
-        ...productDataToCopy,
-        name: `${product.name} (Cópia)`,
-        sortOrder: Date.now(),
-    };
-
-    addDocument(productsRef, duplicatedData).then(() => {
-        toast({
-            title: 'Produto Duplicado!',
-            description: `Uma cópia de "${product.name}" foi criada.`,
-        });
-    });
-  };
-
-  const handleAddCategory = () => {
-    if (!newCategoryName.trim()) {
-        toast({ variant: "destructive", title: "Nome da categoria é obrigatório." });
-        return;
-    }
-    if (!categoriesRef) return;
-    addDocument(categoriesRef, { name: newCategoryName, companyId: user?.uid, sortOrder: Date.now() }).then(() => {
-        toast({ title: "Categoria adicionada!" });
-        setNewCategoryName('');
-        setIsCategoryDialogOpen(false);
-    });
-  };
-
-  const isLoading = isUserLoading || isLoadingProducts || isLoadingCategories;
-
-  const getProductImage = (product: Product): string | null => {
-    return product.imageUrls && product.imageUrls.length > 0 ? product.imageUrls[0] : null;
-  };  
-  const sortedCategoriesList = useMemo(() => {
-    if (!categories) return [];
-    return [...categories].sort((a, b) => {
-        if (a.sortOrder !== undefined && b.sortOrder !== undefined) return a.sortOrder - b.sortOrder;
-        if (a.sortOrder !== undefined) return -1;
-        if (b.sortOrder !== undefined) return 1;
-        return a.name.localeCompare(b.name);
-    });
-  }, [categories]);
-
-  const categoryMap = useMemo(() => {
-    if (!categories) return new Map();
-    return new Map(categories.map(cat => [cat.id, cat.name]));
-  }, [categories]);
-
-  const sortedAndFilteredProducts = useMemo(() => {
-    if (!products) return [];
-    
-    const sortFn = (a: Product, b: Product) => {
-        const catAIndex = sortedCategoriesList.findIndex(c => c.id === a.categoryId);
-        const catBIndex = sortedCategoriesList.findIndex(c => c.id === b.categoryId);
-        if (catAIndex !== catBIndex) return catAIndex - catBIndex;
+    const activeProducts = products.filter(p => {
+        const matchesActive = p.isActive;
+        if (!matchesActive) return false;
         
+        if (!searchQuery.trim()) return true;
+        
+        const queryNorm = searchQuery.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        const nameNorm = p.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        const descNorm = (p.description || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        
+        return nameNorm.includes(queryNorm) || descNorm.includes(queryNorm);
+    });
+
+    const categoriesById = new Map(categories.map(c => [c.id, c.name]));
+
+    const grouped = activeProducts.reduce((acc, product) => {
+        const categoryName = categoriesById.get(product.categoryId) || 'Outros';
+        if (!acc[categoryName]) {
+            acc[categoryName] = [];
+        }
+        acc[categoryName].push(product);
+        return acc;
+    }, {} as { [key: string]: Product[] });
+    
+    // Filtramos para manter apenas categorias que possuem produtos após a busca
+    const filteredGrouped = Object.fromEntries(
+        Object.entries(grouped).filter(([_, items]) => items.length > 0)
+    );
+
+    const sortedCategoriesList = [...categories].sort((a, b) => {
         if (a.sortOrder !== undefined && b.sortOrder !== undefined) return a.sortOrder - b.sortOrder;
         if (a.sortOrder !== undefined) return -1;
         if (b.sortOrder !== undefined) return 1;
         return a.name.localeCompare(b.name);
-    }
-    
-    let result = [...products].sort(sortFn);
-    if (searchQuery.trim()) {
-        result = result.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()));
-    }
-    return result;
-  }, [products, searchQuery, sortedCategoriesList]);
+    });
 
-  const handleMoveCategory = (index: number, direction: 'up' | 'down') => {
-      if (!firestore || !user || !sortedCategoriesList) return;
-      const targetIndex = direction === 'up' ? index - 1 : index + 1;
-      if (targetIndex < 0 || targetIndex >= sortedCategoriesList.length) return;
+    const categoryOrder = sortedCategoriesList.map(c => c.name);
 
-      const currentCat = sortedCategoriesList[index];
-      const targetCat = sortedCategoriesList[targetIndex];
+    const sortedCategoryNames = Object.keys(filteredGrouped).sort((a, b) => {
+        const indexA = categoryOrder.indexOf(a);
+        const indexB = categoryOrder.indexOf(b);
+        if (a === 'Outros') return 1;
+        if (b === 'Outros') return -1;
+        if (indexA > -1 && indexB > -1) return indexA - indexB;
+        if (indexA > -1) return -1;
+        if (indexB > -1) return 1;
+        return a.localeCompare(b);
+    });
 
-      let currentOrder = currentCat.sortOrder !== undefined ? currentCat.sortOrder : index * 10;
-      let targetOrder = targetCat.sortOrder !== undefined ? targetCat.sortOrder : targetIndex * 10;
-      if (currentOrder === targetOrder) {
-          targetOrder += (direction === 'up' ? -1 : 1);
-      }
-
-      const docRef1 = doc(firestore, `companies/${user.uid}/categories/${currentCat.id}`);
-      const docRef2 = doc(firestore, `companies/${user.uid}/categories/${targetCat.id}`);
-
-      Promise.all([
-          updateDocument(docRef1, { sortOrder: targetOrder }),
-          updateDocument(docRef2, { sortOrder: currentOrder })
-      ]);
-  };
-
-  const handleMoveProduct = (product: Product, direction: 'up' | 'down') => {
-      if (!firestore || !user || !products) return;
-      const categoryProducts = products
-        .filter(p => p.categoryId === product.categoryId)
-        .sort((a, b) => {
+    const finalGrouped: { [key: string]: Product[] } = {};
+    for (const name of sortedCategoryNames) {
+        finalGrouped[name] = filteredGrouped[name].sort((a, b) => {
             if (a.sortOrder !== undefined && b.sortOrder !== undefined) return a.sortOrder - b.sortOrder;
             if (a.sortOrder !== undefined) return -1;
             if (b.sortOrder !== undefined) return 1;
             return a.name.localeCompare(b.name);
         });
+    }
+    
+    return finalGrouped;
 
-      const index = categoryProducts.findIndex(p => p.id === product.id);
-      if (index === -1) return;
+  }, [products, categories, searchQuery]);
 
-      const targetIndex = direction === 'up' ? index - 1 : index + 1;
-      if (targetIndex < 0 || targetIndex >= categoryProducts.length) return;
-
-      const targetProduct = categoryProducts[targetIndex];
-      let currentOrder = product.sortOrder !== undefined ? product.sortOrder : index * 10;
-      let targetOrder = targetProduct.sortOrder !== undefined ? targetProduct.sortOrder : targetIndex * 10;
-      if (currentOrder === targetOrder) {
-          targetOrder += (direction === 'up' ? -1 : 1);
-      }
-
-      const docRef1 = doc(firestore, `companies/${user.uid}/products/${product.id}`);
-      const docRef2 = doc(firestore, `companies/${user.uid}/products/${targetProduct.id}`);
-
-      Promise.all([
-          updateDocument(docRef1, { sortOrder: targetOrder }),
-          updateDocument(docRef2, { sortOrder: currentOrder })
-      ]);
-  };
-
-  const handlePrintStockReport = () => {
-        if (!products) return;
-        
-        const outOfStockItems = products.filter(p => p.stockControlEnabled && p.stock <= 0);
-        
-        if (outOfStockItems.length === 0) {
-            toast({ title: 'Tudo em dia!', description: 'Não há produtos com estoque zerado ou negativo no momento.' });
-            return;
-        }
-
-        const printHtml = `
-            <html>
-                <head>
-                    <title>Relatório de Estoque Zerado/Negativo</title>
-                    <style>
-                        body { font-family: Arial, sans-serif; margin: 30px; }
-                        h1 { text-align: center; color: #333; }
-                        .date { text-align: right; color: #666; margin-bottom: 20px; }
-                        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-                        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
-                        th { background-color: #f4f4f4; }
-                        .qty { font-weight: bold; color: #e11d48; }
-                        .category { color: #666; font-size: 0.9em; }
-                    </style>
-                </head>
-                <body>
-                    <h1>Relatório de Reposição de Estoque</h1>
-                    <div class="date">Gerado em: ${new Date().toLocaleString('pt-BR')}</div>
-                    
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Produto</th>
-                                <th>Categoria</th>
-                                <th>Estoque Atual</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${outOfStockItems.map(p => `
-                                <tr>
-                                    <td>${p.name}</td>
-                                    <td class="category">${categoryMap.get(p.categoryId) || 'Sem Categoria'}</td>
-                                    <td class="qty">${p.stock}</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                    
-                    <div style="margin-top: 30px; font-size: 0.8em; color: #999; text-align: center;">
-                        DeliveryHub - Sistema de Gestão
-                    </div>
-
-                    <script>
-                        window.print();
-                        window.onafterprint = () => window.close();
-                    </script>
-                </body>
-            </html>
-        `;
-
-        const printWindow = window.open('', '_blank');
-        if (printWindow) {
-            printWindow.document.write(printHtml);
-            printWindow.document.close();
-        }
-  };
+  const isLoading = isLoadingCompany || isLoadingProducts || isLoadingCategories;
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <CardTitle className="text-xl sm:text-2xl">Produtos</CardTitle>
-            <CardDescription className="text-xs sm:text-sm">Gerencie seus produtos, variantes e categorias.</CardDescription>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Dialog open={isCategoryDialogOpen} onOpenChange={setIsCategoryDialogOpen}>
-                <DialogTrigger asChild>
-                    <Button size="sm" variant="outline">Gerenciar Categorias</Button>
-                </DialogTrigger>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Gerenciar Categorias</DialogTitle>
-                        <DialogDescription>Adicione ou remova categorias de produtos.</DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                        <div className="flex gap-2">
-                            <Input value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} placeholder="Nome da nova categoria" />
-                            <Button onClick={handleAddCategory}>Adicionar</Button>
-                        </div>
-                        <Separator />
-                        <h4 className="font-medium">Categorias existentes</h4>
-                        <div className="space-y-2">
-                             {sortedCategoriesList?.map((cat, index) => (
-                                <div key={cat.id} className="flex items-center justify-between p-2 border rounded-md">
-                                    <span>{cat.name}</span>
-                                    <div className="flex items-center gap-1">
-                                        <Button variant="ghost" size="icon" onClick={() => handleMoveCategory(index, 'up')} disabled={index === 0}>
-                                            <ArrowUp className="h-4 w-4" />
-                                        </Button>
-                                        <Button variant="ghost" size="icon" onClick={() => handleMoveCategory(index, 'down')} disabled={index === sortedCategoriesList.length - 1}>
-                                            <ArrowDown className="h-4 w-4" />
-                                        </Button>
-                                        <Button variant="ghost" size="icon" disabled>
-                                            <Trash2 className="h-4 w-4 text-destructive" />
-                                        </Button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </DialogContent>
-            </Dialog>
-           <Button size="sm" variant="outline" className="gap-1" onClick={handlePrintStockReport}>
-              <Printer className="h-4 w-4" />
-              Relatório de Estoque Zerado
-           </Button>
-           <Button size="sm" className="gap-1" onClick={() => handleOpenDialog()}>
-              <PlusCircle className="h-4 w-4" />
-              Adicionar Produto
-           </Button>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <>
-          <Dialog open={isDialogOpen} onOpenChange={(isOpen) => {
-          setIsDialogOpen(isOpen);
-          if (!isOpen) setEditingProduct(null);
-        }}>
-          <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col">
-            <DialogHeader>
-              <DialogTitle>{editingProduct ? 'Editar Produto' : 'Adicionar Novo Produto'}</DialogTitle>
-              <DialogDescription>
-                {editingProduct ? 'Atualize os detalhes do produto.' : 'Preencha os detalhes do seu novo produto.'}
-              </DialogDescription>
-            </DialogHeader>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="flex-grow overflow-y-auto pr-6 pl-1 space-y-4">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nome</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Ex: Cheeseburger Duplo" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="description"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Descrição</FormLabel>
-                      <FormControl>
-                        <Textarea placeholder="Pão, duas carnes, queijo, salada..." {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="price"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{form.watch('isSoldByWeight') ? 'Preço por Kg (R$)' : 'Preço Base (R$)'}</FormLabel>
-                        <FormControl>
-                            <Input type="number" step="0.01" placeholder="29.90" {...field} />
-                        </FormControl>
-                          <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                   <FormField
-                      control={form.control}
-                      name="isSoldByWeight"
-                      render={({ field }) => (
-                          <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-muted/20">
-                              <div className="space-y-0.5">
-                                  <FormLabel>Vendido por Peso</FormLabel>
-                                  <FormDescription className="text-[10px]">
-                                      O preço será calculado com base no peso (Kg).
-                                  </FormDescription>
-                              </div>
-                              <FormControl>
-                                  <Switch
-                                      checked={field.value}
-                                      onCheckedChange={field.onChange}
-                                  />
-                              </FormControl>
-                          </FormItem>
-                      )}
-                  />
-                    <FormField
-                      control={form.control}
-                      name="categoryId"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Categoria</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Selecione uma categoria" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                                {categories?.map(cat => (
-                                    <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+    <div className="container mx-auto px-4 py-8">
+      {isLoading ? (
+        <header className="mb-10 text-center space-y-4 pt-4">
+             <Skeleton className="h-24 w-24 rounded-full mx-auto" />
+             <Skeleton className="h-10 w-1/2 mx-auto" />
+             <Skeleton className="h-5 w-1/3 mx-auto" />
+        </header>
+      ) : company ? (
+        <header className="mb-8 pt-6 text-center relative">
+            <div className="absolute inset-0 -top-8 -z-10 h-64 w-full bg-gradient-to-b from-primary/10 to-background opacity-60 pointer-events-none" />
+            
+            {company.logoUrl && (
+                <div className="mx-auto mb-5 h-24 w-24 overflow-hidden rounded-full border-4 border-background shadow-lg">
+                    <Image src={company.logoUrl} alt={`${company.name} logo`} width={96} height={96} className="h-full w-full object-cover" />
                 </div>
-                <FormField
-                  control={form.control}
-                  name="imageUrl"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>URL ou Endereço da Imagem</FormLabel>
-                      <FormControl>
-                        <Input placeholder="https://exemplo.com/imagem.png" {...field} />
-                      </FormControl>
-                      <FormDescription>
-                        Para usar imagem do <strong>Google Fotos</strong> ou da internet, clique na foto com o botão direito e escolha <strong>"Copiar endereço da imagem"</strong> e cole aqui.
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="isActive"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                      <div className="space-y-0.5">
-                        <FormLabel>Produto Ativo</FormLabel>
-                        <DialogDescription>
-                           Desmarque para esconder o produto do cardápio.
-                        </DialogDescription>
-                      </div>
-                      <FormControl>
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="stockControlEnabled"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-primary/5 border-primary/20">
-                      <div className="space-y-0.5">
-                        <FormLabel>Controle de Estoque</FormLabel>
-                        <DialogDescription>
-                           Ative para gerenciar a quantidade disponível deste produto.
-                        </DialogDescription>
-                      </div>
-                      <FormControl>
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-
-                {form.watch('stockControlEnabled') && (
-                  <FormField
-                    control={form.control}
-                    name="stock"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Quantidade em Estoque</FormLabel>
-                        <FormControl>
-                          <Input type="number" {...field} placeholder="Ex: 50" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                )}
-
-                <Separator />
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold">Grupos de Opções (Variantes)</h3>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => append({ name: '', min: 0, max: 1, items: [{ name: '', price: 0 }] })}
-                    >
-                      <PlusCircle className="mr-2 h-4 w-4" />
-                      Adicionar Grupo
-                    </Button>
-                  </div>
-
-                  {fields.length > 0 && editingProduct && (
-                      <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 space-y-3">
-                          <div className="flex items-start gap-4">
-                              <FormField
-                                  control={form.control}
-                                  name="replicateToCategory"
-                                  render={({ field }) => (
-                                      <FormItem className="flex flex-row items-center justify-between rounded-lg p-0 space-x-3">
-                                          <FormControl>
-                                              <Switch
-                                                  checked={field.value}
-                                                  onCheckedChange={field.onChange}
-                                              />
-                                          </FormControl>
-                                          <div className="space-y-0.5">
-                                              <FormLabel className="text-orange-900 font-bold">Replicar para categoria</FormLabel>
-                                              <FormDescription className="text-orange-700 text-xs">
-                                                  Ao salvar, estes grupos de opções serão copiados para TODOS os produtos da categoria selecionada.
-                                              </FormDescription>
-                                          </div>
-                                      </FormItem>
-                                  )}
-                              />
-                          </div>
-                      </div>
-                  )}
-
-                  {fields.map((field, groupIndex) => (
-                    <Card key={field.id} className="p-4 bg-muted/50">
-                      <div className="flex justify-between items-start mb-2">
-                         <h4 className="font-semibold">Grupo de Opções</h4>
-                         <Button type="button" variant="ghost" size="icon" onClick={() => remove(groupIndex)}>
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                        <FormField
-                          control={form.control}
-                          name={`variants.${groupIndex}.name`}
-                          render={({ field }) => (
-                            <FormItem className="col-span-3">
-                              <FormLabel>Nome do Grupo</FormLabel>
-                              <FormControl><Input {...field} placeholder="Ex: Escolha sua bebida" /></FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                         <FormField
-                          control={form.control}
-                          name={`variants.${groupIndex}.min`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Mínimo</FormLabel>
-                              <FormControl><Input type="number" {...field} /></FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name={`variants.${groupIndex}.max`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Máximo</FormLabel>
-                              <FormControl><Input type="number" {...field} /></FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-                      <VariantItemsArray groupIndex={groupIndex} control={form.control} />
-                    </Card>
-                  ))}
-                </div>
-
-                <DialogFooter className="sticky bottom-0 bg-background pt-4 z-10">
-                  <DialogClose asChild>
-                    <Button type="button" variant="outline" disabled={isSaving}>Cancelar</Button>
-                  </DialogClose>
-                  <Button type="submit" disabled={isSaving}>
-                      {isSaving ? 'Salvando...' : 'Salvar Produto'}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
-        <div className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Pesquisar produto por nome..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
-          <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="hidden w-[64px] sm:table-cell">
-                <span className="sr-only">Image</span>
-              </TableHead>
-              <TableHead>Nome</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Preço</TableHead>
-              <TableHead className="hidden md:table-cell">Estoque</TableHead>
-              <TableHead className="hidden md:table-cell">Categoria</TableHead>
-              <TableHead>
-                <span className="sr-only">Actions</span>
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading && (
-              <TableRow>
-                <TableCell colSpan={7} className="text-center">Carregando produtos...</TableCell>
-              </TableRow>
             )}
-            {!isLoading && sortedAndFilteredProducts.map((product) => {
-              const imageUrl = getProductImage(product);
-              return (
-                <TableRow key={product.id}>
-                  <TableCell className="hidden sm:table-cell">
-                    {imageUrl ? (
-                        <Image
-                            alt={product.name}
-                            className="aspect-square rounded-md object-cover"
-                            height="64"
-                            src={imageUrl}
-                            width="64"
-                            unoptimized
-                        />
-                    ) : (
-                        <div className="h-16 w-16 bg-muted/50 rounded-md flex items-center justify-center text-[10px] text-muted-foreground border">
-                            Sem Foto
-                        </div>
-                    )}
-                  </TableCell>
-                  <TableCell className="font-medium">{product.name}</TableCell>
-                  <TableCell>
-                    <Badge variant={!product.isActive ? 'outline' : 'default'}>
-                      {product.isActive ? 'Ativo' : 'Inativo'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>R${product.price.toFixed(2)}</TableCell>
-                  <TableCell className="hidden md:table-cell">{product.stock ?? 0}</TableCell>
-                  <TableCell className="hidden md:table-cell">{categoryMap.get(product.categoryId) || 'Sem categoria'}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center justify-end">
-                      <Button variant="ghost" size="icon" onClick={() => handleMoveProduct(product, 'up')} title="Mover para cima">
-                        <ArrowUp className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleMoveProduct(product, 'down')} title="Mover para baixo">
-                        <ArrowDown className="h-4 w-4" />
-                      </Button>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button aria-haspopup="true" size="icon" variant="ghost">
-                            <MoreHorizontal className="h-4 w-4" />
-                            <span className="sr-only">Toggle menu</span>
-                          </Button>
-                        </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Ações</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => handleOpenDialog(product)}>Editar</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleDuplicateProduct(product)}>Duplicar</DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <div className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 text-destructive hover:bg-destructive/10 w-full">
-                                Excluir
-                            </div>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Essa ação não pode ser desfeita. Isso excluirá permanentemente o produto
-                                do seu catálogo.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleDeleteProduct(product.id)} className="bg-destructive hover:bg-destructive/90">
-                                Excluir
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              )
-            })}
-             {!isLoading && sortedAndFilteredProducts.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center">
-                    {searchQuery ? `Nenhum produto encontrado para "${searchQuery}".` : 'Nenhum produto encontrado.'}
-                  </TableCell>
-                </TableRow>
-              )}
-          </TableBody>
-          </Table>
-        </div>
-        </>
-      </CardContent>
-      <CardFooter>
-        <div className="text-xs text-muted-foreground">
-          Mostrando <strong>{sortedAndFilteredProducts.length}</strong> de <strong>{products?.length ?? 0}</strong> produtos
-        </div>
-      </CardFooter>
-    </Card>
-  );
-}
-
-function VariantItemsArray({ groupIndex, control }: { groupIndex: number; control: any }) {
-  const { fields, append, remove } = useFieldArray({
-    control,
-    name: `variants.${groupIndex}.items`,
-  });
-
-  return (
-    <div className="pl-4 mt-3 space-y-2">
-       <h5 className="text-sm font-medium">Itens da Opção</h5>
-        {fields.map((item, itemIndex) => (
-            <div key={item.id} className="flex items-end gap-2">
-                <FormField
-                    control={control}
-                    name={`variants.${groupIndex}.items.${itemIndex}.name`}
-                    render={({ field }) => (
-                        <FormItem className="flex-grow">
-                            <FormLabel className="sr-only">Nome do Item</FormLabel>
-                            <FormControl><Input {...field} placeholder="Ex: Coca-Cola" /></FormControl>
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
-                <FormField
-                    control={control}
-                    name={`variants.${groupIndex}.items.${itemIndex}.price`}
-                    render={({ field }) => (
-                        <FormItem>
-                             <FormLabel className="sr-only">Preço Adicional</FormLabel>
-                            <FormControl><Input type="number" step="0.01" {...field} placeholder="Preço Adicional" /></FormControl>
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
-                 <Button type="button" variant="ghost" size="icon" onClick={() => remove(itemIndex)}>
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
+          <h1 className="text-4xl font-extrabold tracking-tight text-foreground sm:text-5xl bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70 pb-1">{company.name}</h1>
+          <p className="mt-2 text-base font-medium text-muted-foreground">{company.address}</p>
+          
+          {company.averagePrepTime && (
+            <div className="mt-5 inline-flex flex-col items-center gap-1 rounded-2xl bg-card px-5 py-2.5 shadow-sm border">
+                <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+                    <Clock className="h-4 w-4"/>
+                    <span>Tempo de Preparo</span>
+                </div>
+                <span className="text-xs font-medium text-muted-foreground">~{company.averagePrepTime} minutos</span>
             </div>
-        ))}
-         <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="mt-2"
-            onClick={() => append({ name: '', price: 0 })}
-        >
-            Adicionar Item
-        </Button>
+          )}
+        </header>
+      ) : (
+         <header className="mb-12 text-center">
+            <h1 className="text-4xl font-bold tracking-tight text-destructive">Loja não encontrada.</h1>
+            <p className="mt-3 text-lg text-muted-foreground">O link do cardápio pode estar incorreto.</p>
+        </header>
+      )}
+
+      <div className="space-y-12 pb-24">
+        {/* Search Bar */}
+        {!isLoading && (
+            <div className="max-w-2xl mx-auto mb-8 sticky top-20 z-10 md:static">
+                <div className="relative group">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                    <Input 
+                        placeholder="Buscar pratos ou bebidas..." 
+                        className="pl-12 pr-10 h-14 text-lg rounded-2xl border-2 bg-background/50 backdrop-blur-md shadow-sm transition-all focus:border-primary focus:ring-0" 
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                    {searchQuery && (
+                        <button 
+                            onClick={() => setSearchQuery('')}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 h-6 w-6 flex items-center justify-center rounded-full bg-muted hover:bg-muted-foreground/20 transition-colors"
+                        >
+                            <X className="h-4 w-4" />
+                        </button>
+                    )}
+                </div>
+            </div>
+        )}
+
+        {/* Sticky Category Navbar */}
+        {!isLoading && Object.keys(productsByCategory).length > 0 && (
+            <div className="sticky top-0 z-20 -mx-4 mb-8 overflow-x-auto bg-background/80 px-4 py-3 backdrop-blur-xl border-b shadow-sm sm:mx-0 sm:rounded-b-2xl sm:px-6">
+                <div className="flex gap-2 pb-1">
+                    {Object.keys(productsByCategory).map(cat => (
+                        <a 
+                            key={cat} 
+                            href={`#cat-${cat.replace(/\s+/g, '-')}`} 
+                            className="whitespace-nowrap rounded-full bg-muted/60 px-5 py-2 text-sm font-semibold text-muted-foreground transition-all hover:bg-primary hover:text-primary-foreground hover:shadow-md active:scale-95"
+                        >
+                           {cat}
+                        </a>
+                    ))}
+                </div>
+            </div>
+        )}
+
+        {isLoading ? (
+            Object.keys(Array.from({length: 3})).map((key) => (
+                <div key={key} className="space-y-6">
+                    <Skeleton className="h-8 w-1/4" />
+                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
+                       {Array.from({length: 4}).map((_, i) => (
+                           <Card key={i} className="flex p-4 gap-4 h-36">
+                               <div className="flex-1 space-y-3">
+                                   <Skeleton className="h-5 w-3/4" />
+                                   <Skeleton className="h-4 w-full" />
+                                   <Skeleton className="h-4 w-1/4 mt-4" />
+                               </div>
+                               <Skeleton className="h-28 w-28 rounded-xl shrink-0" />
+                           </Card>
+                       ))}
+                    </div>
+                </div>
+            ))
+        ) : Object.keys(productsByCategory).length > 0 ? (
+          Object.entries(productsByCategory).map(([category, productList], idx) => {
+            const Icon = getCategoryIcon(category);
+            return (
+                <section key={category} id={`cat-${category.replace(/\s+/g, '-')}`} className="scroll-mt-24">
+                    <div className="flex items-center gap-3 mb-6 px-1">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                            <Icon className="h-6 w-6" />
+                        </div>
+                        <h2 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">{category}</h2>
+                    </div>
+                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
+                        {productList.map((product, pIdx) => (
+                        <ProductCard key={product.id} product={product} />
+                        ))}
+                    </div>
+                </section>
+            )
+          })
+        ) : (
+            <div className="text-center py-16">
+                <p className="text-xl text-muted-foreground">Nenhum produto encontrado.</p>
+                <p className="mt-2 text-sm">Parece que ainda não há produtos ativos neste cardápio.</p>
+            </div>
+        )}
+      </div>
     </div>
-  )
+  );
 }

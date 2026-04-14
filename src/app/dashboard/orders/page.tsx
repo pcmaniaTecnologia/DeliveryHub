@@ -36,7 +36,7 @@ import { useToast } from '@/hooks/use-toast';
 import { generateOrderPrintHtml } from '@/lib/print-utils';
 import { Input } from '@/components/ui/input';
 import { Search } from 'lucide-react';
-import { recordCashierSale } from '../../../lib/cashier-utils';
+import { recordCashierSale } from '../../../lib/finance-utils';
 
 
 type Company = {

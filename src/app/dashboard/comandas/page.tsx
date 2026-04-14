@@ -14,7 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { useRouter } from 'next/navigation';
-import { recordCashierSale } from '../../../lib/cashier-utils';
+import { recordCashierSale } from '../../../lib/finance-utils';
 
 type OrderItem = {
     id: string;
