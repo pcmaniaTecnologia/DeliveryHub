@@ -166,7 +166,12 @@ export default function CartSheet({ companyId }: { companyId: string}) {
   const finalTotal = totalPrice + deliveryFee;
 
   const handlePlaceOrder = async () => {
-    if (!firestore || !companyId || !companyData) return;
+    if (!firestore || !companyId) return;
+
+    if (!companyData) {
+        toast({ variant: 'destructive', title: 'Aguarde', description: 'Dados da loja ainda estão carregando. Tente novamente.' });
+        return;
+    }
 
     const status = isStoreOpen(companyData.businessHours);
     if (!status.isOpen) {
@@ -327,8 +332,12 @@ export default function CartSheet({ companyId }: { companyId: string}) {
         setMultiPayments([]);
         setSelectedPayment('');
         setCashAmount('');
-    } catch (error) {
-        toast({ variant: 'destructive', title: 'Erro ao enviar pedido' });
+    } catch (error: any) {
+        console.error('Erro ao enviar pedido:', error);
+        const msg = error?.code === 'permission-denied'
+            ? 'Permissão negada pelo servidor. Contate o suporte.'
+            : error?.message || 'Ocorreu um erro inesperado. Tente novamente.';
+        toast({ variant: 'destructive', title: 'Erro ao enviar pedido', description: msg });
     } finally {
         setIsSubmitting(false);
     }
@@ -561,8 +570,8 @@ export default function CartSheet({ companyId }: { companyId: string}) {
                             {deliveryFee > 0 && <div className="flex justify-between text-muted-foreground"><span>Entrega</span><span>R$ {deliveryFee.toFixed(2)}</span></div>}
                             <div className="flex justify-between font-bold text-lg pt-1 border-t"><span>Total</span><span className="text-primary">R$ {finalTotal.toFixed(2)}</span></div>
                         </div>
-                        <Button className="w-full h-12 text-lg shadow-md" onClick={handlePlaceOrder} disabled={isSubmitting}>
-                            {isSubmitting ? 'Processando...' : 'Confirmar e Enviar'}
+                        <Button className="w-full h-12 text-lg shadow-md" onClick={handlePlaceOrder} disabled={isSubmitting || isLoadingCompany}>
+                            {isSubmitting ? 'Processando...' : isLoadingCompany ? 'Carregando...' : 'Confirmar e Enviar'}
                         </Button>
                     </SheetFooter>
                 </>
