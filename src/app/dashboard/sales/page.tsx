@@ -19,7 +19,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import Image from 'next/image';
 import { useImpersonation } from '@/context/impersonation-context';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { recordCashierSale } from '@/lib/cashier-utils';
+import { recordCashierSale } from '../../../lib/cashier-utils';
 
 type Product = {
     id: string;
