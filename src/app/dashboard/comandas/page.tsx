@@ -14,7 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { useRouter } from 'next/navigation';
-import { recordCashierSale } from '../../../lib/finance-utils';
+import { recordCashierSale } from '@/lib/utils';
 
 type OrderItem = {
     id: string;
@@ -307,7 +307,7 @@ export default function ComandasPage() {
                     paymentSummary
                 );
 
-                if (result.success && result.sessionId) {
+                if (result && result.success && result.sessionId) {
                     // Vincula o sessionId a todos os pedidos processados nesta batida
                     for (const id of finalizedOrderIds) {
                         await updateDocument(doc(firestore, `companies/${effectiveCompanyId}/orders`, id), {

@@ -40,7 +40,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { cn } from '@/lib/utils';
 import { Calendar } from '@/components/ui/calendar';
 import { Separator } from '@/components/ui/separator';
-import { parseSalesByPaymentMethod } from '../../lib/finance-utils';
+import { parseSalesByPaymentMethod } from '@/lib/utils';
 
 
 type Order = {

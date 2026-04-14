@@ -10,7 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { cn } from '@/lib/utils';
 import { Calendar } from '@/components/ui/calendar';
 import { ptBR } from 'date-fns/locale';
-import { parseSalesByPaymentMethod } from '../../../lib/finance-utils';
+import { parseSalesByPaymentMethod } from '@/lib/utils';
 import { Calendar as CalendarIcon, FilterX } from 'lucide-react';
 import {
   Card,
@@ -68,6 +68,7 @@ type CashTransaction = {
   amount: number;
   description: string;
   timestamp: Timestamp;
+  orderId?: string;
   paymentMethod?: string;
 };
 
