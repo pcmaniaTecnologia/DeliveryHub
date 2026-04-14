@@ -144,7 +144,7 @@ export function parseSalesByPaymentMethod(orders: any[]): SalesByPaymentMethod {
             ? paymentStr.split(/\s*\|\s*/) 
             : paymentStr.split(/,\s*(?![0-9]{2}\))/); // Avoid splitting decimal commas
 
-        const categorizedParts = parts.map(part => {
+        const categorizedParts = parts.map((part: string) => {
             const p = part.trim();
             if (!p) return null;
 
