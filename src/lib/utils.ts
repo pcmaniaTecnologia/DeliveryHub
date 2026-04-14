@@ -78,19 +78,29 @@ export function isStoreOpen(businessHoursStr?: string): { isOpen: boolean; messa
 }
 
 /**
- * Agrupa as vendas por método de pagamento para exibição em gráficos.
+ * Agrupa as vendas por método de pagamento para exibição sumária no caixa.
  */
 export function parseSalesByPaymentMethod(sales: any[]) {
-  if (!sales || sales.length === 0) return [];
+  const result = {
+    cash: 0,
+    pix: 0,
+    credit: 0,
+    debit: 0,
+  };
+
+  if (!sales || !Array.isArray(sales) || sales.length === 0) {
+    return result;
+  }
   
-  const totals: Record<string, number> = {};
   sales.forEach(sale => {
-      const method = sale.paymentMethod || 'Outros';
+      const method = sale.paymentMethod;
       const amount = typeof sale.totalAmount === 'number' ? sale.totalAmount : 0;
-      totals[method] = (totals[method] || 0) + amount;
+
+      if (method === 'Dinheiro') result.cash += amount;
+      else if (method === 'PIX') result.pix += amount;
+      else if (method === 'Cartão de Crédito') result.credit += amount;
+      else if (method === 'Cartão de Débito') result.debit += amount;
   });
 
-  return Object.entries(totals)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value);
+  return result;
 }

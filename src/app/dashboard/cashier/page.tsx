@@ -250,7 +250,14 @@ export default function CashierPage() {
   }, [rawOrders, currentSession, dateRange, activePreset, sessionOrderIds]);
 
   const sessionTotalSales = useMemo(() => {
-    return salesByPaymentMethod.cash + salesByPaymentMethod.pix + salesByPaymentMethod.credit + salesByPaymentMethod.debit;
+    // Caso o retorno venha como Array (formato antigo/gráfico)
+    if (Array.isArray(salesByPaymentMethod)) {
+      return (salesByPaymentMethod as any[]).reduce((sum, item) => sum + (item.value || 0), 0);
+    }
+    
+    // Caso venha como Objeto (formato novo/caixa)
+    const s = salesByPaymentMethod as any;
+    return (s.cash || 0) + (s.pix || 0) + (s.credit || 0) + (s.debit || 0);
   }, [salesByPaymentMethod]);
 
   const handlePrintReport = () => {
