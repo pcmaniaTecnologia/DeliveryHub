@@ -20,20 +20,12 @@ type Order = {
     id: string;
     totalAmount: number;
     paymentMethod: string;
-    payments?: { method: string, amount: number }[];
     deliveryType: string;
     status: string;
     orderDate: Timestamp;
 }
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
-const PAYMENT_COLORS: { [key: string]: string } = {
-    'Dinheiro': '#10b981',
-    'PIX': '#06b6d4',
-    'Cartão de Crédito': '#f59e0b',
-    'Cartão de Débito': '#f43f5e',
-    'Outros': '#64748b'
-};
 
 export default function ReportsPage() {
     const { user, isUserLoading } = useUser();
@@ -48,15 +40,6 @@ export default function ReportsPage() {
     }, [firestore, user?.uid]);
 
     const { data: orders, isLoading } = useCollection<Order>(ordersRef);
-
-    const mapMethodName = (name: string) => {
-        const n = (name || '').toLowerCase();
-        if (n.includes('dinheiro')) return 'Dinheiro';
-        if (n.includes('pix')) return 'PIX';
-        if (n.includes('crédito') || n.includes('credito')) return 'Cartão de Crédito';
-        if (n.includes('débito') || n.includes('debito')) return 'Cartão de Débito';
-        return 'Outros';
-    };
 
     const reportData = useMemo(() => {
         if (!orders) return null;
@@ -80,46 +63,12 @@ export default function ReportsPage() {
             comanda: filtered.filter(o => o.deliveryType === 'Mesa').reduce((sum, o) => sum + o.totalAmount, 0),
         };
 
-        // Payment Distribution - Normalization
-        const paymentsMap: { [key: string]: number } = {
-            'Dinheiro': 0,
-            'PIX': 0,
-            'Cartão de Crédito': 0,
-            'Cartão de Débito': 0,
-            'Outros': 0
-        };
-
+        // Payment Distribution
+        const paymentsMap: { [key: string]: number } = {};
         filtered.forEach(o => {
-            if (o.payments && o.payments.length > 0) {
-                o.payments.forEach(p => {
-                    const method = mapMethodName(p.method);
-                    paymentsMap[method] += (p.amount || 0);
-                });
-            } else {
-                const str = o.paymentMethod || '';
-                if (str.includes('|')) {
-                    const parts = str.split('|');
-                    parts.forEach(part => {
-                        const match = part.match(/(.*?):\s*R\$\s*([\d,.]+)/);
-                        if (match) {
-                            const method = mapMethodName(match[1]);
-                            const amount = parseFloat(match[2].replace(',', '.'));
-                            paymentsMap[method] += isNaN(amount) ? 0 : amount;
-                        } else {
-                            const method = mapMethodName(part);
-                            paymentsMap[method] += (o.totalAmount / parts.length);
-                        }
-                    });
-                } else {
-                    const method = mapMethodName(str);
-                    paymentsMap[method] += o.totalAmount;
-                }
-            }
+            paymentsMap[o.paymentMethod] = (paymentsMap[o.paymentMethod] || 0) + o.totalAmount;
         });
-
-        const paymentsData = Object.entries(paymentsMap)
-            .filter(([_, value]) => value > 0)
-            .map(([name, value]) => ({ name, value }));
+        const paymentsData = Object.entries(paymentsMap).map(([name, value]) => ({ name, value }));
 
         // Daily Faturamento Chart
         const dailyMap: { [key: string]: number } = {};
@@ -272,43 +221,25 @@ export default function ReportsPage() {
                         <CardTitle className="text-lg">Formas de Pagamento</CardTitle>
                         <CardDescription>Distribuição do faturamento por tipo de recebimento.</CardDescription>
                     </CardHeader>
-                    <CardContent className="h-[300px] relative">
+                    <CardContent className="h-[300px]">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                                 <Pie
                                     data={reportData?.paymentsData}
                                     cx="50%"
                                     cy="50%"
-                                    innerRadius={70}
+                                    innerRadius={60}
                                     outerRadius={100}
                                     paddingAngle={5}
                                     dataKey="value"
-                                    stroke="none"
+                                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                                 >
                                     {reportData?.paymentsData.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={PAYMENT_COLORS[entry.name] || COLORS[index % COLORS.length]} />
+                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                     ))}
                                 </Pie>
                                 <Tooltip formatter={(value: number) => `R$ ${value.toFixed(2)}`} />
                                 <Legend verticalAlign="bottom" height={36}/>
-                                <text 
-                                    x="50%" 
-                                    y="48%" 
-                                    textAnchor="middle" 
-                                    dominantBaseline="middle" 
-                                    className="fill-muted-foreground text-[10px] uppercase font-bold tracking-wider"
-                                >
-                                    Faturamento
-                                </text>
-                                <text 
-                                    x="50%" 
-                                    y="55%" 
-                                    textAnchor="middle" 
-                                    dominantBaseline="middle" 
-                                    className="fill-foreground font-bold text-base"
-                                >
-                                    R$ {reportData?.totalFaturamento.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
-                                </text>
                             </PieChart>
                         </ResponsiveContainer>
                     </CardContent>

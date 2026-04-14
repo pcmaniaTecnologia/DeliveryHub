@@ -1,6 +1,6 @@
 
 'use client';
-import { Banknote, CreditCard, DollarSign, Package, PieChart, Landmark, ShoppingCart, Users, Calendar as CalendarIcon, Printer, ShieldCheck, AlertTriangle, Box } from 'lucide-react';
+import { Banknote, CreditCard, DollarSign, Package, PieChart, Landmark, ShoppingCart, Users, Calendar as CalendarIcon, Printer, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import {
   Card,
@@ -40,7 +40,6 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { cn } from '@/lib/utils';
 import { Calendar } from '@/components/ui/calendar';
 import { Separator } from '@/components/ui/separator';
-import { parseSalesByPaymentMethod } from '@/lib/utils';
 
 
 type Order = {
@@ -65,14 +64,6 @@ type SalesByPaymentMethod = {
     pix: number;
     credit: number;
     debit: number;
-};
-
-type Product = {
-    id: string;
-    name: string;
-    stockControlEnabled?: boolean;
-    stock: number;
-    isActive: boolean;
 };
 
 const chartConfig = {
@@ -120,12 +111,6 @@ export default function DashboardPage() {
     }, [firestore, user?.uid]);
     
     const { data: orders, isLoading: isLoadingOrders } = useCollection<Order>(ordersRef);
-
-    const productsRef = useMemoFirebase(() => {
-        if (!firestore || !user?.uid) return null;
-        return collection(firestore, `companies/${user.uid}/products`);
-    }, [firestore, user?.uid]);
-    const { data: products, isLoading: isLoadingProducts } = useCollection<Product>(productsRef);
 
     const adminRef = useMemoFirebase(() => {
         if (!firestore || !user?.uid) return null;
@@ -207,7 +192,41 @@ export default function DashboardPage() {
         // Pending orders should probably not be filtered by date range, but all pending orders ever
         const pendingOrders = orders.filter(order => ['Novo', 'Aguardando pagamento', 'Em preparo'].includes(order.status)).length;
         
-        const salesByPaymentMethod = parseSalesByPaymentMethod(successfulOrders);
+        const salesByPaymentMethod = successfulOrders.reduce<SalesByPaymentMethod>((acc, order) => {
+            const methods = order.paymentMethod.split(', ');
+            const orderTotal = order.totalAmount;
+            const methodsWithValues = methods.map(m => {
+                const match = m.match(/(.+) \(troco para R\$\s*([\d,.]+)\)/);
+                if (match) {
+                    return { method: match[1].trim(), amount: orderTotal }; // The whole order was paid this way
+                }
+                const matchWithValue = m.match(/(.+) \(R\$\s*([\d,.]+)\)/);
+                 if (matchWithValue) {
+                    const amount = parseFloat(matchWithValue[2].replace(',', '.'));
+                    return { method: matchWithValue[1].trim(), amount };
+                }
+                return { method: m.trim(), amount: null };
+            });
+
+            if (methodsWithValues.length === 1 && methodsWithValues[0].amount === null) {
+                 const singleMethod = methodsWithValues[0].method.toLowerCase();
+                 if (singleMethod.includes('dinheiro')) acc.cash += orderTotal;
+                 else if (singleMethod.includes('pix')) acc.pix += orderTotal;
+                 else if (singleMethod.includes('crédito')) acc.credit += orderTotal;
+                 else if (singleMethod.includes('débito')) acc.debit += orderTotal;
+            } else { 
+                 methodsWithValues.forEach(({ method, amount }) => {
+                    const methodLc = method.toLowerCase();
+                    const value = amount || 0;
+                    if (methodLc.includes('dinheiro')) acc.cash += value;
+                    else if (methodLc.includes('pix')) acc.pix += value;
+                    else if (methodLc.includes('crédito')) acc.credit += value;
+                    else if (methodLc.includes('débito')) acc.debit += value;
+                });
+            }
+
+            return acc;
+        }, { cash: 0, pix: 0, credit: 0, debit: 0 });
 
         // Sales chart always shows last 7 days regardless of filter
         const salesChartData = Array.from({ length: 7 }).map((_, i) => {
@@ -237,13 +256,6 @@ export default function DashboardPage() {
         return { totalSales, totalOrders, avgTicket, pendingOrders, salesChartData, recentOrdersWithDetails, salesByPaymentMethod };
 
     }, [orders, dateRange]);
-
-    const { outOfStockProducts, totalStockTracked } = useMemo(() => {
-        if (!products) return { outOfStockProducts: [], totalStockTracked: 0 };
-        const tracked = products.filter(p => p.stockControlEnabled);
-        const zero = tracked.filter(p => p.stock <= 0 && p.isActive);
-        return { outOfStockProducts: zero, totalStockTracked: tracked.length };
-    }, [products]);
     
     const isLoading = isUserLoading || isLoadingOrders || isLoadingAdmin;
     
@@ -302,7 +314,7 @@ export default function DashboardPage() {
     };
 
 
-    if (isLoading || isLoadingProducts) {
+    if (isLoading) {
         return (
             <div className="flex min-h-screen items-center justify-center">
                 <p>Carregando painel...</p>
@@ -337,12 +349,9 @@ export default function DashboardPage() {
             </Card>
         )}
         <div>
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                    <h2 className="text-2xl font-bold tracking-tight md:text-3xl">Dashboard</h2>
-                    <p className="text-sm text-muted-foreground">Bem-vindo ao DeliveryHub. Aqui está o resumo da sua operação.</p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center justify-between space-y-2">
+                <h2 className="text-3xl font-bold tracking-tight">Painel</h2>
+                <div className="flex items-center space-x-2">
                     <Popover>
                     <PopoverTrigger asChild>
                         <Button
@@ -386,7 +395,7 @@ export default function DashboardPage() {
                 </div>
             </div>
 
-            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 mt-6">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mt-4">
                 <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Total de Vendas {dateRangeLabel}</CardTitle>
@@ -426,13 +435,13 @@ export default function DashboardPage() {
             </div>
         </div>
 
-        <div className="grid gap-4 grid-cols-1 lg:grid-cols-7">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
             <Card className="col-span-4">
-            <CardHeader className="pb-2">
-                <CardTitle className="text-base sm:text-xl">Visão Geral de Vendas (Últimos 7 dias)</CardTitle>
+            <CardHeader>
+                <CardTitle>Visão Geral de Vendas (Últimos 7 dias)</CardTitle>
             </CardHeader>
-            <CardContent className="px-1 sm:px-6">
-                <ChartContainer config={chartConfig} className="h-[250px] sm:h-[350px] w-full">
+            <CardContent className="pl-2">
+                <ChartContainer config={chartConfig} className="h-[350px] w-full">
                 <ResponsiveContainer>
                     <BarChart data={salesChartData}>
                     <XAxis dataKey="date" stroke="#888888" fontSize={12} tickLine={false} axisLine={false}/>
@@ -446,59 +455,52 @@ export default function DashboardPage() {
             </CardContent>
             </Card>
 
-            <div className="col-span-1 lg:col-span-3">
-                <Card className={cn(outOfStockProducts.length > 0 ? "border-orange-500 bg-orange-50/10" : "")}>
+            <div className="col-span-4 lg:col-span-3">
+                <Card>
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
-                            <Box className="h-5 w-5 text-muted-foreground" />
-                            Alerta de Estoque
+                            <PieChart className="h-5 w-5 text-muted-foreground" />
+                            Fechamento de Caixa {dateRangeLabel}
                         </CardTitle>
                         <CardDescription>
-                            Produtos com controle de estoque habilitado.
+                            Total de vendas do período detalhado por forma de pagamento.
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-4">
                             <div className="flex items-center">
-                                <Package className="h-5 w-5 mr-3 text-muted-foreground" />
-                                <span className="flex-1">Itens Monitorados</span>
-                                <span className="font-medium">{totalStockTracked} produtos</span>
+                                <Banknote className="h-5 w-5 mr-3 text-muted-foreground" />
+                                <span className="flex-1">Dinheiro</span>
+                                <span className="font-medium">R$ {salesByPaymentMethod.cash.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                             </div>
-                            
-                            {outOfStockProducts.length > 0 ? (
-                                <div className="pt-2">
-                                    <div className="flex items-center text-orange-600 font-semibold mb-2">
-                                        <AlertTriangle className="h-4 w-4 mr-2" />
-                                        <span>Itens Zerados ou Negativos:</span>
-                                    </div>
-                                    <div className="max-h-[160px] overflow-y-auto space-y-2 pr-2">
-                                        {outOfStockProducts.map(p => (
-                                            <div key={p.id} className="flex items-center justify-between text-sm p-2 bg-orange-100/50 rounded-md border border-orange-200/50">
-                                                <span className="font-medium truncate mr-2">{p.name}</span>
-                                                <Badge variant="destructive" className="h-5 text-[10px] px-1.5">
-                                                    Qtd: {p.stock}
-                                                </Badge>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="flex flex-col items-center justify-center py-6 text-center">
-                                    <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center mb-2">
-                                        <ShieldCheck className="h-6 w-6 text-green-600" />
-                                    </div>
-                                    <p className="text-sm font-medium text-green-700">Tudo em dia!</p>
-                                    <p className="text-xs text-muted-foreground">Nenhum produto zerado no estoque.</p>
-                                </div>
-                            )}
+                            <div className="flex items-center">
+                                <Landmark className="h-5 w-5 mr-3 text-muted-foreground" />
+                                <span className="flex-1">PIX</span>
+                                <span className="font-medium">R$ {salesByPaymentMethod.pix.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            </div>
+                            <div className="flex items-center">
+                                <CreditCard className="h-5 w-5 mr-3 text-muted-foreground" />
+                                <span className="flex-1">Cartão de Crédito</span>
+                                <span className="font-medium">R$ {salesByPaymentMethod.credit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            </div>
+                            <div className="flex items-center">
+                                <CreditCard className="h-5 w-5 mr-3 text-muted-foreground" />
+                                <span className="flex-1">Cartão de Débito</span>
+                                <span className="font-medium">R$ {salesByPaymentMethod.debit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            </div>
                         </div>
                     </CardContent>
-                    <CardFooter className="flex-col items-stretch pt-2">
-                        <Link href="/dashboard/products">
-                            <Button variant="outline" className="w-full text-xs">
-                                Gerenciar Estoque
-                            </Button>
-                        </Link>
+                    <CardFooter className="flex-col items-stretch space-y-2">
+                        <Separator />
+                        <div className="flex items-center font-bold text-lg pt-2">
+                            <DollarSign className="h-5 w-5 mr-3" />
+                            <span className="flex-1">Total</span>
+                            <span>R$ {totalSales.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                        <Button variant="outline" className="w-full" onClick={handlePrint}>
+                            <Printer className="mr-2 h-4 w-4" />
+                            Imprimir
+                        </Button>
                     </CardFooter>
                 </Card>
             </div>

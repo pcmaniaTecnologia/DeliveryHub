@@ -36,7 +36,6 @@ import { useToast } from '@/hooks/use-toast';
 import { generateOrderPrintHtml } from '@/lib/print-utils';
 import { Input } from '@/components/ui/input';
 import { Search } from 'lucide-react';
-import { recordCashierSale } from '@/lib/utils';
 
 
 type Company = {
@@ -140,27 +139,11 @@ export default function OrdersPage() {
         const orderDocRef = doc(firestore, `companies/${user.uid}/orders`, order.id);
         const newStatus = { status };
 
-        updateDocument(orderDocRef, newStatus).then(async () => {
+        updateDocument(orderDocRef, newStatus).then(() => {
             toast({
                 title: 'Status do Pedido Atualizado!',
                 description: `O pedido foi marcado como "${status}".`,
             });
-
-            // Se o status for 'Entregue', registra no caixa se estiver aberto
-            if (status === 'Entregue') {
-                try {
-                    await recordCashierSale(
-                        firestore, 
-                        user.uid, 
-                        order.totalAmount, 
-                        `Pedido Online #${order.id.substring(0, 6).toUpperCase()} (${order.customerName || 'Cliente'})`, 
-                        order.id,
-                        order.paymentMethod
-                    );
-                } catch (err) {
-                    console.error('Erro ao registrar venda no caixa:', err);
-                }
-            }
         }).catch(serverError => {
             errorEmitter.emit('permission-error', new FirestorePermissionError({
                 path: orderDocRef.path,
@@ -209,24 +192,17 @@ export default function OrdersPage() {
             className="pl-9 w-full md:max-w-md"
           />
         </div>
-        <Tabs defaultValue="Todos" className="space-y-4">
-          <TabsList className="flex flex-wrap h-auto w-full justify-start gap-1 bg-transparent p-0">
+        <Tabs defaultValue="Todos">
+          <TabsList className="grid w-full grid-cols-5">
             {Object.keys(statusMap).map(status => (
-              <TabsTrigger 
-                key={status} 
-                value={status}
-                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground border rounded-md px-3 py-1.5 text-xs sm:text-sm"
-              >
-                {status}
-              </TabsTrigger>
+              <TabsTrigger key={status} value={status}>{status}</TabsTrigger>
             ))}
           </TabsList>
           {Object.entries(statusMap).map(([tabName, statuses]) => (
             <TabsContent key={tabName} value={tabName}>
-              <Card className="border-none shadow-none bg-transparent">
+              <Card>
                 <CardContent className="p-0">
-                  <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
-                    <Table>
+                  <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Pedido</TableHead>
@@ -310,8 +286,7 @@ export default function OrdersPage() {
                       ))
                       )}
                     </TableBody>
-                   </Table>
-                  </div>
+                  </Table>
                 </CardContent>
               </Card>
             </TabsContent>

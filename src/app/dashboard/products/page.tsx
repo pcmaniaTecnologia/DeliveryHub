@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
-import { MoreHorizontal, PlusCircle, Trash2, Search, ArrowUp, ArrowDown, Printer, FileText, AlertTriangle } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Trash2, Search, ArrowUp, ArrowDown } from 'lucide-react';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -442,82 +442,15 @@ export default function ProductsPage() {
       ]);
   };
 
-  const handlePrintStockReport = () => {
-        if (!products) return;
-        
-        const outOfStockItems = products.filter(p => p.stockControlEnabled && p.stock <= 0);
-        
-        if (outOfStockItems.length === 0) {
-            toast({ title: 'Tudo em dia!', description: 'Não há produtos com estoque zerado ou negativo no momento.' });
-            return;
-        }
-
-        const printHtml = `
-            <html>
-                <head>
-                    <title>Relatório de Estoque Zerado/Negativo</title>
-                    <style>
-                        body { font-family: Arial, sans-serif; margin: 30px; }
-                        h1 { text-align: center; color: #333; }
-                        .date { text-align: right; color: #666; margin-bottom: 20px; }
-                        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-                        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
-                        th { background-color: #f4f4f4; }
-                        .qty { font-weight: bold; color: #e11d48; }
-                        .category { color: #666; font-size: 0.9em; }
-                    </style>
-                </head>
-                <body>
-                    <h1>Relatório de Reposição de Estoque</h1>
-                    <div class="date">Gerado em: ${new Date().toLocaleString('pt-BR')}</div>
-                    
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Produto</th>
-                                <th>Categoria</th>
-                                <th>Estoque Atual</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${outOfStockItems.map(p => `
-                                <tr>
-                                    <td>${p.name}</td>
-                                    <td class="category">${categoryMap.get(p.categoryId) || 'Sem Categoria'}</td>
-                                    <td class="qty">${p.stock}</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                    
-                    <div style="margin-top: 30px; font-size: 0.8em; color: #999; text-align: center;">
-                        DeliveryHub - Sistema de Gestão
-                    </div>
-
-                    <script>
-                        window.print();
-                        window.onafterprint = () => window.close();
-                    </script>
-                </body>
-            </html>
-        `;
-
-        const printWindow = window.open('', '_blank');
-        if (printWindow) {
-            printWindow.document.write(printHtml);
-            printWindow.document.close();
-        }
-  };
-
   return (
     <Card>
       <CardHeader>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="text-xl sm:text-2xl">Produtos</CardTitle>
-            <CardDescription className="text-xs sm:text-sm">Gerencie seus produtos, variantes e categorias.</CardDescription>
+            <CardTitle>Produtos</CardTitle>
+            <CardDescription>Gerencie seus produtos, variantes e categorias.</CardDescription>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex gap-2">
             <Dialog open={isCategoryDialogOpen} onOpenChange={setIsCategoryDialogOpen}>
                 <DialogTrigger asChild>
                     <Button size="sm" variant="outline">Gerenciar Categorias</Button>
@@ -555,10 +488,6 @@ export default function ProductsPage() {
                     </div>
                 </DialogContent>
             </Dialog>
-           <Button size="sm" variant="outline" className="gap-1" onClick={handlePrintStockReport}>
-              <Printer className="h-4 w-4" />
-              Relatório de Estoque Zerado
-           </Button>
            <Button size="sm" className="gap-1" onClick={() => handleOpenDialog()}>
               <PlusCircle className="h-4 w-4" />
               Adicionar Produto
@@ -567,8 +496,7 @@ export default function ProductsPage() {
         </div>
       </CardHeader>
       <CardContent>
-        <>
-          <Dialog open={isDialogOpen} onOpenChange={(isOpen) => {
+        <Dialog open={isDialogOpen} onOpenChange={(isOpen) => {
           setIsDialogOpen(isOpen);
           if (!isOpen) setEditingProduct(null);
         }}>
@@ -849,8 +777,7 @@ export default function ProductsPage() {
             className="pl-9"
           />
         </div>
-        <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
-          <Table>
+        <Table>
           <TableHeader>
             <TableRow>
               <TableHead className="hidden w-[64px] sm:table-cell">
@@ -958,9 +885,7 @@ export default function ProductsPage() {
                 </TableRow>
               )}
           </TableBody>
-          </Table>
-        </div>
-        </>
+        </Table>
       </CardContent>
       <CardFooter>
         <div className="text-xs text-muted-foreground">

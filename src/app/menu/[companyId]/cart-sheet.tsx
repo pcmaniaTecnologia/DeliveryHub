@@ -129,10 +129,6 @@ export default function CartSheet({ companyId }: { companyId: string}) {
   const [selectedPayment, setSelectedPayment] = useState<string>('');
   const [cashAmount, setCashAmount] = useState('');
 
-  // Multi-payment state
-  const [isMultiPayment, setIsMultiPayment] = useState(false);
-  const [multiPayments, setMultiPayments] = useState<{ method: string, amount: string, cashAmount?: string }[]>([]);
-
   const selectedZone = useMemo(() => {
     if (deliveryType !== 'Delivery' || !addressNeighborhood) return null;
     return deliveryZones?.find(z => z.neighborhood === addressNeighborhood);
@@ -160,19 +156,13 @@ export default function CartSheet({ companyId }: { companyId: string}) {
         return;
     }
 
-    if (deliveryType === 'Delivery' && (!addressStreet || !addressNumber || !addressNeighborhood)) {
-        toast({ variant: 'destructive', title: 'Endereço Incompleto' });
-        return;
+    if (!selectedPayment) {
+      toast({ variant: 'destructive', title: 'Selecione o pagamento' });
+      return;
     }
 
-    if (isMultiPayment) {
-        const totalPaid = multiPayments.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
-        if (Math.abs(totalPaid - finalTotal) > 0.01) {
-            toast({ variant: 'destructive', title: `O total dos pagamentos (R$ ${totalPaid.toFixed(2)}) deve ser igual ao total do pedido (R$ ${finalTotal.toFixed(2)})` });
-            return;
-        }
-    } else if (!selectedPayment) {
-        toast({ variant: 'destructive', title: 'Selecione o pagamento' });
+    if (deliveryType === 'Delivery' && (!addressStreet || !addressNumber || !addressNeighborhood)) {
+        toast({ variant: 'destructive', title: 'Endereço Incompleto' });
         return;
     }
     
@@ -193,25 +183,22 @@ export default function CartSheet({ companyId }: { companyId: string}) {
         status: 'Novo',
         deliveryAddress: fullAddress,
         deliveryType,
-        deliveryFee,
-        paymentMethod: isMultiPayment 
-            ? multiPayments.map(p => {
-                if (p.method === 'Dinheiro' && p.cashAmount) {
-                    return `${p.method}: R$ ${parseFloat(p.amount).toFixed(2)} (Troco p/ R$ ${parseFloat(p.cashAmount).toFixed(2)})`;
-                }
-                return `${p.method}: R$ ${parseFloat(p.amount).toFixed(2)}`;
-            }).join(' | ')
-            : (selectedPayment === 'Dinheiro' && cashAmount ? `Dinheiro (Troco para R$ ${parseFloat(cashAmount).toFixed(2)})` : selectedPayment),
+        deliveryFee: deliveryFee || 0,
+        paymentMethod: selectedPayment === 'Dinheiro' && cashAmount ? `Dinheiro (Troco para R$${parseFloat(cashAmount.replace(',', '.')).toFixed(2)})` : selectedPayment,
         orderItems: cartItems.map(item => ({
-            productId: item.product.id,
-            productName: item.product.name,
-            quantity: item.quantity,
-            unitPrice: item.product.price,
-            finalPrice: item.finalPrice,
+            productId: item.product.id || 'unknown',
+            productName: item.product.name || 'Produto',
+            quantity: item.quantity || 1,
+            unitPrice: item.product.price || 0,
+            finalPrice: item.finalPrice || 0,
             notes: item.notes || '',
-            selectedVariants: item.selectedVariants || [],
+            selectedVariants: (item.selectedVariants || []).map(v => ({
+                groupName: v.groupName || '',
+                itemName: v.itemName || '',
+                price: v.price || 0
+            })),
         })),
-        totalAmount: finalTotal,
+        totalAmount: finalTotal || 0,
     };
     
     
@@ -243,16 +230,7 @@ export default function CartSheet({ companyId }: { companyId: string}) {
           return `- ${item.quantity}x ${item.product.name} (R$${item.finalPrice.toFixed(2)})${adicionais}`;
         }).join('\n');
 
-        const paymentText = isMultiPayment 
-            ? multiPayments.map(p => {
-                if (p.method === 'Dinheiro' && p.cashAmount) {
-                    return `- ${p.method}: R$ ${parseFloat(p.amount).toFixed(2)} (Troco p/ R$ ${parseFloat(p.cashAmount).toFixed(2)})`;
-                }
-                return `- ${p.method}: R$ ${parseFloat(p.amount).toFixed(2)}`;
-            }).join('\n')
-            : (selectedPayment === 'Dinheiro' && cashAmount ? `Dinheiro (Troco para R$ ${parseFloat(cashAmount).toFixed(2)})` : selectedPayment);
-
-        const testMsg = `*Novo Pedido!* 🎉\n*ID:* ${docRef.id.substring(0,6).toUpperCase()}\n*Cliente:* ${customerName.trim()}\n*WhatsApp:* ${customerPhone}\n\n*Endereço:* ${fullAddress}\n\n--- *Itens* ---\n${itensTexto}\n\n*Subtotal:* R$${totalPrice.toFixed(2)}\n${deliveryFee > 0 ? `*Entrega:* R$${deliveryFee.toFixed(2)}\n` : ''}*Total:* *R$${finalTotal.toFixed(2)}*\n\n*Pagamento:* \n${paymentText}`;
+        const testMsg = `*Novo Pedido!* 🎉\n*ID:* ${docRef.id.substring(0,6).toUpperCase()}\n*Cliente:* ${customerName.trim()}\n*WhatsApp:* ${customerPhone}\n\n*Endereço:* ${fullAddress}\n\n--- *Itens* ---\n${itensTexto}\n\n*Subtotal:* R$${totalPrice.toFixed(2)}\n${deliveryFee > 0 ? `*Entrega:* R$${deliveryFee.toFixed(2)}\n` : ''}*Total:* *R$${finalTotal.toFixed(2)}*\n*Pagamento:* ${orderData.paymentMethod}`;
 
         if (zapNumber) {
             const whatsappUrl = `https://wa.me/${zapNumber}?text=${encodeURIComponent(testMsg)}`;
@@ -273,14 +251,9 @@ export default function CartSheet({ companyId }: { companyId: string}) {
         setIsOrderFinished(true);
         clearCart();
         setIsCheckoutOpen(false);
-        setIsMultiPayment(false);
-        setMultiPayments([]);
-        setCustomerName('');
-        setCustomerPhone('');
-        setSelectedPayment('');
-        setCashAmount('');
-    } catch (error) {
-        toast({ variant: 'destructive', title: 'Erro ao enviar pedido' });
+    } catch (error: any) {
+        console.error("Erro ao finalizar pedido:", error);
+        toast({ variant: 'destructive', title: 'Erro ao enviar pedido', description: error?.message || 'Verifique sua conexão ou tente novamente.' });
     } finally {
         setIsSubmitting(false);
     }
@@ -324,212 +297,107 @@ export default function CartSheet({ companyId }: { companyId: string}) {
           </Button>
         </SheetTrigger>
         <SheetContent className="flex flex-col">
-          {isCheckoutOpen ? (
-            <>
-              <SheetHeader><SheetTitle>Finalizar Pedido</SheetTitle></SheetHeader>
-              <ScrollArea className="flex-grow pr-4">
-                <div className="space-y-4 py-4">
-                  <div className="grid gap-2">
-                    <Label>Nome Completo <span className="text-destructive">*</span></Label>
-                    <Input placeholder="Digite seu nome completo" value={customerName} onChange={e => setCustomerName(e.target.value)} />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>WhatsApp <span className="text-destructive">*</span></Label>
-                    <Input placeholder="(99) 99999-9999" value={customerPhone} onChange={handlePhoneChange} maxLength={15} />
-                  </div>
-                  <Separator />
-                  <div className="flex gap-2">
-                    <Button variant={deliveryType === 'Delivery' ? 'default' : 'outline'} className="flex-1" onClick={() => setDeliveryType('Delivery')}>Delivery</Button>
-                    <Button variant={deliveryType === 'Retirada' ? 'default' : 'outline'} className="flex-1" onClick={() => setDeliveryType('Retirada')}>Retirada</Button>
-                  </div>
-                  {deliveryType === 'Delivery' && (
-                    <div className="space-y-3 mt-2">
-                      <Input placeholder="Rua" value={addressStreet} onChange={e => setAddressStreet(e.target.value)} />
-                      <Input placeholder="Número" value={addressNumber} onChange={e => setAddressNumber(e.target.value)} />
-                      <div className="grid gap-1.5">
-                        <Label className="text-xs">Selecione o Bairro</Label>
-                        <Select value={addressNeighborhood} onValueChange={setAddressNeighborhood}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Escolha um bairro" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {isLoadingZones ? (
-                              <SelectItem value="loading" disabled>Carregando...</SelectItem>
-                            ) : activeDeliveryZones.length > 0 ? (
-                              activeDeliveryZones.map(zone => (
-                                <SelectItem key={zone.id} value={zone.neighborhood}>{zone.neighborhood} (R$ {zone.deliveryFee.toFixed(2)})</SelectItem>
-                              ))
-                            ) : (
-                              <SelectItem value="none" disabled>Nenhum bairro cadastrado</SelectItem>
-                            )}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                  )}
-                  <Separator />
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold">Pagamento</h3>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="text-[10px] h-7 px-2 border" 
-                      onClick={() => {
-                        setIsMultiPayment(!isMultiPayment);
-                        if (!isMultiPayment && selectedPayment) {
-                          setMultiPayments([{ method: selectedPayment, amount: finalTotal.toFixed(2) }]);
-                        } else if (isMultiPayment) {
-                          setMultiPayments([]);
-                        }
-                      }}
-                    >
-                      {isMultiPayment ? 'Voltar para Único' : 'Dividir Pagamento'}
-                    </Button>
-                  </div>
-
-                  {!isMultiPayment ? (
-                    <>
-                      <RadioGroup value={selectedPayment} onValueChange={setSelectedPayment}>
-                        {enabledPaymentMethods.map(m => (
-                          <div key={m.id} className="flex items-center space-x-2">
-                            <RadioGroupItem value={m.id} id={m.id} />
-                            <Label htmlFor={m.id}>{m.label}</Label>
-                          </div>
-                        ))}
-                      </RadioGroup>
-                      {selectedPayment === 'Dinheiro' && (
-                        <div className="grid gap-2 pl-6 pt-2">
-                          <Label className="text-xs">Precisa de troco? Troco para quanto? (opcional)</Label>
-                          <Input type="number" value={cashAmount} onChange={e => setCashAmount(e.target.value)} placeholder="Ex: 50.00 (deixe vazio se não precisar)" />
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-2 gap-2">
-                        {enabledPaymentMethods.map(m => {
-                          const isSelected = multiPayments.some(p => p.method === m.id);
-                          return (
-                            <Button 
-                              key={m.id}
-                              variant={isSelected ? 'default' : 'outline'}
-                              className="h-10 text-xs gap-2"
-                              onClick={() => {
-                                if (isSelected) {
-                                  setMultiPayments(multiPayments.filter(p => p.method !== m.id));
-                                } else {
-                                  const currentSum = multiPayments.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
-                                  const remaining = Math.max(0, finalTotal - currentSum);
-                                  setMultiPayments([...multiPayments, { method: m.id, amount: remaining > 0 ? remaining.toFixed(2) : "" }]);
-                                }
-                              }}
-                            >
-                              <m.icon className="h-4 w-4" />
-                              {m.label}
-                            </Button>
-                          );
-                        })}
-                      </div>
-
-                      {multiPayments.length > 0 && (
-                        <div className="space-y-3 pt-2">
-                          {multiPayments.map((p, idx) => (
-                            <div key={p.method} className="space-y-2 p-3 border rounded-lg bg-muted/20">
-                              <div className="flex items-center justify-between">
-                                <Label className="text-sm font-bold">{p.method}</Label>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs text-muted-foreground font-bold">R$</span>
-                                  <Input 
-                                    type="text" 
-                                    className="w-24 h-8" 
-                                    value={p.amount} 
-                                    onChange={(e) => {
-                                      const newPayments = [...multiPayments];
-                                      newPayments[idx].amount = e.target.value;
-                                      setMultiPayments(newPayments);
-                                    }}
-                                  />
-                                </div>
-                              </div>
-                              {p.method === 'Dinheiro' && (
-                                <div className="grid gap-1.5 pl-2 border-l-2 border-primary/20">
-                                  <Label className="text-[10px]">Troco para quanto?</Label>
-                                  <Input 
-                                    type="number" 
-                                    className="h-7 text-xs" 
-                                    placeholder="50.00" 
-                                    value={p.cashAmount || ''}
-                                    onChange={(e) => {
-                                      const newPayments = [...multiPayments];
-                                      newPayments[idx].cashAmount = e.target.value;
-                                      setMultiPayments(newPayments);
-                                    }}
-                                  />
-                                </div>
-                              )}
+            {isCheckoutOpen ? (
+                <>
+                    <SheetHeader><SheetTitle>Finalizar Pedido</SheetTitle></SheetHeader>
+                    <ScrollArea className="flex-grow pr-4">
+                        <div className="space-y-4 py-4">
+                            <div className="grid gap-2">
+                                <Label>Nome Completo <span className="text-destructive">*</span></Label>
+                                <Input placeholder="Digite seu nome completo" value={customerName} onChange={e => setCustomerName(e.target.value)} />
                             </div>
-                          ))}
-                          <div className="flex justify-between items-center text-xs font-bold pt-2 border-t">
-                            <span>Total Pago: R$ {multiPayments.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0).toFixed(2)}</span>
-                            <span className={Math.abs(multiPayments.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0) - finalTotal) < 0.01 ? "text-green-600" : "text-destructive"}>
-                              {multiPayments.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0) < finalTotal 
-                                ? `Falta: R$ ${(finalTotal - multiPayments.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0)).toFixed(2)}`
-                                : multiPayments.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0) > finalTotal 
-                                  ? `Excesso: R$ ${(multiPayments.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0) - finalTotal).toFixed(2)}`
-                                  : '✓ Valor Completo'}
-                            </span>
-                          </div>
+                            <div className="grid gap-2">
+                                <Label>WhatsApp <span className="text-destructive">*</span></Label>
+                                <Input placeholder="(99) 99999-9999" value={customerPhone} onChange={handlePhoneChange} maxLength={15} />
+                            </div>
+                            <Separator />
+                            <div className="flex gap-2">
+                                <Button variant={deliveryType === 'Delivery' ? 'default' : 'outline'} className="flex-1" onClick={() => setDeliveryType('Delivery')}>Delivery</Button>
+                                <Button variant={deliveryType === 'Retirada' ? 'default' : 'outline'} className="flex-1" onClick={() => setDeliveryType('Retirada')}>Retirada</Button>
+                            </div>
+                            {deliveryType === 'Delivery' && (
+                                <div className="space-y-3 mt-2">
+                                    <Input placeholder="Rua" value={addressStreet} onChange={e => setAddressStreet(e.target.value)} />
+                                    <Input placeholder="Número" value={addressNumber} onChange={e => setAddressNumber(e.target.value)} />
+                                    <div className="grid gap-1.5">
+                                        <Label className="text-xs">Selecione o Bairro</Label>
+                                        <Select value={addressNeighborhood} onValueChange={setAddressNeighborhood}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Escolha um bairro" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {isLoadingZones ? (
+                                                    <SelectItem value="loading" disabled>Carregando...</SelectItem>
+                                                ) : activeDeliveryZones.length > 0 ? (
+                                                    activeDeliveryZones.map(zone => (
+                                                        <SelectItem key={zone.id} value={zone.neighborhood}>{zone.neighborhood} (R$ {zone.deliveryFee.toFixed(2)})</SelectItem>
+                                                    ))
+                                                ) : (
+                                                    <SelectItem value="none" disabled>Nenhum bairro cadastrado</SelectItem>
+                                                )}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+                            )}
+                            <Separator />
+                            <h3 className="font-semibold">Pagamento</h3>
+                            <RadioGroup value={selectedPayment} onValueChange={setSelectedPayment}>
+                                {enabledPaymentMethods.map(m => (
+                                    <div key={m.id} className="flex items-center space-x-2">
+                                        <RadioGroupItem value={m.id} id={m.id} /><Label htmlFor={m.id}>{m.label}</Label>
+                                    </div>
+                                ))}
+                            </RadioGroup>
+                            {selectedPayment === 'Dinheiro' && (
+                                <div className="grid gap-2 pl-6 pt-2">
+                                    <Label className="text-xs">Precisa de troco? Troco para quanto? (opcional)</Label>
+                                    <Input type="number" value={cashAmount} onChange={e => setCashAmount(e.target.value)} placeholder="Ex: 50.00 (deixe vazio se não precisar)" />
+                                </div>
+                            )}
                         </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </ScrollArea>
-              <SheetFooter className="pt-4 border-t flex flex-col gap-2">
-                <div className="space-y-1 text-sm">
-                  <div className="flex justify-between"><span>Itens</span><span>R$ {totalPrice.toFixed(2)}</span></div>
-                  {deliveryFee > 0 && <div className="flex justify-between"><span>Entrega</span><span>R$ {deliveryFee.toFixed(2)}</span></div>}
-                  <div className="flex justify-between font-bold text-lg pt-1 border-t"><span>Total</span><span>R$ {finalTotal.toFixed(2)}</span></div>
-                </div>
-                <Button className="w-full h-12 text-lg" onClick={handlePlaceOrder} disabled={isSubmitting}>
-                  {isSubmitting ? 'Processando...' : 'Enviar Pedido'}
-                </Button>
-              </SheetFooter>
-            </>
-          ) : (
-            <>
-              <SheetHeader><SheetTitle>Seu Carrinho</SheetTitle></SheetHeader>
-              <ScrollArea className="flex-grow">
-                <div className="space-y-4 py-4">
-                  {cartItems.map(item => <CartItemCard key={item.id} item={item} />)}
-                </div>
-              </ScrollArea>
-              <SheetFooter className="pt-4 border-t flex flex-col gap-2">
-                <div className="flex justify-between font-bold text-lg"><span>Subtotal</span><span>R$ {totalPrice.toFixed(2)}</span></div>
-                <Button className="w-full h-12 text-lg" onClick={() => setIsCheckoutOpen(true)} disabled={cartItems.length === 0}>Finalizar Pedido</Button>
-              </SheetFooter>
-            </>
-          )}
+                    </ScrollArea>
+                    <SheetFooter className="pt-4 border-t flex flex-col gap-2">
+                        <div className="space-y-1 text-sm">
+                            <div className="flex justify-between"><span>Itens</span><span>R$ {totalPrice.toFixed(2)}</span></div>
+                            {deliveryFee > 0 && <div className="flex justify-between"><span>Entrega</span><span>R$ {deliveryFee.toFixed(2)}</span></div>}
+                            <div className="flex justify-between font-bold text-lg pt-1 border-t"><span>Total</span><span>R$ {finalTotal.toFixed(2)}</span></div>
+                        </div>
+                        <Button className="w-full h-12 text-lg" onClick={handlePlaceOrder} disabled={isSubmitting}>
+                            {isSubmitting ? 'Processando...' : 'Enviar Pedido'}
+                        </Button>
+                    </SheetFooter>
+                </>
+            ) : (
+                <>
+                    <SheetHeader><SheetTitle>Seu Carrinho</SheetTitle></SheetHeader>
+                    <ScrollArea className="flex-grow"><div className="space-y-4 py-4">{cartItems.map(item => <CartItemCard key={item.id} item={item} />)}</div></ScrollArea>
+                    <SheetFooter className="pt-4 border-t flex flex-col gap-2">
+                        <div className="flex justify-between font-bold text-lg"><span>Subtotal</span><span>R$ {totalPrice.toFixed(2)}</span></div>
+                        <Button className="w-full h-12 text-lg" onClick={() => setIsCheckoutOpen(true)} disabled={cartItems.length === 0}>Finalizar Pedido</Button>
+                    </SheetFooter>
+                </>
+            )}
         </SheetContent>
       </Sheet>
       <AlertDialog open={isOrderFinished} onOpenChange={setIsOrderFinished}>
         <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Pedido Salvo! 🎉</AlertDialogTitle>
-            <AlertDialogDescription>Seu pedido já está no sistema, mas falta um último passo! Envie a mensagem para o restaurante clicando no botão abaixo para confirmar seu pedido.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="flex flex-col gap-3 mt-4">
-            {whatsappLink && (
-              <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="w-full">
-                <Button className="w-full h-12 text-lg bg-green-600 hover:bg-green-700 text-white">
-                  Enviar Confirmação no WhatsApp
+            <AlertDialogHeader>
+                <AlertDialogTitle>Pedido Salvo! 🎉</AlertDialogTitle>
+                <AlertDialogDescription>Seu pedido já está no sistema, mas falta um último passo! Envie a mensagem para o restaurante clicando no botão abaixo para confirmar seu pedido.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="flex flex-col gap-3 mt-4">
+                {whatsappLink && (
+                    <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="w-full">
+                        <Button className="w-full h-12 text-lg bg-green-600 hover:bg-green-700 text-white">
+                            Enviar Confirmação no WhatsApp
+                        </Button>
+                    </a>
+                )}
+                <Button variant="outline" onClick={() => setIsOrderFinished(false)}>
+                    Fechar Relatório
                 </Button>
-              </a>
-            )}
-            <Button variant="outline" onClick={() => setIsOrderFinished(false)}>
-              Fechar Relatório
-            </Button>
-          </div>
+            </div>
         </AlertDialogContent>
       </AlertDialog>
     </>

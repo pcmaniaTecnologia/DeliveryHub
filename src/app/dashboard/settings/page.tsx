@@ -23,9 +23,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { BellRing, Clock, DollarSign, PlusCircle, Trash2, Copy, Printer, Crown, AlertTriangle, CheckCircle, Send, Loader2 } from 'lucide-react';
-import { useFirestore, useDoc, setDocument, useMemoFirebase, useUser, useCollection, addDocument, deleteDocument, updateDocument, useAuth } from '@/firebase';
-import { firebaseConfig } from '@/firebase/config';
+import { BellRing, Clock, DollarSign, PlusCircle, Trash2, Copy, Printer, Crown, AlertTriangle, CheckCircle, Send } from 'lucide-react';
+import { useFirestore, useDoc, setDocument, useMemoFirebase, useUser, useCollection, addDocument, deleteDocument, updateDocument, useAuth, deleteAuthUser } from '@/firebase';
 import { doc, collection } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -116,16 +115,6 @@ type CompanySettingsData = {
     pixKey?: any;
     businessHours?: any;
     whatsappTemplates?: any;
-    waiterPin?: string; // Global pin option if wanted, but we'll use per-waiter docs
-};
-
-type Waiter = {
-    id: string;
-    name: string;
-    pin: string;
-    isActive: boolean;
-    lastLogin?: any;
-    waiterUid?: string; // Linked Firebase Auth UID
 };
 
 const SubscriptionView = ({ isExpired, trialEndDate, companyData }: { isExpired?: boolean, trialEndDate?: Date, companyData?: CompanySettingsData }) => {
@@ -160,26 +149,13 @@ const SubscriptionView = ({ isExpired, trialEndDate, companyData }: { isExpired?
                     description: "Aguarde enquanto confirmamos com o Mercado Pago.",
                 });
                 try {
-                    const idToken = await user.getIdToken();
                     const res = await fetch('/api/payments/verify', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ payment_id: paymentId, companyId: user.uid, idToken })
+                        body: JSON.stringify({ payment_id: paymentId, companyId: user.uid })
                     });
                     const data = await res.json();
-
                     
                     if (data.approved) {
-                        // Atualiza o Firestore client-side (usuário autenticado como dono)
-                        const { doc: firestoreDoc, updateDoc, Timestamp } = await import('firebase/firestore');
-                        const companyRef = firestoreDoc(firestore, 'companies', user.uid);
-                        await updateDoc(companyRef, {
-                            isActive: true,
-                            planId: data.planId || 'unknown',
-                            trialUsed: true,
-                            subscriptionEndDate: Timestamp.fromDate(new Date(data.subscriptionEndDate)),
-                        });
-
                         toast({
                             title: "🎉 Assinatura Aprovada!",
                             description: `Plano ${data.planName || ''} ativado por ${data.daysAdded || 30} dias com sucesso!`,
@@ -210,24 +186,15 @@ const SubscriptionView = ({ isExpired, trialEndDate, companyData }: { isExpired?
         }
     }, [paymentId, user, isVerifying, firestore, router, toast]);
 
-
     const handleCheckout = async () => {
         if (!selectedPlan || !user) return;
         setIsCheckingOut(true);
         try {
-            // Obtém o ID token do usuário autenticado para que o servidor possa ler o Firestore
-            const idToken = await user.getIdToken();
             const res = await fetch('/api/payments/checkout', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    planId: selectedPlan.id,
-                    companyId: user.uid,
-                    idToken,
-                    baseUrl: window.location.origin,
-                })
+                body: JSON.stringify({ planId: selectedPlan.id, companyId: user.uid })
             });
-
             const data = await res.json();
             if (data.init_point) {
                 window.location.href = data.init_point;
@@ -375,16 +342,10 @@ export default function SettingsPage() {
   const auth = useAuth();
   const router = useRouter();
 
-  const [newTime, setNewTime] = useState('');
-
   const [isZoneDialogOpen, setIsZoneDialogOpen] = useState(false);
   const [newNeighborhood, setNewNeighborhood] = useState('');
   const [newFee, setNewFee] = useState('');
-
-  const [isWaiterDialogOpen, setIsWaiterDialogOpen] = useState(false);
-  const [newWaiterName, setNewWaiterName] = useState('');
-  const [newWaiterPin, setNewWaiterPin] = useState('');
-  const [isAddingWaiter, setIsAddingWaiter] = useState(false);
+  const [newTime, setNewTime] = useState('');
 
   const companyRef = useMemoFirebase(() => {
       if (!firestore || !user) return null;
@@ -399,13 +360,6 @@ export default function SettingsPage() {
   }, [firestore, user]);
 
   const { data: deliveryZones, isLoading: isLoadingZones } = useCollection<DeliveryZone>(deliveryZonesRef);
-
-  const waitersRef = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return collection(firestore, 'companies', user.uid, 'waiters');
-  }, [firestore, user]);
-
-  const { data: waiters, isLoading: isLoadingWaiters } = useCollection<Waiter>(waitersRef);
   
   const planRef = useMemoFirebase(() => {
     if (!firestore || !companyData?.planId || companyData.planId === 'trial') return null;
@@ -627,52 +581,7 @@ export default function SettingsPage() {
     });
   };
 
-  const handleAddWaiter = () => {
-    if (!waitersRef || !newWaiterName || !newWaiterPin) {
-      toast({ variant: 'destructive', title: 'Preencha Nome e PIN' });
-      return;
-    }
-
-    setIsAddingWaiter(true);
-
-    // DEBUG: Verificando se o usuário está logado e o caminho
-    console.log("DEBUG: Tentando cadastrar garçom");
-    console.log("DEBUG: UID do Usuário:", user?.uid);
-    // @ts-ignore - acessando propriedade privada para debug
-    console.log("DEBUG: Caminho da Coleção:", waitersRef?.path || waitersRef?.id);
-
-    const newWaiter = {
-      name: newWaiterName.trim(),
-      pin: newWaiterPin.trim(),
-      isActive: true,
-      companyId: user?.uid,
-      createdAt: new Date(),
-    };
-
-    addDocument(waitersRef, newWaiter).then(() => {
-        toast({ title: 'Garçom Cadastrado!', description: `${newWaiterName} agora pode acessar o sistema.` });
-        setNewWaiterName('');
-        setNewWaiterPin('');
-        setIsWaiterDialogOpen(false);
-    }).catch((err: any) => {
-        console.error("Erro ao adicionar garçom:", err);
-        toast({ 
-            variant: 'destructive', 
-            title: 'Erro ao cadastrar', 
-            description: `Mensagem: ${err.message || 'Sem detalhes'}` 
-        });
-    }).finally(() => {
-        setIsAddingWaiter(false);
-    });
-  };
-
-  const handleDeleteWaiter = (waiterId: string) => {
-    if (!firestore || !user) return;
-    const waiterRef = doc(firestore, 'companies', user.uid, 'waiters', waiterId);
-    deleteDocument(waiterRef);
-  };
-
-  const isLoading = isUserLoadingAuth || isLoadingCompany || isLoadingZones || isLoadingPlan || isLoadingWaiters;
+  const isLoading = isUserLoadingAuth || isLoadingCompany || isLoadingZones || isLoadingPlan;
 
   const weekDays: { key: keyof BusinessHours; label: string }[] = [
     { key: 'monday', label: 'Segunda-feira' },
@@ -689,28 +598,26 @@ export default function SettingsPage() {
   const trialEndDate = companyData?.subscriptionEndDate?.toDate();
   const isTrialExpired = trialEndDate && isAfter(new Date(), trialEndDate);
   const isInactive = companyData?.isActive === false;
+
   if (isInactive || isTrialExpired) {
     return <SubscriptionView isExpired={isTrialExpired} trialEndDate={trialEndDate} companyData={companyData || undefined} />;
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Configurações</h1>
-          <p className="text-muted-foreground">Gerencie sua loja, entregas e equipe.</p>
-        </div>
+      <div>
+        <h2 className="text-2xl font-bold tracking-tight">Configurações</h2>
+        <p className="text-muted-foreground">Gerencie sua loja e conta.</p>
       </div>
 
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="flex flex-wrap h-auto w-full justify-start gap-1 bg-transparent p-0 mb-6">
-          <TabsTrigger value="profile" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground border rounded-md px-3 py-1.5 text-xs sm:text-sm">Empresa</TabsTrigger>
-          <TabsTrigger value="hours" className="data-[state=active]:bg-primary data-[state=activeMechanism]:text-primary-foreground border rounded-md px-3 py-1.5 text-xs sm:text-sm">Horários</TabsTrigger>
-          <TabsTrigger value="delivery" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground border rounded-md px-3 py-1.5 text-xs sm:text-sm">Entrega</TabsTrigger>
-          <TabsTrigger value="payments" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground border rounded-md px-3 py-1.5 text-xs sm:text-sm">Pagamentos</TabsTrigger>
-          <TabsTrigger value="waiters" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground border rounded-md px-3 py-1.5 text-xs sm:text-sm">Garçons</TabsTrigger>
-          <TabsTrigger value="notifications" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground border rounded-md px-3 py-1.5 text-xs sm:text-sm">Mensagens</TabsTrigger>
-          <TabsTrigger value="subscription" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground border rounded-md px-3 py-1.5 text-xs sm:text-sm">Assinatura</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-6">
+          <TabsTrigger value="profile">Empresa</TabsTrigger>
+          <TabsTrigger value="hours">Horários</TabsTrigger>
+          <TabsTrigger value="delivery">Entrega</TabsTrigger>
+          <TabsTrigger value="payments">Pagamentos</TabsTrigger>
+          <TabsTrigger value="notifications">Mensagens</TabsTrigger>
+          <TabsTrigger value="subscription">Assinatura</TabsTrigger>
         </TabsList>
 
         <TabsContent value="profile">
@@ -813,15 +720,15 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               {weekDays.map(({ key, label }, index) => (
-                <div key={`${key}-${index}`} className="flex flex-col sm:flex-row sm:items-center justify-between rounded-lg border p-3 sm:p-4 gap-3 sm:gap-4">
+                <div key={`${key}-${index}`} className="flex items-center justify-between rounded-lg border p-4">
                   <div className="flex items-center gap-4">
                     <Switch checked={businessHours[key]?.isOpen} onCheckedChange={(checked) => handleHoursChange(key, 'isOpen', checked)} id={`switch-${key}-${index}`} disabled={isLoading} />
-                    <Label htmlFor={`switch-${key}-${index}`} className="w-24 font-semibold">{label}</Label>
+                    <Label htmlFor={`switch-${key}-${index}`} className="w-24">{label}</Label>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Input type="time" value={businessHours[key]?.openTime} onChange={(e) => handleHoursChange(key, 'openTime', e.target.value)} disabled={!businessHours[key]?.isOpen || isLoading} className="w-full sm:w-32" />
-                    <span className="text-muted-foreground text-xs">às</span>
-                    <Input type="time" value={businessHours[key]?.closeTime} onChange={(e) => handleHoursChange(key, 'closeTime', e.target.value)} disabled={!businessHours[key]?.isOpen || isLoading} className="w-full sm:w-32" />
+                    <Input type="time" value={businessHours[key]?.openTime} onChange={(e) => handleHoursChange(key, 'openTime', e.target.value)} disabled={!businessHours[key]?.isOpen || isLoading} className="w-32" />
+                    <span>às</span>
+                    <Input type="time" value={businessHours[key]?.closeTime} onChange={(e) => handleHoursChange(key, 'closeTime', e.target.value)} disabled={!businessHours[key]?.isOpen || isLoading} className="w-32" />
                   </div>
                 </div>
               ))}
@@ -844,8 +751,7 @@ export default function SettingsPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
-                  <Table>
+                <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Bairro</TableHead>
@@ -869,7 +775,6 @@ export default function SettingsPage() {
                     ))}
                   </TableBody>
                 </Table>
-                </div>
               </CardContent>
             </Card>
             <DialogContent>
@@ -924,104 +829,6 @@ export default function SettingsPage() {
               <Button onClick={handleSavePayments} disabled={isLoading}>Salvar Configurações de Pagamento</Button>
             </CardFooter>
           </Card>
-        </TabsContent>
-
-        <TabsContent value="waiters">
-          <Dialog open={isWaiterDialogOpen} onOpenChange={setIsWaiterDialogOpen}>
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Equipe de Garçons</CardTitle>
-                    <CardDescription>Cadastre os garçons que terão acesso às comandas via celular.</CardDescription>
-                  </div>
-                  <DialogTrigger asChild>
-                    <Button size="sm" className="gap-1" disabled={isLoading}><PlusCircle className="h-4 w-4" /> Novo Garçom</Button>
-                  </DialogTrigger>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
-                  <div className="rounded-md border">
-                    <Table>
-                    <TableHeader>
-                        <TableRow>
-                        <TableHead>Nome</TableHead>
-                        <TableHead>PIN de Acesso</TableHead>
-                        <TableHead>Identificador UID</TableHead>
-                        <TableHead className="text-right">Ações</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {!isLoading && (waiters?.length || 0) > 0 ? (
-                            waiters?.map((waiter) => (
-                                <TableRow key={waiter.id}>
-                                    <TableCell className="font-medium">{waiter.name}</TableCell>
-                                    <TableCell><code className="bg-muted px-2 py-0.5 rounded text-primary font-bold">****</code></TableCell>
-                                    <TableCell className="text-xs text-muted-foreground font-mono">
-                                        {waiter.waiterUid ? waiter.waiterUid.substring(0, 8) + '...' : <span className="text-orange-500">Aguardando login</span>}
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                        <AlertDialog>
-                                            <AlertDialogTrigger asChild>
-                                                <Button variant="ghost" size="icon"><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                                            </AlertDialogTrigger>
-                                            <AlertDialogContent>
-                                                <AlertDialogHeader>
-                                                    <AlertDialogTitle>Excluir Garçom?</AlertDialogTitle>
-                                                    <AlertDialogDescription>O acesso de <strong>{waiter.name}</strong> será revogado imediatamente.</AlertDialogDescription>
-                                                </AlertDialogHeader>
-                                                <AlertDialogFooter>
-                                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                                    <AlertDialogAction onClick={() => handleDeleteWaiter(waiter.id)} className="bg-destructive">Excluir</AlertDialogAction>
-                                                </AlertDialogFooter>
-                                            </AlertDialogContent>
-                                        </AlertDialog>
-                                    </TableCell>
-                                </TableRow>
-                            ))
-                        ) : (
-                            <TableRow>
-                                <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">Nenhum garçom cadastrado.</TableCell>
-                            </TableRow>
-                        )}
-                    </TableBody>
-                    </Table>
-                  </div>
-                </div>
-              </CardContent>
-              <CardFooter className="bg-muted/30 border-t py-4">
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <AlertTriangle className="w-3 h-3 text-orange-500" />
-                      Lembre de passar o PIN para o garçom. Por segurança, ele não é exibido após o cadastro.
-                  </p>
-              </CardFooter>
-            </Card>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Cadastrar Novo Garçom</DialogTitle>
-                <DialogDescription>O garçom usará o nome e o PIN para logar no sistema de comandas.</DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="space-y-2">
-                    <Label htmlFor="w-name">Nome Completo</Label>
-                    <Input id="w-name" placeholder="Ex: João Silva" value={newWaiterName} onChange={(e) => setNewWaiterName(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="w-pin">PIN de Acesso (Senha Numérica)</Label>
-                    <Input id="w-pin" type="text" maxLength={6} placeholder="Ex: 1234" value={newWaiterPin} onChange={(e) => setNewWaiterPin(e.target.value.replace(/\D/g, ""))} />
-                    <p className="text-[10px] text-muted-foreground">Apenas números para facilitar o acesso no celular.</p>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsWaiterDialogOpen(false)} disabled={isAddingWaiter}>Cancelar</Button>
-                <Button onClick={handleAddWaiter} disabled={isAddingWaiter}>
-                  {isAddingWaiter ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  Confirmar Cadastro
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
         </TabsContent>
 
         <TabsContent value="notifications">
@@ -1084,6 +891,52 @@ export default function SettingsPage() {
              </Card>
         </TabsContent>
       </Tabs>
+
+      <Card className="border-destructive/20 bg-destructive/5">
+        <CardHeader>
+          <CardTitle className="text-destructive">Zona de Perigo</CardTitle>
+          <CardDescription>Ações irreversíveis para sua conta.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive">Excluir minha Loja e Dados</Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Você tem certeza absoluta?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Esta ação não pode ser desfeita. Isso excluirá permanentemente sua loja, 
+                  todos os produtos, pedidos e removerá seu acesso ao sistema.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={async () => {
+                    if (!user || !auth) return;
+                    try {
+                        const companyDocRef = doc(firestore!, 'companies', user.uid);
+                        const companyUserDocRef = doc(firestore!, 'users', user.uid);
+                        
+                        await Promise.all([
+                            deleteDocument(companyDocRef),
+                            deleteDocument(companyUserDocRef)
+                        ]);
+                        
+                        await deleteAuthUser(user);
+                        router.push('/signup');
+                        toast({ title: "Conta excluída", description: "Sua loja foi removida com sucesso." });
+                    } catch (e) {
+                         toast({ variant: 'destructive', title: "Erro ao excluir", description: "Tente novamente ou contate o suporte." });
+                    }
+                }}>
+                  Sim, excluir tudo
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </CardContent>
+      </Card>
     </div>
   );
 }
