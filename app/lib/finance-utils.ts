@@ -5,6 +5,20 @@ export type SalesByPaymentMethod = {
     debit: number;
 };
 
+// 👇 GARANTE que essa função existe
+function categorizePayment(method: string): keyof SalesByPaymentMethod | null {
+    if (!method) return null;
+
+    const m = method.toLowerCase();
+
+    if (m.includes('pix')) return 'pix';
+    if (m.includes('dinheiro') || m.includes('cash')) return 'cash';
+    if (m.includes('credito') || m.includes('credit')) return 'credit';
+    if (m.includes('debito') || m.includes('debit')) return 'debit';
+
+    return null;
+}
+
 export function parseSalesByPaymentMethod(orders: any[]): SalesByPaymentMethod {
     const acc: SalesByPaymentMethod = { cash: 0, pix: 0, credit: 0, debit: 0 };
 
@@ -15,7 +29,6 @@ export function parseSalesByPaymentMethod(orders: any[]): SalesByPaymentMethod {
         const orderTotal = Number(order.totalAmount) || 0;
         if (orderTotal <= 0) return;
 
-        // Prioriza objetos de pagamento, se existirem
         if (Array.isArray(order.payments) && order.payments.length > 0) {
             order.payments.forEach((p: any) => {
                 const cat = categorizePayment(String(p.method || ''));
@@ -72,7 +85,7 @@ export function parseSalesByPaymentMethod(orders: any[]): SalesByPaymentMethod {
             let distributedAmount = 0;
             let firstRecognizedCat: keyof SalesByPaymentMethod | null = null;
 
-            categorizedParts.forEach((p: { method: string; amount: number | null }) => {
+            categorizedParts.forEach((p) => {
                 const cat = categorizePayment(p.method);
                 const val = p.amount !== null ? p.amount : 0;
 
