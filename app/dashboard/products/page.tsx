@@ -337,11 +337,42 @@ export default function ProductsPage() {
         toast({ variant: "destructive", title: "Nome da categoria é obrigatório." });
         return;
     }
-    if (!categoriesRef) return;
-    addDocument(categoriesRef, { name: newCategoryName, companyId: user?.uid, sortOrder: Date.now() }).then(() => {
+    if (!user) {
+        toast({ variant: "destructive", title: "Erro", description: "Usuário não autenticado." });
+        return;
+    }
+    if (!categoriesRef) {
+        toast({ variant: "destructive", title: "Erro", description: "Não foi possível acessar as categorias." });
+        return;
+    }
+    addDocument(categoriesRef, { name: newCategoryName, companyId: user.uid, sortOrder: Date.now() }).then(() => {
         toast({ title: "Categoria adicionada!" });
         setNewCategoryName('');
         setIsCategoryDialogOpen(false);
+    }).catch((error) => {
+        toast({ variant: "destructive", title: "Erro ao adicionar categoria", description: error.message });
+    });
+  };
+
+  const handleDeleteCategory = (categoryId: string) => {
+    if (!firestore || !user) return;
+    
+    // Check if category has products
+    const hasProducts = products?.some(p => p.categoryId === categoryId);
+    if (hasProducts) {
+      toast({ variant: "destructive", title: "Não é possível excluir", description: "Esta categoria contém produtos. Remova ou mova os produtos primeiro." });
+      return;
+    }
+    
+    const categoryDocRef = doc(firestore, `companies/${user.uid}/categories/${categoryId}`);
+    deleteDocument(categoryDocRef).then(() => {
+        toast({
+            title: 'Categoria Excluída',
+            description: 'A categoria foi removida.',
+            variant: 'destructive'
+        });
+    }).catch((error) => {
+        toast({ variant: "destructive", title: "Erro ao excluir categoria", description: error.message });
     });
   };
 
@@ -478,9 +509,27 @@ export default function ProductsPage() {
                                         <Button variant="ghost" size="icon" onClick={() => handleMoveCategory(index, 'down')} disabled={index === sortedCategoriesList.length - 1}>
                                             <ArrowDown className="h-4 w-4" />
                                         </Button>
-                                        <Button variant="ghost" size="icon" disabled>
-                                            <Trash2 className="h-4 w-4 text-destructive" />
-                                        </Button>
+                                        <AlertDialog>
+                                          <AlertDialogTrigger asChild>
+                                            <Button variant="ghost" size="icon">
+                                                <Trash2 className="h-4 w-4 text-destructive" />
+                                            </Button>
+                                          </AlertDialogTrigger>
+                                          <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                              <AlertDialogTitle>Excluir Categoria</AlertDialogTitle>
+                                              <AlertDialogDescription>
+                                                Tem certeza que deseja excluir esta categoria? Esta ação não pode ser desfeita.
+                                              </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                              <AlertDialogAction onClick={() => handleDeleteCategory(cat.id)} className="bg-destructive hover:bg-destructive/90">
+                                                Excluir
+                                              </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                          </AlertDialogContent>
+                                        </AlertDialog>
                                     </div>
                                 </div>
                             ))}
