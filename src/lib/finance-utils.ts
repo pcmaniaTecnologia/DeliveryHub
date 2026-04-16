@@ -51,7 +51,7 @@ export async function recordCashierSale(
             // 2. Update session totals
             const sessDocRef = doc(firestore, 'companies', companyId, 'cashier_sessions', sessionId);
             await updateDocument(sessDocRef, {
-                totalSales: increment(amount)
+                totalSales: increment(numericAmount)
             });
 
             return { success: true, sessionId };
