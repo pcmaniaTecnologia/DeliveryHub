@@ -71,7 +71,7 @@ const planFormSchema = z.object({
   price: z.coerce.number().min(0, { message: 'O preço não pode ser negativo.' }),
   productLimit: z.coerce.number().int().min(0, { message: 'O limite de produtos deve ser 0 ou mais.' }),
   orderLimit: z.coerce.number().int().min(0, { message: 'O limite de pedidos deve ser 0 ou mais.' }),
-  duration: z.enum(['monthly', 'trial'], { required_error: 'A duração é obrigatória.' }),
+  duration: z.enum(['monthly', 'trial']),
   trialDays: z.coerce.number().int().optional(), // 5, 7, 15 ou 30 — só usado quando duration === 'trial'
   billingType: z.enum(['monthly', 'per_order']).default('monthly'),
   pricePerOrder: z.coerce.number().min(0).optional(),
