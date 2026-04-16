@@ -1,3 +1,10 @@
+export type SalesByPaymentMethod = {
+    cash: number;
+    pix: number;
+    credit: number;
+    debit: number;
+};
+
 export function parseSalesByPaymentMethod(orders: any[]): SalesByPaymentMethod {
     const acc: SalesByPaymentMethod = { cash: 0, pix: 0, credit: 0, debit: 0 };
 
@@ -24,12 +31,10 @@ export function parseSalesByPaymentMethod(orders: any[]): SalesByPaymentMethod {
             return;
         }
 
-        // Stage 1: Normalize and Split
         const parts: string[] = paymentStr.includes('|')
             ? paymentStr.split(/\s*\|\s*/)
             : paymentStr.split(/,\s*(?![0-9]{2}\))/);
 
-        // Stage 2: Extract Name and Amount from each part
         const categorizedParts: { method: string; amount: number | null }[] = parts
             .map((part: string): { method: string; amount: number | null } | null => {
                 const p = part.trim();
@@ -60,7 +65,6 @@ export function parseSalesByPaymentMethod(orders: any[]): SalesByPaymentMethod {
                 (item): item is { method: string; amount: number | null } => item !== null
             );
 
-        // Stage 3: Categorize and accumulate
         if (categorizedParts.length === 1) {
             const cat = categorizePayment(categorizedParts[0].method) || 'cash';
             acc[cat] += orderTotal;
