@@ -66,7 +66,7 @@ export default function POSPage() {
         return collection(firestore, `companies/${effectiveCompanyId}/categories`);
     }, [firestore, effectiveCompanyId]);
     const { data: categoriesData, isLoading: isLoadingCategories } = useCollection<Category>(categoriesRef);
-    
+
     // Refs for keyboard shortcuts
     const searchInputRef = useRef<HTMLInputElement>(null);
     const customerNameRef = useRef<HTMLInputElement>(null);
@@ -207,8 +207,8 @@ export default function POSPage() {
 
         try {
             const ordersRef = collection(firestore, 'companies', effectiveCompanyId as string, 'orders');
-            
-            const fullPaymentMethod = isMultiPayment 
+
+            const fullPaymentMethod = isMultiPayment
                 ? payments.map(p => {
                     if (p.method === 'Dinheiro' && p.received && p.received > p.amount) {
                         return `${p.method}: R$ ${p.amount.toFixed(2)} (Rec: R$ ${p.received.toFixed(2)}, Troco: R$ ${(p.received - p.amount).toFixed(2)})`;
@@ -241,25 +241,25 @@ export default function POSPage() {
                 subtotal: total,
                 origin: 'PDV',
                 amountReceived: isMultiPayment ? (payments.find(p => p.method === 'Dinheiro')?.received || 0) : parseFloat(amountReceived || '0'),
-                change: isMultiPayment 
+                change: isMultiPayment
                     ? payments.reduce((acc, p) => acc + (p.method === 'Dinheiro' && p.received ? Math.max(0, p.received - p.amount) : 0), 0)
                     : change,
                 payments: isMultiPayment ? payments : [{ method: paymentMethod, amount: totalWithDiscount, received: parseFloat(amountReceived || '0') }]
             };
 
             const docRef = await addDocument(ordersRef, orderData);
-            
+
             try {
                 const result = await recordCashierSale(
-                    firestore, 
-                    effectiveCompanyId as string, 
-                    totalWithDiscount, 
-                    `Venda de Balcão #${docRef.id.substring(0, 6).toUpperCase()}`, 
+                    firestore,
+                    effectiveCompanyId as string,
+                    totalWithDiscount,
+                    `Venda de Balcão #${docRef.id.substring(0, 6).toUpperCase()}`,
                     docRef.id,
                     fullPaymentMethod
                 );
-                
-                if (result.success) {
+
+                if (result && result.success) {
                     // Vincula o sessionId ao pedido para garantir sincronismo perfeito no relatório
                     if (result.sessionId) {
                         const orderRef = doc(firestore, 'companies', effectiveCompanyId as string, 'orders', docRef.id);
@@ -267,21 +267,21 @@ export default function POSPage() {
                     }
                 } else {
                     console.warn('Venda não vinculada ao caixa (caixa pode estar fechado)');
-                    toast({ 
-                        variant: 'destructive', 
-                        title: "Aviso de Caixa", 
-                        description: "A venda foi salva, mas não foi possível vincular ao caixa (verifique se há um caixa aberto)." 
+                    toast({
+                        variant: 'destructive',
+                        title: "Aviso de Caixa",
+                        description: "A venda foi salva, mas não foi possível vincular ao caixa (verifique se há um caixa aberto)."
                     });
                 }
             } catch (cashierError) {
                 console.error('Erro ao vincular venda ao caixa:', cashierError);
-                toast({ 
-                    variant: 'destructive', 
-                    title: "Erro no Caixa", 
-                    description: "A venda foi salva, mas houve um erro ao registrar no caixa." 
+                toast({
+                    variant: 'destructive',
+                    title: "Erro no Caixa",
+                    description: "A venda foi salva, mas houve um erro ao registrar no caixa."
                 });
             }
-            
+
             // Stock Decrement - Direct Update (Admin has permission)
             const stockItems = cart
                 .filter(item => item.product.stockControlEnabled)
@@ -295,10 +295,10 @@ export default function POSPage() {
                     }));
                 } catch (stockError) {
                     console.error('Falha ao baixar estoque direto:', stockError);
-                    toast({ 
-                        variant: 'destructive', 
-                        title: "Aviso de Estoque", 
-                        description: "A venda foi salva, mas houve um erro ao atualizar o estoque." 
+                    toast({
+                        variant: 'destructive',
+                        title: "Aviso de Estoque",
+                        description: "A venda foi salva, mas houve um erro ao atualizar o estoque."
                     });
                 }
             }
@@ -316,7 +316,7 @@ export default function POSPage() {
             setPayments([]);
             setSearchQuery('');
             setSelectedCategory(null);
-            
+
             toast({ title: "Venda Finalizada!", description: "O pedido foi registrado com sucesso." });
         } catch (e) {
             toast({ variant: 'destructive', title: "Erro ao finalizar venda" });
@@ -379,26 +379,26 @@ export default function POSPage() {
                     <div className="flex flex-col sm:flex-row gap-4">
                         <div className="relative flex-1">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                            <Input 
+                            <Input
                                 ref={searchInputRef}
-                                placeholder="Buscar produto... [F3]" 
-                                className="pl-9" 
+                                placeholder="Buscar produto... [F3]"
+                                className="pl-9"
                                 value={searchQuery}
                                 onChange={e => setSearchQuery(e.target.value)}
                             />
                         </div>
                         <div className="flex gap-2 overflow-x-auto pb-1 max-w-full sm:max-w-[400px]">
-                            <Button 
-                                variant={selectedCategory === null ? 'default' : 'outline'} 
+                            <Button
+                                variant={selectedCategory === null ? 'default' : 'outline'}
                                 size="sm"
                                 onClick={() => setSelectedCategory(null)}
                             >
                                 Tudo
                             </Button>
                             {categoriesData?.map(cat => (
-                                <Button 
-                                    key={cat.id} 
-                                    variant={selectedCategory === cat.id ? 'default' : 'outline'} 
+                                <Button
+                                    key={cat.id}
+                                    variant={selectedCategory === cat.id ? 'default' : 'outline'}
                                     size="sm"
                                     className="whitespace-nowrap"
                                     onClick={() => setSelectedCategory(cat.id)}
@@ -412,17 +412,17 @@ export default function POSPage() {
                 <CardContent className="p-4 flex-1 overflow-y-auto">
                     <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-4">
                         {filteredProducts.map(product => (
-                            <div 
-                                key={product.id} 
+                            <div
+                                key={product.id}
                                 onClick={() => addToCart(product)}
                                 className="group relative flex flex-col border rounded-lg p-2 sm:p-3 cursor-pointer hover:border-primary transition-all hover:bg-primary/5 active:scale-95"
                             >
                                 <div className="relative aspect-square w-full mb-2 sm:mb-3 rounded-md overflow-hidden bg-muted">
                                     {product.imageUrls?.[0] ? (
-                                        <Image 
-                                            src={product.imageUrls[0]} 
-                                            alt={product.name} 
-                                            fill 
+                                        <Image
+                                            src={product.imageUrls[0]}
+                                            alt={product.name}
+                                            fill
                                             className="object-cover group-hover:scale-110 transition-transform"
                                             unoptimized
                                         />
@@ -474,8 +474,8 @@ export default function POSPage() {
                                     <div className="flex-1 min-w-0">
                                         <p className="font-medium text-xs sm:text-sm truncate">{item.product.name}</p>
                                         <p className="text-[10px] sm:text-xs text-muted-foreground">
-                                            {item.product.isSoldByWeight 
-                                                ? `${item.quantity.toFixed(3)}kg x R$ ${item.product.price.toFixed(2)}` 
+                                            {item.product.isSoldByWeight
+                                                ? `${item.quantity.toFixed(3)}kg x R$ ${item.product.price.toFixed(2)}`
                                                 : `R$ ${item.finalPrice.toFixed(2)} x ${item.quantity}`}
                                         </p>
                                     </div>
@@ -501,11 +501,11 @@ export default function POSPage() {
                                                     Peso
                                                 </Button>
                                             )}
-                                            
+
                                             <div className="flex items-center gap-1">
                                                 <span className="text-[9px] text-muted-foreground">R$</span>
-                                                <input 
-                                                    type="number" 
+                                                <input
+                                                    type="number"
                                                     className="w-12 sm:w-16 h-5 sm:h-6 text-[10px] sm:text-xs text-right border rounded bg-muted/50 px-1 focus:outline-none focus:ring-1 focus:ring-primary"
                                                     value={item.finalPrice}
                                                     onChange={(e) => updateItemPrice(item.id, parseFloat(e.target.value) || 0)}
@@ -539,17 +539,17 @@ export default function POSPage() {
                             <span>R$ {total.toFixed(2)}</span>
                         </div>
                     </div>
-                    <Button 
-                        className="w-full h-10 sm:h-14 text-base sm:text-lg font-bold gap-2" 
+                    <Button
+                        className="w-full h-10 sm:h-14 text-base sm:text-lg font-bold gap-2"
                         disabled={cart.length === 0}
                         onClick={() => setIsCheckoutOpen(true)}
                     >
                         <CheckCircle2 className="h-4 w-4 sm:h-5 sm:w-5" /> Finalizar [F9]
                     </Button>
-                    <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="w-full text-[10px] sm:text-xs" 
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full text-[10px] sm:text-xs"
                         disabled={cart.length === 0}
                         onClick={() => setCart([])}
                     >
@@ -571,7 +571,7 @@ export default function POSPage() {
 
             {/* Content for both Mobile (Tabs) and Desktop (Side-by-side) */}
             {/* We define them once for clean code, or use them conditionally */}
-            
+
             <Tabs defaultValue="products" className="flex-1 flex flex-col overflow-hidden xl:hidden">
                 <TabsList className="grid w-full grid-cols-2 mb-2">
                     <TabsTrigger value="products">Produtos</TabsTrigger>
@@ -584,11 +584,11 @@ export default function POSPage() {
                         )}
                     </TabsTrigger>
                 </TabsList>
-                
+
                 <TabsContent value="products" className="flex-1 flex flex-col overflow-hidden m-0">
                     {renderProductSection()}
                 </TabsContent>
-                
+
                 <TabsContent value="cart" className="flex-1 flex flex-col overflow-hidden m-0">
                     {renderCartSection()}
                 </TabsContent>
@@ -598,7 +598,7 @@ export default function POSPage() {
                 {renderProductSection()}
                 {renderCartSection()}
             </div>
-            
+
             {/* Mobile Bottom Bar */}
             {cart.length > 0 && (
                 <div className="xl:hidden fixed bottom-0 left-0 right-0 p-3 bg-background border-t shadow-[0_-4px_10px_rgba(0,0,0,0.05)] flex items-center justify-between z-40">
@@ -607,7 +607,7 @@ export default function POSPage() {
                         <span className="text-xl font-bold text-primary">R$ {total.toFixed(2)}</span>
                     </div>
                     <div className="flex gap-2">
-                         <Button size="lg" className="font-bold h-12 px-6" onClick={() => setIsCheckoutOpen(true)}>
+                        <Button size="lg" className="font-bold h-12 px-6" onClick={() => setIsCheckoutOpen(true)}>
                             Pagar
                         </Button>
                     </div>
@@ -627,12 +627,12 @@ export default function POSPage() {
                             <div className="grid gap-4">
                                 <div className="space-y-2">
                                     <Label htmlFor="cust-name" className="text-xs text-muted-foreground">Nome [F2]</Label>
-                                    <Input 
-                                        id="cust-name" 
+                                    <Input
+                                        id="cust-name"
                                         ref={customerNameRef}
-                                        value={customerName} 
-                                        onChange={e => setCustomerName(e.target.value)} 
-                                        placeholder="Ex: Consumidor" 
+                                        value={customerName}
+                                        onChange={e => setCustomerName(e.target.value)}
+                                        placeholder="Ex: Consumidor"
                                     />
                                 </div>
                                 <div className="space-y-2">
@@ -641,7 +641,7 @@ export default function POSPage() {
                                 </div>
                             </div>
                         </div>
-                        
+
                         <Separator />
 
                         <div className="space-y-4">
@@ -649,12 +649,12 @@ export default function POSPage() {
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                     <Label htmlFor="discount" className="text-xs text-muted-foreground">Desconto (R$)</Label>
-                                    <Input 
-                                        id="discount" 
-                                        type="number" 
-                                        value={discount} 
-                                        onChange={e => setDiscount(e.target.value)} 
-                                        placeholder="0.00" 
+                                    <Input
+                                        id="discount"
+                                        type="number"
+                                        value={discount}
+                                        onChange={e => setDiscount(e.target.value)}
+                                        placeholder="0.00"
                                         className="border-primary/20"
                                     />
                                 </div>
@@ -668,14 +668,14 @@ export default function POSPage() {
                         </div>
 
                         <Separator />
-                        
+
                         <div className="space-y-4">
                             <div className="flex items-center justify-between">
                                 <Label>Forma de Pagamento</Label>
-                                <Button 
-                                    variant="ghost" 
-                                    size="sm" 
-                                    className="text-[10px] h-7 px-2 border" 
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-[10px] h-7 px-2 border"
                                     onClick={() => {
                                         setIsMultiPayment(!isMultiPayment);
                                         if (!isMultiPayment) {
@@ -735,7 +735,7 @@ export default function POSPage() {
                                     {payments.map((p, idx) => (
                                         <div key={idx} className="flex flex-col gap-2 p-3 border rounded-lg bg-muted/20">
                                             <div className="flex items-center gap-2">
-                                                <select 
+                                                <select
                                                     className="flex-1 h-9 rounded-md border bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                                                     value={p.method}
                                                     onChange={(e) => {
@@ -749,19 +749,19 @@ export default function POSPage() {
                                                     <option value="Cartão de Crédito">C. Crédito</option>
                                                     <option value="Cartão de Débito">C. Débito</option>
                                                 </select>
-                                                <Input 
-                                                    type="number" 
-                                                    className="w-24 h-9" 
-                                                    value={p.amount} 
+                                                <Input
+                                                    type="number"
+                                                    className="w-24 h-9"
+                                                    value={p.amount}
                                                     onChange={(e) => {
                                                         const newPayments = [...payments];
                                                         newPayments[idx].amount = parseFloat(e.target.value) || 0;
                                                         setPayments(newPayments);
                                                     }}
                                                 />
-                                                <Button 
-                                                    variant="ghost" 
-                                                    size="icon" 
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
                                                     className="h-9 w-9 text-destructive"
                                                     onClick={() => setPayments(payments.filter((_, i) => i !== idx))}
                                                 >
@@ -771,9 +771,9 @@ export default function POSPage() {
                                             {p.method === 'Dinheiro' && (
                                                 <div className="flex items-center gap-2 mt-1">
                                                     <Label className="text-[10px] whitespace-nowrap">Recebido (Troco):</Label>
-                                                    <Input 
-                                                        type="number" 
-                                                        className="h-7 text-xs" 
+                                                    <Input
+                                                        type="number"
+                                                        className="h-7 text-xs"
                                                         placeholder="0.00"
                                                         value={p.received || ''}
                                                         onChange={(e) => {
@@ -791,9 +791,9 @@ export default function POSPage() {
                                             )}
                                         </div>
                                     ))}
-                                    <Button 
-                                        variant="outline" 
-                                        size="sm" 
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
                                         className="w-full text-xs gap-1 border-dashed"
                                         onClick={() => {
                                             const currentSum = payments.reduce((acc, p) => acc + p.amount, 0);
@@ -806,9 +806,9 @@ export default function POSPage() {
                                     <div className="flex justify-between items-center text-xs font-bold pt-2 border-t mt-2">
                                         <span>Total Pago: R$ {payments.reduce((acc, p) => acc + p.amount, 0).toFixed(2)}</span>
                                         <span className={Math.abs(payments.reduce((acc, p) => acc + p.amount, 0) - totalWithDiscount) < 0.01 ? "text-green-600" : "text-destructive"}>
-                                            {payments.reduce((acc, p) => acc + p.amount, 0) < totalWithDiscount 
+                                            {payments.reduce((acc, p) => acc + p.amount, 0) < totalWithDiscount
                                                 ? `Falta: R$ ${(totalWithDiscount - payments.reduce((acc, p) => acc + p.amount, 0)).toFixed(2)}`
-                                                : payments.reduce((acc, p) => acc + p.amount, 0) > totalWithDiscount 
+                                                : payments.reduce((acc, p) => acc + p.amount, 0) > totalWithDiscount
                                                     ? `Excesso: R$ ${(payments.reduce((acc, p) => acc + p.amount, 0) - totalWithDiscount).toFixed(2)}`
                                                     : '✓ Valor Completo'}
                                         </span>
@@ -822,12 +822,12 @@ export default function POSPage() {
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
                                         <Label htmlFor="received" className="text-xs text-orange-800 font-bold">Valor Recebido (R$)</Label>
-                                        <Input 
-                                            id="received" 
-                                            type="number" 
-                                            value={amountReceived} 
-                                            onChange={e => setAmountReceived(e.target.value)} 
-                                            placeholder="0.00" 
+                                        <Input
+                                            id="received"
+                                            type="number"
+                                            value={amountReceived}
+                                            onChange={e => setAmountReceived(e.target.value)}
+                                            placeholder="0.00"
                                             className="bg-white border-orange-300 focus-visible:ring-orange-500"
                                             autoFocus
                                         />
@@ -842,14 +842,14 @@ export default function POSPage() {
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setIsCheckoutOpen(false)} disabled={isSubmitting}>Cancelar</Button>
-                        <Button 
-                            type="submit" 
-                            onClick={handleCheckout} 
+                        <Button
+                            type="submit"
+                            onClick={handleCheckout}
                             disabled={
-                                isSubmitting || 
-                                cart.length === 0 || 
+                                isSubmitting ||
+                                cart.length === 0 ||
                                 (isMultiPayment && Math.abs(payments.reduce((acc, p) => acc + p.amount, 0) - totalWithDiscount) > 0.01)
-                            } 
+                            }
                             className="gap-2"
                         >
                             {isSubmitting ? 'Processando...' : <><CheckCircle2 className="h-4 w-4" /> Concluir Venda [F9]</>}
@@ -872,7 +872,7 @@ export default function POSPage() {
                         <h2 className="text-2xl font-bold">Venda Concluída!</h2>
                         <p className="text-muted-foreground">O estoque foi atualizado e o pedido registrado.</p>
                     </div>
-                    
+
                     <div className="border rounded-lg p-4 bg-muted/5 max-h-[300px] overflow-y-auto">
                         <div id="receipt-content">
                             <div className="center bold">DeliveryHub</div>
@@ -957,7 +957,7 @@ export default function POSPage() {
                             <p className="text-primary font-semibold">R$ {selectedProductForWeight?.price.toFixed(2)} / kg</p>
                         </div>
                         <div className="w-full max-w-[200px] relative">
-                            <Input 
+                            <Input
                                 type="text"
                                 className="text-4xl h-20 text-center font-black pr-12"
                                 value={currentWeight}
@@ -968,7 +968,7 @@ export default function POSPage() {
                             <span className="absolute right-4 top-1/2 -translate-y-1/2 font-bold text-muted-foreground">Kg</span>
                         </div>
                         <div className="text-sm font-medium text-muted-foreground bg-muted/30 px-4 py-2 rounded-full">
-                            Valor Estimado: <span className="text-foreground">R$ {( (selectedProductForWeight?.price || 0) * (parseFloat(currentWeight.replace(',', '.')) || 0) ).toFixed(2)}</span>
+                            Valor Estimado: <span className="text-foreground">R$ {((selectedProductForWeight?.price || 0) * (parseFloat(currentWeight.replace(',', '.')) || 0)).toFixed(2)}</span>
                         </div>
                     </div>
                     <DialogFooter>
