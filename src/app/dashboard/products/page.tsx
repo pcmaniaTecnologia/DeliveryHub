@@ -56,6 +56,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { useUser, useFirestore, useCollection, useMemoFirebase, addDocument, deleteDocument, updateDocument } from '@/firebase';
+import { useImpersonation } from '@/context/impersonation-context';
 import { collection, doc, writeBatch, query, where, getDocs } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -127,8 +128,10 @@ type Category = {
 
 export default function ProductsPage() {
   const { user, isUserLoading } = useUser();
+  const { isImpersonating, impersonatedCompanyId } = useImpersonation();
   const firestore = useFirestore();
   const { toast } = useToast();
+  const effectiveCompanyId = isImpersonating ? impersonatedCompanyId : user?.uid;
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -191,21 +194,21 @@ export default function ProductsPage() {
   }, [editingProduct, form]);
   
   const productsRef = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return collection(firestore, `companies/${user.uid}/products`);
-  }, [firestore, user]);
+    if (!firestore || !effectiveCompanyId) return null;
+    return collection(firestore, `companies/${effectiveCompanyId}/products`);
+  }, [firestore, effectiveCompanyId]);
 
   const { data: products, isLoading: isLoadingProducts } = useCollection<Product>(productsRef);
 
   const categoriesRef = useMemoFirebase(() => {
-      if (!firestore || !user) return null;
-      return collection(firestore, `companies/${user.uid}/categories`);
-  }, [firestore, user]);
+      if (!firestore || !effectiveCompanyId) return null;
+      return collection(firestore, `companies/${effectiveCompanyId}/categories`);
+  }, [firestore, effectiveCompanyId]);
 
   const { data: categories, isLoading: isLoadingCategories } = useCollection<Category>(categoriesRef);
 
   const onSubmit = async (values: z.infer<typeof productFormSchema>) => {
-    if (!user || !firestore) return;
+    if (!firestore || !effectiveCompanyId) return;
     setIsSaving(true);
 
     let finalImageUrl = values.imageUrl;
@@ -229,20 +232,20 @@ export default function ProductsPage() {
     const productData = {
       ...values,
       imageUrl: finalImageUrl,
-      companyId: user.uid,
+      companyId: effectiveCompanyId,
       imageUrls: finalImageUrl ? [finalImageUrl] : [],
     };
     
     let promise;
     if (editingProduct) {
-      const productDocRef = doc(firestore, `companies/${user.uid}/products/${editingProduct.id}`);
+      const productDocRef = doc(firestore, `companies/${effectiveCompanyId}/products/${editingProduct.id}`);
       promise = updateDocument(productDocRef, productData);
       
       // Lógica de Replicação para Categoria
       if (values.replicateToCategory && values.variants && values.variants.length > 0) {
           const bulkUpdatePromise = (async () => {
               const q = query(
-                  collection(firestore, `companies/${user.uid}/products`),
+                  collection(firestore, `companies/${effectiveCompanyId}/products`),
                   where('categoryId', '==', values.categoryId)
               );
               const snapshot = await getDocs(q);
@@ -302,8 +305,8 @@ export default function ProductsPage() {
   };
   
   const handleDeleteProduct = (productId: string) => {
-    if (!firestore || !user) return;
-    const productDocRef = doc(firestore, `companies/${user.uid}/products/${productId}`);
+    if (!firestore || !effectiveCompanyId) return;
+    const productDocRef = doc(firestore, `companies/${effectiveCompanyId}/products/${productId}`);
     deleteDocument(productDocRef).then(() => {
         toast({
             title: 'Produto Excluído',
@@ -337,11 +340,20 @@ export default function ProductsPage() {
         toast({ variant: "destructive", title: "Nome da categoria é obrigatório." });
         return;
     }
-    if (!categoriesRef) return;
-    addDocument(categoriesRef, { name: newCategoryName, companyId: user?.uid, sortOrder: Date.now() }).then(() => {
+    if (!effectiveCompanyId) {
+        toast({ variant: "destructive", title: "Erro", description: "Não foi possível determinar a empresa." });
+        return;
+    }
+    if (!categoriesRef) {
+        toast({ variant: "destructive", title: "Erro", description: "Não foi possível acessar as categorias." });
+        return;
+    }
+    addDocument(categoriesRef, { name: newCategoryName, companyId: effectiveCompanyId, sortOrder: Date.now() }).then(() => {
         toast({ title: "Categoria adicionada!" });
         setNewCategoryName('');
         setIsCategoryDialogOpen(false);
+    }).catch((error) => {
+        toast({ variant: "destructive", title: "Erro ao adicionar categoria", description: error.message });
     });
   };
 
@@ -387,7 +399,7 @@ export default function ProductsPage() {
   }, [products, searchQuery, sortedCategoriesList]);
 
   const handleMoveCategory = (index: number, direction: 'up' | 'down') => {
-      if (!firestore || !user || !sortedCategoriesList) return;
+      if (!firestore || !effectiveCompanyId || !sortedCategoriesList) return;
       const targetIndex = direction === 'up' ? index - 1 : index + 1;
       if (targetIndex < 0 || targetIndex >= sortedCategoriesList.length) return;
 
@@ -400,8 +412,8 @@ export default function ProductsPage() {
           targetOrder += (direction === 'up' ? -1 : 1);
       }
 
-      const docRef1 = doc(firestore, `companies/${user.uid}/categories/${currentCat.id}`);
-      const docRef2 = doc(firestore, `companies/${user.uid}/categories/${targetCat.id}`);
+      const docRef1 = doc(firestore, `companies/${effectiveCompanyId}/categories/${currentCat.id}`);
+      const docRef2 = doc(firestore, `companies/${effectiveCompanyId}/categories/${targetCat.id}`);
 
       Promise.all([
           updateDocument(docRef1, { sortOrder: targetOrder }),
@@ -410,7 +422,7 @@ export default function ProductsPage() {
   };
 
   const handleMoveProduct = (product: Product, direction: 'up' | 'down') => {
-      if (!firestore || !user || !products) return;
+      if (!firestore || !effectiveCompanyId || !products) return;
       const categoryProducts = products
         .filter(p => p.categoryId === product.categoryId)
         .sort((a, b) => {
@@ -433,8 +445,8 @@ export default function ProductsPage() {
           targetOrder += (direction === 'up' ? -1 : 1);
       }
 
-      const docRef1 = doc(firestore, `companies/${user.uid}/products/${product.id}`);
-      const docRef2 = doc(firestore, `companies/${user.uid}/products/${targetProduct.id}`);
+      const docRef1 = doc(firestore, `companies/${effectiveCompanyId}/products/${product.id}`);
+      const docRef2 = doc(firestore, `companies/${effectiveCompanyId}/products/${targetProduct.id}`);
 
       Promise.all([
           updateDocument(docRef1, { sortOrder: targetOrder }),
