@@ -23,12 +23,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { BellRing, Clock, DollarSign, PlusCircle, Trash2, Copy, Printer, Crown, AlertTriangle, CheckCircle, Send } from 'lucide-react';
+import { BellRing, Clock, DollarSign, PlusCircle, Trash2, Copy, Printer, Crown, AlertTriangle, CheckCircle, Send, MoreHorizontal } from 'lucide-react';
 import { useFirestore, useDoc, setDocument, useMemoFirebase, useUser, useCollection, addDocument, deleteDocument, updateDocument, useAuth, deleteAuthUser } from '@/firebase';
-import { doc, collection } from 'firebase/firestore';
+import { doc, collection, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -41,6 +41,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { format, addDays, isAfter } from 'date-fns';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -92,8 +93,14 @@ type Plan = {
     duration: 'monthly' | 'trial';
 }
 
-type PlatformSettings = {
-    pixKey?: string;
+type Waiter = {
+  id: string;
+  name: string;
+  phone?: string;
+  pin: string;
+  isActive: boolean;
+  companyId: string;
+  createdAt: any;
 };
 
 type CompanySettingsData = {
@@ -347,6 +354,12 @@ export default function SettingsPage() {
   const [newFee, setNewFee] = useState('');
   const [newTime, setNewTime] = useState('');
 
+  const [isWaiterDialogOpen, setIsWaiterDialogOpen] = useState(false);
+  const [editingWaiter, setEditingWaiter] = useState<Waiter | null>(null);
+  const [waiterName, setWaiterName] = useState('');
+  const [waiterPhone, setWaiterPhone] = useState('');
+  const [waiterPin, setWaiterPin] = useState('');
+
   const companyRef = useMemoFirebase(() => {
       if (!firestore || !user) return null;
       return doc(firestore, 'companies', user.uid)
@@ -360,6 +373,13 @@ export default function SettingsPage() {
   }, [firestore, user]);
 
   const { data: deliveryZones, isLoading: isLoadingZones } = useCollection<DeliveryZone>(deliveryZonesRef);
+
+  const waitersRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return collection(firestore, 'companies', user.uid, 'waiters');
+  }, [firestore, user]);
+
+  const { data: waiters, isLoading: isLoadingWaiters } = useCollection<Waiter>(waitersRef);
   
   const planRef = useMemoFirebase(() => {
     if (!firestore || !companyData?.planId || companyData.planId === 'trial') return null;
@@ -581,7 +601,90 @@ export default function SettingsPage() {
     });
   };
 
-  const isLoading = isUserLoadingAuth || isLoadingCompany || isLoadingZones || isLoadingPlan;
+  const handleOpenWaiterDialog = (waiter: Waiter | null = null) => {
+    setEditingWaiter(waiter);
+    if (waiter) {
+      setWaiterName(waiter.name);
+      setWaiterPhone(waiter.phone || '');
+      setWaiterPin(waiter.pin);
+    } else {
+      setWaiterName('');
+      setWaiterPhone('');
+      setWaiterPin('');
+    }
+    setIsWaiterDialogOpen(true);
+  };
+
+  const handleSaveWaiter = () => {
+    if (!waitersRef || !user) return;
+    
+    if (!waiterName.trim() || !waiterPin.trim()) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: 'Nome e PIN são obrigatórios.',
+      });
+      return;
+    }
+
+    if (waiterPin.length < 4) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: 'O PIN deve ter pelo menos 4 dígitos.',
+      });
+      return;
+    }
+
+    const waiterData = {
+      name: waiterName.trim(),
+      phone: waiterPhone.trim() || undefined,
+      pin: waiterPin.trim(),
+      isActive: true,
+      companyId: user.uid,
+      createdAt: serverTimestamp(),
+    };
+
+    if (editingWaiter) {
+      const waiterDocRef = doc(firestore!, 'companies', user.uid, 'waiters', editingWaiter.id);
+      updateDocument(waiterDocRef, waiterData).then(() => {
+        toast({
+          title: 'Garçom Atualizado!',
+          description: `${waiterName} foi atualizado com sucesso.`,
+        });
+        setIsWaiterDialogOpen(false);
+        setEditingWaiter(null);
+      });
+    } else {
+      addDocument(waitersRef, waiterData).then(() => {
+        toast({
+          title: 'Garçom Adicionado!',
+          description: `${waiterName} foi cadastrado com sucesso.`,
+        });
+        setIsWaiterDialogOpen(false);
+      });
+    }
+  };
+
+  const handleDeleteWaiter = (waiterId: string, waiterName: string) => {
+    if (!firestore || !user) return;
+    const waiterDocRef = doc(firestore, 'companies', user.uid, 'waiters', waiterId);
+    deleteDocument(waiterDocRef).then(() => {
+      toast({
+        title: 'Garçom Excluído',
+        description: `${waiterName} foi removido da lista.`,
+        variant: 'destructive'
+      });
+    });
+  };
+
+  const handleToggleWaiterStatus = (waiter: Waiter) => {
+    if (!firestore || !user) return;
+    const waiterDocRef = doc(firestore, 'companies', user.uid, 'waiters', waiter.id);
+    updateDocument(waiterDocRef, { isActive: !waiter.isActive });
+  };
+
+  const isLoading = isUserLoadingAuth || isLoadingCompany || isLoadingZones || isLoadingPlan || isLoadingWaiters;
 
   const weekDays: { key: keyof BusinessHours; label: string }[] = [
     { key: 'monday', label: 'Segunda-feira' },
@@ -611,11 +714,12 @@ export default function SettingsPage() {
       </div>
 
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-6">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-7">
           <TabsTrigger value="profile">Empresa</TabsTrigger>
           <TabsTrigger value="hours">Horários</TabsTrigger>
           <TabsTrigger value="delivery">Entrega</TabsTrigger>
           <TabsTrigger value="payments">Pagamentos</TabsTrigger>
+          <TabsTrigger value="waiters">Garçons</TabsTrigger>
           <TabsTrigger value="notifications">Mensagens</TabsTrigger>
           <TabsTrigger value="subscription">Assinatura</TabsTrigger>
         </TabsList>
@@ -829,6 +933,155 @@ export default function SettingsPage() {
               <Button onClick={handleSavePayments} disabled={isLoading}>Salvar Configurações de Pagamento</Button>
             </CardFooter>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="waiters">
+          <Dialog open={isWaiterDialogOpen} onOpenChange={(isOpen) => {
+            setIsWaiterDialogOpen(isOpen);
+            if (!isOpen) setEditingWaiter(null);
+          }}>
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Garçons</CardTitle>
+                    <CardDescription>Gerencie os garçons que terão acesso às comandas.</CardDescription>
+                  </div>
+                  <DialogTrigger asChild>
+                    <Button size="sm" className="gap-1" disabled={isLoading} onClick={() => handleOpenWaiterDialog()}>
+                      <PlusCircle className="h-4 w-4" /> Adicionar Garçom
+                    </Button>
+                  </DialogTrigger>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nome</TableHead>
+                      <TableHead>Telefone</TableHead>
+                      <TableHead>PIN</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {!isLoading && waiters?.map((waiter) => (
+                      <TableRow key={waiter.id}>
+                        <TableCell className="font-medium">{waiter.name}</TableCell>
+                        <TableCell>{waiter.phone || '-'}</TableCell>
+                        <TableCell>
+                          <code className="bg-muted px-2 py-1 rounded text-sm">{waiter.pin}</code>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={waiter.isActive ? 'default' : 'secondary'}>
+                            {waiter.isActive ? 'Ativo' : 'Inativo'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center gap-2 justify-end">
+                            <Switch
+                              checked={waiter.isActive}
+                              onCheckedChange={() => handleToggleWaiterStatus(waiter)}
+                              size="sm"
+                            />
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleOpenWaiterDialog(waiter)}
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="icon">
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Excluir Garçom</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Tem certeza que deseja excluir {waiter.name}? Esta ação não pode ser desfeita.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => handleDeleteWaiter(waiter.id, waiter.name)}
+                                    className="bg-destructive hover:bg-destructive/90"
+                                  >
+                                    Excluir
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {!isLoading && (!waiters || waiters.length === 0) && (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                          Nenhum garçom cadastrado ainda.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{editingWaiter ? 'Editar Garçom' : 'Adicionar Garçom'}</DialogTitle>
+                <DialogDescription>
+                  {editingWaiter ? 'Atualize as informações do garçom.' : 'Cadastre um novo garçom para acessar as comandas.'}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="waiter-name">Nome Completo</Label>
+                  <Input
+                    id="waiter-name"
+                    placeholder="Ex: João Silva"
+                    value={waiterName}
+                    onChange={(e) => setWaiterName(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="waiter-phone">Telefone (Opcional)</Label>
+                  <Input
+                    id="waiter-phone"
+                    placeholder="Ex: (11) 99999-9999"
+                    value={waiterPhone}
+                    onChange={(e) => setWaiterPhone(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="waiter-pin">PIN de Acesso</Label>
+                  <Input
+                    id="waiter-pin"
+                    type="password"
+                    placeholder="Ex: 1234"
+                    value={waiterPin}
+                    onChange={(e) => setWaiterPin(e.target.value)}
+                    maxLength={6}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Código de 4-6 dígitos para o garçom acessar as comandas.
+                  </p>
+                </div>
+              </div>
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button variant="outline" disabled={isLoading}>Cancelar</Button>
+                </DialogClose>
+                <Button onClick={handleSaveWaiter} disabled={isLoading}>
+                  {editingWaiter ? 'Atualizar' : 'Cadastrar'} Garçom
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </TabsContent>
 
         <TabsContent value="notifications">
