@@ -124,6 +124,10 @@ type CompanySettingsData = {
     whatsappTemplates?: any;
 };
 
+type PlatformSettings = {
+    pixKey?: string;
+};
+
 const SubscriptionView = ({ isExpired, trialEndDate, companyData }: { isExpired?: boolean, trialEndDate?: Date, companyData?: CompanySettingsData }) => {
     const firestore = useFirestore();
     const { toast } = useToast();
