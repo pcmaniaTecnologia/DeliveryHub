@@ -987,7 +987,6 @@ export default function SettingsPage() {
                             <Switch
                               checked={waiter.isActive}
                               onCheckedChange={() => handleToggleWaiterStatus(waiter)}
-                              size="sm"
                             />
                             <Button
                               variant="ghost"
