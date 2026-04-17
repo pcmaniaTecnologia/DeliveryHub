@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { PlusCircle, MoreHorizontal } from 'lucide-react';
-import { useForm, useWatch } from 'react-hook-form';
+import { useForm, useWatch, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
@@ -85,7 +85,7 @@ export default function PlansPage() {
   const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
 
   const form = useForm<z.infer<typeof planFormSchema>>({
-    resolver: zodResolver(planFormSchema),
+    resolver: zodResolver(planFormSchema) as Resolver<z.infer<typeof planFormSchema>, any>,
     defaultValues: {
       name: '',
       price: 0,
