@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
 import { MoreHorizontal, PlusCircle, Trash2, Search, ArrowUp, ArrowDown } from 'lucide-react';
-import { useForm, useFieldArray, Controller } from 'react-hook-form';
+import { useForm, useFieldArray, Controller, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Badge } from '@/components/ui/badge';
@@ -140,7 +140,7 @@ export default function ProductsPage() {
   const [isSaving, setIsSaving] = useState(false);
   
   const form = useForm<z.infer<typeof productFormSchema>>({
-    resolver: zodResolver(productFormSchema),
+    resolver: zodResolver(productFormSchema) as Resolver<z.infer<typeof productFormSchema>, any>,
     defaultValues: {
       name: '',
       description: '',
