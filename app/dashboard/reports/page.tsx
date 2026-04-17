@@ -203,7 +203,7 @@ export default function ReportsPage() {
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                                 <XAxis dataKey="date" />
                                 <YAxis tickFormatter={(value) => `R$${value}`} />
-                                <Tooltip formatter={(value: number) => `R$ ${value.toFixed(2)}`} labelStyle={{ fontWeight: 'bold' }} />
+                                <Tooltip formatter={(value) => typeof value === 'number' ? `R$ ${value.toFixed(2)}` : value} labelStyle={{ fontWeight: 'bold' }} />
                                 <Area 
                                     type="monotone" 
                                     dataKey="total" 
@@ -232,13 +232,13 @@ export default function ReportsPage() {
                                     outerRadius={100}
                                     paddingAngle={5}
                                     dataKey="value"
-                                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                                    label={({ name, percent }) => `${name} ${typeof percent === 'number' ? `${(percent * 100).toFixed(0)}%` : ''}`}
                                 >
                                     {reportData?.paymentsData.map((entry, index) => (
                                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                     ))}
                                 </Pie>
-                                <Tooltip formatter={(value: number) => `R$ ${value.toFixed(2)}`} />
+                                <Tooltip formatter={(value) => typeof value === 'number' ? `R$ ${value.toFixed(2)}` : value} />
                                 <Legend verticalAlign="bottom" height={36}/>
                             </PieChart>
                         </ResponsiveContainer>
@@ -256,7 +256,7 @@ export default function ReportsPage() {
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                                 <XAxis dataKey="name" />
                                 <YAxis tickFormatter={(value) => `R$${value}`} />
-                                <Tooltip formatter={(value: number) => `R$ ${value.toFixed(2)}`} />
+                                <Tooltip formatter={(value) => typeof value === 'number' ? `R$ ${value.toFixed(2)}` : value} />
                                 <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                                     {reportData?.typeData.map((entry, index) => (
                                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
