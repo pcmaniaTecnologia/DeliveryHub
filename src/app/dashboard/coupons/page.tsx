@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { MoreHorizontal, PlusCircle } from 'lucide-react';
-import { useForm } from 'react-hook-form';
+import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Badge } from '@/components/ui/badge';
@@ -81,7 +81,7 @@ type Coupon = {
 
 const couponFormSchema = z.object({
   name: z.string().min(3, { message: 'O código deve ter pelo menos 3 caracteres.' }),
-  type: z.enum(['percentage', 'fixed'], { required_error: 'O tipo é obrigatório.' }),
+  type: z.enum(['percentage', 'fixed'], { message: 'O tipo é obrigatório.' }),
   value: z.coerce.number().positive({ message: 'O valor deve ser positivo.' }),
   validUntilDate: z.string().optional(),
   usageLimit: z.coerce.number().int().positive().optional(),
@@ -95,7 +95,7 @@ export default function CouponsPage() {
   const [editingCoupon, setEditingCoupon] = useState<Coupon | null>(null);
 
   const form = useForm<z.infer<typeof couponFormSchema>>({
-    resolver: zodResolver(couponFormSchema),
+    resolver: zodResolver(couponFormSchema) as Resolver<z.infer<typeof couponFormSchema>, any>,
     defaultValues: {
       name: '',
       type: 'percentage',
