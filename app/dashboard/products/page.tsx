@@ -240,38 +240,6 @@ export default function ProductsPage() {
     if (editingProduct) {
       const productDocRef = doc(firestore, `companies/${effectiveCompanyId}/products/${editingProduct.id}`);
       promise = updateDocument(productDocRef, productData);
-      
-      // Lógica de Replicação para Categoria
-      if (values.replicateToCategory && values.variants && values.variants.length > 0) {
-          const bulkUpdatePromise = (async () => {
-              const q = query(
-                  collection(firestore, `companies/${effectiveCompanyId}/products`),
-                  where('categoryId', '==', values.categoryId)
-              );
-              const snapshot = await getDocs(q);
-              const batch = writeBatch(firestore);
-              
-              snapshot.docs.forEach((productDoc) => {
-                  if (productDoc.id !== editingProduct.id) {
-                      batch.update(productDoc.ref, { 
-                          variants: values.variants 
-                      });
-                  }
-              });
-              
-              await batch.commit();
-              return snapshot.size - 1; // Retorna quantos foram replicados
-          })();
-          
-          bulkUpdatePromise.then((count) => {
-              if (count > 0) {
-                  toast({
-                      title: 'Replicação Concluída!',
-                      description: `Os grupos de opções foram replicados para ${count} produto(s) desta categoria.`,
-                  });
-              }
-          });
-      }
     } else {
         if (!productsRef) {
             setIsSaving(false);
@@ -285,7 +253,45 @@ export default function ProductsPage() {
         });
     }
 
-    promise.then(() => {
+    promise.then(async () => {
+        // Lógica de Replicação para Categoria (após criação ou edição)
+        if (values.replicateToCategory && values.variants && values.variants.length > 0) {
+            try {
+                const q = query(
+                    collection(firestore, `companies/${effectiveCompanyId}/products`),
+                    where('categoryId', '==', values.categoryId)
+                );
+                const snapshot = await getDocs(q);
+                const batch = writeBatch(firestore);
+                
+                snapshot.docs.forEach((productDoc) => {
+                    // Na edição, não replicar para o próprio produto
+                    if (!editingProduct || productDoc.id !== editingProduct.id) {
+                        batch.update(productDoc.ref, { 
+                            variants: values.variants 
+                        });
+                    }
+                });
+                
+                await batch.commit();
+                const replicatedCount = editingProduct ? snapshot.size - 1 : snapshot.size;
+                
+                if (replicatedCount > 0) {
+                    toast({
+                        title: 'Replicação Concluída!',
+                        description: `Os grupos de opções foram replicados para ${replicatedCount} produto(s) desta categoria.`,
+                    });
+                }
+            } catch (error) {
+                console.error('Erro na replicação:', error);
+                toast({
+                    variant: 'destructive',
+                    title: 'Erro na Replicação',
+                    description: 'O produto foi salvo, mas houve erro ao replicar para outros produtos.',
+                });
+            }
+        }
+
         toast({
             title: editingProduct ? 'Produto Atualizado!' : 'Produto Adicionado!',
             description: `${values.name} foi salvo com sucesso.`,
@@ -734,7 +740,7 @@ export default function ProductsPage() {
                     </Button>
                   </div>
 
-                  {fields.length > 0 && editingProduct && (
+                  {fields.length > 0 && (
                       <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 space-y-3">
                           <div className="flex items-start gap-4">
                               <FormField
@@ -751,7 +757,10 @@ export default function ProductsPage() {
                                           <div className="space-y-0.5">
                                               <FormLabel className="text-orange-900 font-bold">Replicar para categoria</FormLabel>
                                               <FormDescription className="text-orange-700 text-xs">
-                                                  Ao salvar, estes grupos de opções serão copiados para TODOS os produtos da categoria selecionada.
+                                                  {editingProduct 
+                                                    ? "Ao salvar, estes grupos de opções serão copiados para TODOS os produtos da categoria selecionada."
+                                                    : "Ao criar o produto, estes grupos de opções serão aplicados a TODOS os produtos existentes da categoria selecionada."
+                                                  }
                                               </FormDescription>
                                           </div>
                                       </FormItem>
