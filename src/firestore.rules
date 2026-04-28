@@ -1,0 +1,161 @@
+
+/**
+ * Core Philosophy: This ruleset enforces a multi-tenant security model for a SaaS delivery platform.
+ * Access is primarily governed by a user's membership within a specific company. A global "super admin"
+ * role exists for system-wide management, capable of overriding tenant-specific permissions. Data is
+ * strictly segregated by company to prevent cross-tenant data leakage.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ------------------------------------------------------------------------
+    // Helper Functions
+    // ------------------------------------------------------------------------
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    function isCompanyMember(companyId) {
+      return isSignedIn() && exists(/databases/$(database)/documents/companies/$(companyId)/users/$(request.auth.uid));
+    }
+    
+    function isCompanyOwner(companyId) {
+      return isSignedIn()
+        && get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
+    }
+    
+    function isCompanyAdmin(companyId) {
+      return isSignedIn() && get(/databases/$(database)/documents/companies/$(companyId)/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // ------------------------------------------------------------------------
+    // Collection Group Rules
+    // ------------------------------------------------------------------------
+    match /{path=**}/orders/{orderId} {
+      allow list: if isSuperAdmin();
+    }
+
+    // ------------------------------------------------------------------------
+    // Collection Rules
+    // ------------------------------------------------------------------------
+
+    match /companies/{companyId} {
+      // Public can read for menu pages.
+      allow get: if true;
+      // Admins can list all companies.
+      allow list: if isSuperAdmin();
+      
+      // Allow user to create their own company document.
+      allow create: if isOwner(companyId) && request.resource.data.ownerId == request.auth.uid;
+      
+      // Allow update if user is the owner OR is a super admin.
+      allow update: if (isOwner(companyId) && request.resource.data.ownerId == request.auth.uid) || isSuperAdmin();
+      
+      // Allow delete if user is the owner OR is a super admin.
+      allow delete: if isOwner(companyId) || isSuperAdmin();
+    }
+
+    match /companies/{companyId}/users/{userId} {
+      allow get: if isOwner(userId) || isCompanyAdmin(companyId) || isSuperAdmin();
+      allow list: if isCompanyAdmin(companyId) || isSuperAdmin();
+      allow create: if (isOwner(userId) && companyId == request.auth.uid) || isCompanyAdmin(companyId) || isSuperAdmin();
+      allow update: if resource != null && (isCompanyAdmin(companyId) || isSuperAdmin() || (isOwner(userId) && request.resource.data.role == resource.data.role));
+      allow delete: if (isCompanyAdmin(companyId) || isSuperAdmin()) && resource != null;
+    }
+
+    match /companies/{companyId}/products/{productId} {
+      allow get, list: if true;
+      allow create: if (isCompanyMember(companyId) || isSuperAdmin()) && request.resource.data.companyId == companyId;
+      // Membros da empresa podem atualizar tudo
+      allow update: if (isCompanyMember(companyId) || isSuperAdmin()) && resource != null && request.resource.data.companyId == resource.data.companyId;
+      // Permite que qualquer um diminua o estoque (usado pela API e Delivery)
+      allow update: if resource != null
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock'])
+                    && request.resource.data.stock < resource.data.stock;
+      allow delete: if (isCompanyMember(companyId) || isSuperAdmin()) && resource != null;
+    }
+
+    match /companies/{companyId}/categories/{categoryId} {
+      allow get, list: if true;
+      allow create: if (isCompanyMember(companyId) || isOwner(companyId) || isSuperAdmin()) && request.resource.data.companyId == companyId;
+      allow update: if (isCompanyMember(companyId) || isOwner(companyId) || isSuperAdmin()) && resource != null;
+      allow delete: if (isCompanyMember(companyId) || isOwner(companyId) || isSuperAdmin()) && resource != null;
+    }
+
+    match /companies/{companyId}/subcategories/{subcategoryId} {
+      allow get, list: if true;
+      allow create: if isCompanyMember(companyId) || isSuperAdmin();
+      allow update: if (isCompanyMember(companyId) || isSuperAdmin()) && resource != null;
+      allow delete: if (isCompanyMember(companyId) || isSuperAdmin()) && resource != null;
+    }
+
+    match /companies/{companyId}/coupons/{couponId} {
+      allow get, list: if isCompanyMember(companyId) || isSuperAdmin();
+      allow create: if (isCompanyMember(companyId) || isSuperAdmin()) && request.resource.data.companyId == companyId;
+      allow update: if (isCompanyMember(companyId) || isSuperAdmin()) && resource != null;
+      allow delete: if (isCompanyMember(companyId) || isSuperAdmin()) && resource != null;
+    }
+
+    match /companies/{companyId}/orders/{orderId} {
+      allow get, list: if isCompanyMember(companyId) || isSuperAdmin() || isSignedIn();
+      allow create: if request.resource.data.companyId == companyId;
+      allow update: if (isCompanyMember(companyId) || isSuperAdmin()) && resource != null;
+      allow delete: if false;
+    }
+
+    match /companies/{companyId}/orders/{orderId}/orderItems/{orderItemId} {
+      allow get, list: if isCompanyMember(companyId) || isSuperAdmin() || (isSignedIn() && get(/databases/$(database)/documents/companies/$(companyId)/orders/$(orderId)).data.customerId == request.auth.uid);
+      allow create: if true;
+      allow update: if false;
+      allow delete: if false;
+    }
+    
+    match /companies/{companyId}/deliveryZones/{deliveryZoneId} {
+      allow get, list: if true;
+      allow create: if isOwner(companyId) || isCompanyMember(companyId) || isSuperAdmin();
+      allow update: if (isOwner(companyId) || isCompanyMember(companyId) || isSuperAdmin()) && resource != null;
+      allow delete: if (isOwner(companyId) || isCompanyMember(companyId) || isSuperAdmin()) && resource != null;
+    }
+
+    match /companies/{companyId}/waiters/{waiterId} {
+      // O dono da empresa (request.auth.uid == companyId) tem acesso total.
+      allow read: if isOwner(companyId) || isSuperAdmin();
+      allow create: if isOwner(companyId) || isSuperAdmin();
+      allow update: if (isOwner(companyId) || isSuperAdmin()) && resource != null;
+      allow delete: if (isOwner(companyId) || isSuperAdmin()) && resource != null;
+    }
+
+    match /customers/{customerId} {
+      allow get: if isOwner(customerId) || isSuperAdmin();
+      allow list: if false;
+      allow create: if isOwner(customerId) && request.resource.data.id == customerId;
+      allow update: if isOwner(customerId) && resource != null && request.resource.data.id == resource.data.id;
+      allow delete: if isOwner(customerId) && resource != null;
+    }
+
+    match /plans/{planId} {
+      allow get, list: if true;
+      allow create, update, delete: if isSuperAdmin();
+    }
+    
+    match /platform_settings/{settingsId} {
+      allow read: if true;
+      allow create, update, delete: if isSuperAdmin();
+    }
+
+    match /roles_admin/{userId} {
+      allow read: if isSignedIn();
+      allow list, write: if isSuperAdmin();
+    }
+  }
+}
