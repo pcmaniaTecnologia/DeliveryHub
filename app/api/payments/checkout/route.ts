@@ -21,6 +21,11 @@ export async function POST(req: Request) {
     const planDoc = await getDoc(doc(firestore, 'plans', planId));
     if (!planDoc.exists()) return NextResponse.json({ error: 'Plan not found' }, { status: 404 });
     const plan = planDoc.data();
+    const price = Number(plan.price);
+
+    if (isNaN(price) || price <= 0) {
+        return NextResponse.json({ error: 'O plano selecionado possui um preço inválido.' }, { status: 400 });
+    }
 
     // Create Preference in MP
     const origin = req.headers.get('origin') || 'http://localhost:3000';
@@ -33,7 +38,7 @@ export async function POST(req: Request) {
                 description: `Acesso liberado por ${plan.duration === 'monthly' ? '30 dias' : 'teste'}.`,
                 quantity: 1,
                 currency_id: 'BRL',
-                unit_price: Number(plan.price)
+                unit_price: price
             }
         ],
         external_reference: `${companyId}|${planId}`,
@@ -57,8 +62,12 @@ export async function POST(req: Request) {
     const mpData = await mpResponse.json();
 
     if (!mpResponse.ok) {
-        console.error("MP Error:", mpData);
-        return NextResponse.json({ error: 'Failed to create preference' }, { status: 500 });
+        console.error("Mercado Pago Preference Error:", JSON.stringify(mpData, null, 2));
+        return NextResponse.json({ 
+            error: 'Erro ao gerar link de pagamento no Mercado Pago.', 
+            details: mpData.message || 'Erro desconhecido',
+            status: mpResponse.status 
+        }, { status: 500 });
     }
 
     return NextResponse.json({ init_point: mpData.init_point });

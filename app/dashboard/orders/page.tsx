@@ -161,15 +161,18 @@ export default function OrdersPage() {
             printWindow.document.close();
         }
 
-        if (orderToPrint.status === 'Novo' || orderToPrint.status === 'Aguardando pagamento') {
+        if (orderToPrint.status === 'Novo' || orderToPrint.status === 'Aguardando pagamento' || orderToPrint.deliveryType === 'Mesa') {
             const orderDocRef = doc(firestore, `companies/${user.uid}/orders`, orderToPrint.id);
-            updateDocument(orderDocRef, { status: 'Em preparo' }).catch(() => {
-                errorEmitter.emit('permission-error', new FirestorePermissionError({
-                    path: orderDocRef.path,
-                    operation: 'update',
-                    requestResourceData: { status: 'Em preparo' },
-                }));
-            });
+            // Só atualiza se não estiver cancelado ou finalizado
+            if (orderToPrint.status !== 'Cancelado' && orderToPrint.status !== 'Entregue') {
+                updateDocument(orderDocRef, { status: 'Em preparo' }).catch(() => {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({
+                        path: orderDocRef.path,
+                        operation: 'update',
+                        requestResourceData: { status: 'Em preparo' },
+                    }));
+                });
+            }
         }
     };
     
@@ -202,7 +205,8 @@ export default function OrdersPage() {
             <TabsContent key={tabName} value={tabName}>
               <Card>
                 <CardContent className="p-0">
-                  <Table>
+                  <div className="overflow-x-auto">
+                    <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Pedido</TableHead>
@@ -236,33 +240,43 @@ export default function OrdersPage() {
                         <TableRow key={order.id}>
                           <TableCell className="font-medium">
                             {order.deliveryType === 'Mesa' || order.tableNumber ? (
-                                <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">Mesa {order.tableNumber}</Badge>
+                                <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">Mesa: {order.tableNumber}</Badge>
                             ) : (
                                 order.id.substring(0, 6).toUpperCase()
                             )}
                           </TableCell>
                           <TableCell>{order.customerName}</TableCell>
-                          <TableCell><Badge>{order.status}</Badge></TableCell>
+                          <TableCell>
+                            <Badge className={`min-w-fit whitespace-nowrap ${
+                              order.status === 'Novo' ? 'bg-orange-500 hover:bg-orange-600' :
+                              order.status === 'Em preparo' ? 'bg-blue-500 hover:bg-blue-600' :
+                              order.status === 'Pronto para retirada' || order.status === 'Saiu para entrega' || order.status === 'Entregue à mesa' ? 'bg-emerald-500 hover:bg-emerald-600' :
+                              order.status === 'Entregue' ? 'bg-gray-500 hover:bg-gray-600' :
+                              order.status === 'Cancelado' ? 'bg-destructive hover:bg-destructive/80' : ''
+                            }`} translate="no">
+                              {order.status}
+                            </Badge>
+                          </TableCell>
                           <TableCell className="text-right">R${order.totalAmount.toFixed(2)}</TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-2">
                               <Button 
                                 variant={(order.status === 'Novo' || order.status === 'Aguardando pagamento') ? 'default' : 'outline'} 
-                                size="sm" 
+                                className="h-9 px-3 gap-2 flex items-center" 
                                 onClick={() => handlePrintOrder(order)}
                                 title={(order.status === 'Novo' || order.status === 'Aguardando pagamento') ? 'Imprimir e Iniciar Preparo' : 'Imprimir Pedido'}
                               >
-                                <Printer className="mr-2 h-4 w-4" />
-                                Imprimir
+                                <Printer className="h-4 w-4" />
+                                <span translate="no">Imprimir</span>
                               </Button>
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
                                   <DropdownMenuLabel>Ações</DropdownMenuLabel>
                                   <DropdownMenuItem onClick={() => setSelectedOrder(order)}>Ver Detalhes</DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => handlePrintOrder(order)}>
-                                    <Printer className="mr-2 h-4 w-4" /> Imprimir
-                                  </DropdownMenuItem>
+                                   <DropdownMenuItem onClick={() => handlePrintOrder(order)}>
+                                     <Printer className="mr-2 h-4 w-4" /> <span translate="no">Imprimir</span>
+                                   </DropdownMenuItem>
                                   <DropdownMenuSeparator />
                                   <DropdownMenuItem onClick={() => handleUpdateStatus(order, 'Em preparo')}>Mudar para Preparo</DropdownMenuItem>
                                   {order.deliveryType === 'Mesa' && (
@@ -287,7 +301,8 @@ export default function OrdersPage() {
                       )}
                     </TableBody>
                   </Table>
-                </CardContent>
+                </div>
+              </CardContent>
               </Card>
             </TabsContent>
           ))}
@@ -318,9 +333,11 @@ const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order; co
             printWindow.document.close();
         }
 
-        if (order.status === 'Novo' || order.status === 'Aguardando pagamento') {
+        if (order.status === 'Novo' || order.status === 'Aguardando pagamento' || order.deliveryType === 'Mesa') {
             const orderRef = doc(firestore, `companies/${user.uid}/orders`, order.id);
-            updateDocument(orderRef, { status: 'Em preparo' }).catch(() => {});
+            if (order.status !== 'Cancelado' && order.status !== 'Entregue') {
+                updateDocument(orderRef, { status: 'Em preparo' }).catch(() => {});
+            }
         }
     };
 

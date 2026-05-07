@@ -9,7 +9,7 @@ import { Package2 } from 'lucide-react';
 import Link from 'next/link';
 import { CartProvider } from '@/context/cart-context';
 import CartSheet from '@/components/menu/cart-sheet';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 
 
 type CompanyData = {
@@ -23,7 +23,9 @@ export default function MenuLayout({
 }) {
   const firestore = useFirestore();
   const params = useParams();
+  const searchParams = useSearchParams();
   const companyId = params?.companyId as string;
+  const tableNumber = searchParams?.get('table') ?? null;
   const auth = useAuth();
 
   const companyRef = useMemoFirebase(() => {
@@ -90,7 +92,7 @@ export default function MenuLayout({
             </nav>
         </header>
         <main>{children}</main>
-            {companyId && <CartSheet companyId={companyId} />}
+            {companyId && <CartSheet companyId={companyId} tableNumber={tableNumber} />}
             <footer className="mt-12 border-t py-6">
                 <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
                     <p>&copy; {new Date().getFullYear()} DeliveryHub. Todos os direitos reservados.</p>

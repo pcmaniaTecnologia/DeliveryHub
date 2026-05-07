@@ -20,6 +20,7 @@ import Image from 'next/image';
 import { useImpersonation } from '@/context/impersonation-context';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { recordCashierSale } from '@/lib/finance-utils';
+import { formatQuantity } from '@/lib/utils';
 
 type Product = {
     id: string;
@@ -30,6 +31,7 @@ type Product = {
     isActive: boolean;
     stock: number;
     stockControlEnabled?: boolean;
+    blockIfOutOfStock?: boolean;
     imageUrls: string[];
     isSoldByWeight?: boolean;
 }
@@ -108,6 +110,15 @@ export default function POSPage() {
 
     // Cart Logic
     const addToCart = (product: Product, weight?: number) => {
+        if (product.stockControlEnabled && product.blockIfOutOfStock !== false && (product.stock || 0) <= 0) {
+            toast({
+                variant: 'destructive',
+                title: 'Produto Esgotado',
+                description: 'Este produto está sem estoque e o bloqueio de vendas está ativado.'
+            });
+            return;
+        }
+
         if (product.isSoldByWeight && weight === undefined) {
             setSelectedProductForWeight(product);
             setCurrentWeight('1.000');
@@ -203,25 +214,42 @@ export default function POSPage() {
 
     const handleCheckout = async () => {
         if (!firestore || !user || cart.length === 0) return;
+
+        // Check for out of stock items with blocking enabled (using fresh productsData)
+        const blockedItems = cart.filter(item => {
+            const freshProduct = productsData?.find(p => p.id === item.product.id);
+            if (!freshProduct) return false;
+            
+            return (
+                freshProduct.stockControlEnabled && 
+                freshProduct.blockIfOutOfStock !== false && 
+                (Number(freshProduct.stock) || 0) < item.quantity
+            );
+        });
+
+        if (blockedItems.length > 0) {
+            toast({
+                variant: 'destructive',
+                title: 'Itens Esgotados no Carrinho',
+                description: `Os itens a seguir acabaram ou as vendas foram bloqueadas: ${blockedItems.map(i => i.product.name).join(', ')}. Remova-os para continuar.`
+            });
+            setIsSubmitting(false);
+            return;
+        }
+
         setIsSubmitting(true);
 
         try {
             const ordersRef = collection(firestore, 'companies', effectiveCompanyId as string, 'orders');
 
             const fullPaymentMethod = isMultiPayment
-                ? payments
-                    .map((p) => {
-                        if (p.method === 'Dinheiro' && p.received && p.received > p.amount) {
-                            return `${p.method}: R$ ${p.amount.toFixed(2)} (Rec: R$ ${p.received.toFixed(
-                                2
-                            )}, Troco: R$ ${(p.received - p.amount).toFixed(2)})`;
-                        }
-                        return `${p.method}: R$ ${p.amount.toFixed(2)}`;
-                    })
-                    .join(' | ')
-                : paymentMethod === 'Dinheiro' && amountReceived
-                    ? `Dinheiro (Troco para R$ ${parseFloat(amountReceived).toFixed(2)})`
-                    : paymentMethod;
+                ? payments.map(p => {
+                    if (p.method === 'Dinheiro' && p.received && p.received > p.amount) {
+                        return `${p.method}: R$ ${p.amount.toFixed(2)} (Rec: R$ ${p.received.toFixed(2)}, Troco: R$ ${(p.received - p.amount).toFixed(2)})`;
+                    }
+                    return `${p.method}: R$ ${p.amount.toFixed(2)}`;
+                }).join(' | ')
+                : (paymentMethod === 'Dinheiro' && amountReceived ? `Dinheiro (Troco para R$ ${parseFloat(amountReceived).toFixed(2)})` : paymentMethod);
 
             const orderData = {
                 companyId: effectiveCompanyId,
@@ -235,33 +263,23 @@ export default function POSPage() {
                 deliveryFee: 0,
                 paymentMethod: fullPaymentMethod,
                 discount: parseFloat(discount || '0'),
-                orderItems: cart.map((item) => ({
+                orderItems: cart.map(item => ({
                     productId: item.product.id,
                     productName: item.product.name,
                     quantity: item.quantity,
                     unitPrice: item.product.price,
                     finalPrice: item.finalPrice,
                     notes: '',
+                    isSoldByWeight: item.product.isSoldByWeight,
                 })),
                 totalAmount: totalWithDiscount,
                 subtotal: total,
                 origin: 'PDV',
-                amountReceived: isMultiPayment
-                    ? payments.find((p) => p.method === 'Dinheiro')?.received || 0
-                    : parseFloat(amountReceived || '0'),
+                amountReceived: isMultiPayment ? (payments.find(p => p.method === 'Dinheiro')?.received || 0) : parseFloat(amountReceived || '0'),
                 change: isMultiPayment
-                    ? payments.reduce(
-                        (acc, p) =>
-                            acc +
-                            (p.method === 'Dinheiro' && p.received
-                                ? Math.max(0, p.received - p.amount)
-                                : 0),
-                        0
-                    )
+                    ? payments.reduce((acc, p) => acc + (p.method === 'Dinheiro' && p.received ? Math.max(0, p.received - p.amount) : 0), 0)
                     : change,
-                payments: isMultiPayment
-                    ? payments
-                    : [{ method: paymentMethod, amount: totalWithDiscount, received: parseFloat(amountReceived || '0') }],
+                payments: isMultiPayment ? payments : [{ method: paymentMethod, amount: totalWithDiscount, received: parseFloat(amountReceived || '0') }]
             };
 
             const docRef = await addDocument(ordersRef, orderData);
@@ -277,58 +295,45 @@ export default function POSPage() {
                 );
 
                 if (result && result.success) {
+                    // Vincula o sessionId ao pedido para garantir sincronismo perfeito no relatório
                     if (result.sessionId) {
-                        const orderRef = doc(
-                            firestore,
-                            'companies',
-                            effectiveCompanyId as string,
-                            'orders',
-                            docRef.id
-                        );
+                        const orderRef = doc(firestore, 'companies', effectiveCompanyId as string, 'orders', docRef.id);
                         await updateDocument(orderRef, { sessionId: result.sessionId });
                     }
                 } else {
                     console.warn('Venda não vinculada ao caixa (caixa pode estar fechado)');
                     toast({
                         variant: 'destructive',
-                        title: 'Aviso de Caixa',
-                        description:
-                            'A venda foi salva, mas não foi possível vincular ao caixa (verifique se há um caixa aberto).',
+                        title: "Aviso de Caixa",
+                        description: "A venda foi salva, mas não foi possível vincular ao caixa (verifique se há um caixa aberto)."
                     });
                 }
             } catch (cashierError) {
                 console.error('Erro ao vincular venda ao caixa:', cashierError);
                 toast({
                     variant: 'destructive',
-                    title: 'Erro no Caixa',
-                    description: 'A venda foi salva, mas houve um erro ao registrar no caixa.',
+                    title: "Erro no Caixa",
+                    description: "A venda foi salva, mas houve um erro ao registrar no caixa."
                 });
             }
 
+            // Stock Decrement - Direct Update (Admin has permission)
             const stockItems = cart
-                .filter((item) => item.product.stockControlEnabled)
-                .map((item) => ({ productId: item.product.id, quantity: item.quantity }));
+                .filter(item => item.product.stockControlEnabled)
+                .map(item => ({ productId: item.product.id, quantity: item.quantity }));
 
             if (stockItems.length > 0) {
                 try {
-                    await Promise.all(
-                        stockItems.map((item) => {
-                            const productRef = doc(
-                                firestore,
-                                'companies',
-                                user.uid,
-                                'products',
-                                item.productId
-                            );
-                            return updateDocument(productRef, { stock: increment(-item.quantity) });
-                        })
-                    );
+                    await Promise.all(stockItems.map(item => {
+                        const productRef = doc(firestore, 'companies', user.uid, 'products', item.productId);
+                        return updateDocument(productRef, { stock: increment(-item.quantity) });
+                    }));
                 } catch (stockError) {
                     console.error('Falha ao baixar estoque direto:', stockError);
                     toast({
                         variant: 'destructive',
-                        title: 'Aviso de Estoque',
-                        description: 'A venda foi salva, mas houve um erro ao atualizar o estoque.',
+                        title: "Aviso de Estoque",
+                        description: "A venda foi salva, mas houve um erro ao atualizar o estoque."
                     });
                 }
             }
@@ -347,9 +352,9 @@ export default function POSPage() {
             setSearchQuery('');
             setSelectedCategory(null);
 
-            toast({ title: 'Venda Finalizada!', description: 'O pedido foi registrado com sucesso.' });
+            toast({ title: "Venda Finalizada!", description: "O pedido foi registrado com sucesso." });
         } catch (e) {
-            toast({ variant: 'destructive', title: 'Erro ao finalizar venda' });
+            toast({ variant: 'destructive', title: "Erro ao finalizar venda" });
         } finally {
             setIsSubmitting(false);
         }
@@ -386,7 +391,7 @@ export default function POSPage() {
                         </style>
                     </head>
                     <body>
-                        ${printContent.innerHTML}
+                        \${printContent.innerHTML}
                         <script>
                             window.onload = function() {
                                 window.print();
@@ -453,12 +458,17 @@ export default function POSPage() {
                                             src={product.imageUrls[0]}
                                             alt={product.name}
                                             fill
-                                            className="object-cover group-hover:scale-110 transition-transform"
+                                            className={`object-cover group-hover:scale-110 transition-transform \${product.stockControlEnabled && product.blockIfOutOfStock !== false && (Number(product.stock) || 0) <= 0 ? 'grayscale opacity-30' : ''}`}
                                             unoptimized
                                         />
                                     ) : (
                                         <div className="flex items-center justify-center h-full text-muted-foreground">
                                             <Package className="h-6 w-6 sm:h-8 sm:w-8 opacity-20" />
+                                        </div>
+                                    )}
+                                    {product.stockControlEnabled && product.blockIfOutOfStock !== false && (Number(product.stock) || 0) <= 0 && (
+                                        <div className="absolute inset-0 flex items-center justify-center bg-black/70 z-10 border-4 border-destructive animate-pulse">
+                                            <span className="text-white font-black text-xs sm:text-base uppercase tracking-widest -rotate-12 border-2 border-white px-2 py-1">ESGOTADO</span>
                                         </div>
                                     )}
                                 </div>
@@ -505,8 +515,8 @@ export default function POSPage() {
                                         <p className="font-medium text-xs sm:text-sm truncate">{item.product.name}</p>
                                         <p className="text-[10px] sm:text-xs text-muted-foreground">
                                             {item.product.isSoldByWeight
-                                                ? `${item.quantity.toFixed(3)}kg x R$ ${item.product.price.toFixed(2)}`
-                                                : `R$ ${item.finalPrice.toFixed(2)} x ${item.quantity}`}
+                                                ? `${formatQuantity(item.quantity, true)} x R$ ${item.product.price.toFixed(2).replace('.', ',')}`
+                                                : `R$ ${item.finalPrice.toFixed(2).replace('.', ',')} x ${item.quantity}`}
                                         </p>
                                     </div>
                                     <div className="flex items-center gap-1 sm:gap-2">
@@ -769,9 +779,9 @@ export default function POSPage() {
                                                     className="flex-1 h-9 rounded-md border bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                                                     value={p.method}
                                                     onChange={(e) => {
-                                                        const newPayments = [...payments];
-                                                        newPayments[idx].method = e.target.value;
-                                                        setPayments(newPayments);
+                                                        setPayments(payments.map((item, i) =>
+                                                            i === idx ? { ...item, method: e.target.value } : item
+                                                        ));
                                                     }}
                                                 >
                                                     <option value="Dinheiro">Dinheiro</option>
@@ -784,9 +794,9 @@ export default function POSPage() {
                                                     className="w-24 h-9"
                                                     value={p.amount}
                                                     onChange={(e) => {
-                                                        const newPayments = [...payments];
-                                                        newPayments[idx].amount = parseFloat(e.target.value) || 0;
-                                                        setPayments(newPayments);
+                                                        setPayments(payments.map((item, i) =>
+                                                            i === idx ? { ...item, amount: parseFloat(e.target.value) || 0 } : item
+                                                        ));
                                                     }}
                                                 />
                                                 <Button
@@ -798,27 +808,6 @@ export default function POSPage() {
                                                     <Trash2 className="h-4 w-4" />
                                                 </Button>
                                             </div>
-                                            {p.method === 'Dinheiro' && (
-                                                <div className="flex items-center gap-2 mt-1">
-                                                    <Label className="text-[10px] whitespace-nowrap">Recebido (Troco):</Label>
-                                                    <Input
-                                                        type="number"
-                                                        className="h-7 text-xs"
-                                                        placeholder="0.00"
-                                                        value={p.received || ''}
-                                                        onChange={(e) => {
-                                                            const newPayments = [...payments];
-                                                            newPayments[idx].received = parseFloat(e.target.value) || 0;
-                                                            setPayments(newPayments);
-                                                        }}
-                                                    />
-                                                    {p.received && p.received > p.amount && (
-                                                        <Badge variant="outline" className="text-[10px] bg-green-50 text-green-700 border-green-200">
-                                                            Troco: R$ {(p.received - p.amount).toFixed(2)}
-                                                        </Badge>
-                                                    )}
-                                                </div>
-                                            )}
                                         </div>
                                     ))}
                                     <Button
@@ -847,28 +836,6 @@ export default function POSPage() {
                             )}
                         </div>
 
-                        {!isMultiPayment && paymentMethod === 'Dinheiro' && (
-                            <div className="bg-orange-50 border border-orange-200 p-4 rounded-xl space-y-4">
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="received" className="text-xs text-orange-800 font-bold">Valor Recebido (R$)</Label>
-                                        <Input
-                                            id="received"
-                                            type="number"
-                                            value={amountReceived}
-                                            onChange={e => setAmountReceived(e.target.value)}
-                                            placeholder="0.00"
-                                            className="bg-white border-orange-300 focus-visible:ring-orange-500"
-                                            autoFocus
-                                        />
-                                    </div>
-                                    <div className="flex flex-col justify-center items-end">
-                                        <p className="text-[10px] text-orange-700 uppercase font-bold">Troco a devolver</p>
-                                        <p className="text-2xl font-black text-orange-900">R$ {change.toFixed(2)}</p>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setIsCheckoutOpen(false)} disabled={isSubmitting}>Cancelar</Button>
@@ -914,7 +881,7 @@ export default function POSPage() {
                             <div className="bold">ITENS:</div>
                             {lastOrder?.orderItems?.map((item: any) => (
                                 <div key={item.productId} className="item">
-                                    <span>{item.quantity}x {item.productName}</span>
+                                    <span>{formatQuantity(item.quantity, item.isSoldByWeight)} {item.productName}</span>
                                     <span>R$ {(item.finalPrice * item.quantity).toFixed(2)}</span>
                                 </div>
                             ))}
@@ -935,13 +902,21 @@ export default function POSPage() {
                                 <span>TOTAL</span>
                                 <span>R$ {lastOrder?.totalAmount?.toFixed(2)}</span>
                             </div>
-                            <div className="divider"></div>
                             <div className="bold">PAGAMENTO:</div>
-                            <div>{lastOrder?.paymentMethod}</div>
-                            {lastOrder?.paymentMethod === 'Dinheiro' && (
+                            {Array.isArray(lastOrder?.payments) && lastOrder.payments.length > 1 ? (
+                                lastOrder.payments.map((p: any, i: number) => (
+                                    <div key={i} className="item">
+                                        <span>{p.method}</span>
+                                        <span>R$ {Number(p.amount).toFixed(2)}</span>
+                                    </div>
+                                ))
+                            ) : (
+                                <div>{lastOrder?.paymentMethod}</div>
+                            )}
+                            {lastOrder?.change > 0 && (
                                 <>
                                     <div className="item">
-                                        <span>Recebido</span>
+                                        <span>Recebido (Dinheiro)</span>
                                         <span>R$ {lastOrder?.amountReceived?.toFixed(2)}</span>
                                     </div>
                                     <div className="item">
@@ -1010,4 +985,3 @@ export default function POSPage() {
         </div>
     );
 }
-

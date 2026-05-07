@@ -11,7 +11,7 @@ export function DashboardNav({ newOrdersCount = 0, isAdmin = false, comandasEnab
 
   const navItems = [
     { href: '/dashboard', label: 'Painel', icon: Home },
-    { href: '/dashboard/sales', label: 'Venda de Balcão', icon: Store },
+    { href: '/dashboard/sales', label: 'PDV', icon: Store },
     { href: '/dashboard/orders', label: 'Pedidos', icon: ShoppingCart, badge: newOrdersCount > 0 ? newOrdersCount.toString() : undefined },
     { href: '/dashboard/reports', label: 'Relatórios', icon: BarChart3 },
     ...(comandasEnabled ? [{ href: '/dashboard/comandas', label: 'Comandas', icon: ClipboardList }] : []),

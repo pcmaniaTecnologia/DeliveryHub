@@ -102,7 +102,8 @@ const CartItemCard = ({ item }: { item: CartItem }) => {
     );
 };
 
-export default function CartSheet({ companyId }: { companyId: string}) {
+export default function CartSheet({ companyId, tableNumber }: { companyId: string; tableNumber?: string | null }) {
+  const isTableMode = !!tableNumber;
   const { cartItems, totalItems, totalPrice, clearCart } = useCart();
   const firestore = useFirestore();
   const { user } = useUser();
@@ -128,7 +129,7 @@ export default function CartSheet({ companyId }: { companyId: string}) {
 
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
-  const [deliveryType, setDeliveryType] = useState<'Delivery' | 'Retirada'>('Delivery');
+  const [deliveryType, setDeliveryType] = useState<'Delivery' | 'Retirada' | 'Mesa'>(isTableMode ? 'Mesa' : 'Delivery');
   const [addressStreet, setAddressStreet] = useState('');
   const [addressNumber, setAddressNumber] = useState('');
   const [addressNeighborhood, setAddressNeighborhood] = useState('');
@@ -148,7 +149,7 @@ export default function CartSheet({ companyId }: { companyId: string}) {
     if (!firestore || !companyId || !companyData) return;
 
     const status = isStoreOpen(companyData.businessHours);
-    if (!status.isOpen) {
+    if (!isTableMode && !status.isOpen) {
         toast({
             variant: 'destructive',
             title: 'Loja Fechada',
@@ -162,7 +163,7 @@ export default function CartSheet({ companyId }: { companyId: string}) {
         return;
     }
 
-    if (!customerPhone.trim()) {
+    if (!isTableMode && !customerPhone.trim()) {
         toast({ variant: 'destructive', title: 'WhatsApp Obrigatório' });
         return;
     }
@@ -173,12 +174,12 @@ export default function CartSheet({ companyId }: { companyId: string}) {
         return;
     }
 
-    if (!selectedPayment) {
+    if (!isTableMode && !selectedPayment) {
       toast({ variant: 'destructive', title: 'Selecione a forma de pagamento' });
       return;
     }
 
-    if (deliveryType === 'Delivery' && (!addressStreet || !addressNumber || !addressNeighborhood)) {
+    if (!isTableMode && deliveryType === 'Delivery' && (!addressStreet || !addressNumber || !addressNeighborhood)) {
         toast({ variant: 'destructive', title: 'Endereço Incompleto', description: 'Por favor, preencha rua, número e bairro.' });
         return;
     }
@@ -186,9 +187,11 @@ export default function CartSheet({ companyId }: { companyId: string}) {
     setIsSubmitting(true);
     try {
         const ordersRef = collection(firestore, 'companies', companyId, 'orders');
-        const fullAddress = deliveryType === 'Delivery'
-            ? `${addressStreet || 'Rua não informada'}, ${addressNumber || 'S/N'} - ${addressNeighborhood || 'Bairro não informado'} ${addressComplement ? ` (${addressComplement})` : ''}`
-            : 'Retirada no local';
+        const fullAddress = isTableMode
+            ? `Mesa ${tableNumber}`
+            : deliveryType === 'Delivery'
+                ? `${addressStreet || 'Rua não informada'}, ${addressNumber || 'S/N'} - ${addressNeighborhood || 'Bairro não informado'} ${addressComplement ? ` (${addressComplement})` : ''}`
+                : 'Retirada no local';
 
         // Firebase Firestore does not support 'undefined' values.
         // Ensure all properties have a valid fallback value or remove them if undefined.
@@ -200,9 +203,11 @@ export default function CartSheet({ companyId }: { companyId: string}) {
             orderDate: serverTimestamp(),
             status: 'Novo',
             deliveryAddress: fullAddress,
-            deliveryType,
+            deliveryType: isTableMode ? 'Mesa' : deliveryType,
+            ...(isTableMode ? { tableNumber: tableNumber } : {}),
+            ...(isTableMode ? { waiterName: 'Autoatendimento' } : {}),
             deliveryFee: deliveryFee || 0,
-            paymentMethod: selectedPayment === 'Dinheiro' && cashAmount ? `Dinheiro (Troco para R$${parseFloat(cashAmount.replace(',', '.')).toFixed(2)})` : selectedPayment,
+            paymentMethod: isTableMode ? 'A Combinar' : (selectedPayment === 'Dinheiro' && cashAmount ? `Dinheiro (Troco para R$${parseFloat(cashAmount.replace(',', '.')).toFixed(2)})` : selectedPayment),
             orderItems: cartItems.map(item => ({
                 productId: item.product.id || 'unknown',
                 productName: item.product.name || 'Produto',
@@ -355,10 +360,20 @@ export default function CartSheet({ companyId }: { companyId: string}) {
                                 <Label>Nome Completo <span className="text-destructive">*</span></Label>
                                 <Input placeholder="Seu nome" value={customerName} onChange={e => setCustomerName(e.target.value)} />
                             </div>
+                            {!isTableMode && (
                             <div className="grid gap-2">
                                 <Label>WhatsApp <span className="text-destructive">*</span></Label>
                                 <Input placeholder="(99) 99999-9999" value={customerPhone} onChange={handlePhoneChange} maxLength={15} />
                             </div>
+                            )}
+                            {isTableMode && (
+                                <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm">
+                                    <p className="font-semibold text-primary">📍 Mesa {tableNumber}</p>
+                                    <p className="text-muted-foreground text-xs mt-1">Seu pedido será enviado diretamente para a cozinha.</p>
+                                </div>
+                            )}
+                            {!isTableMode && (
+                            <>
                             <Separator />
                             <div className="flex gap-2">
                                 <Button variant={deliveryType === 'Delivery' ? 'default' : 'outline'} className="flex-1" onClick={() => setDeliveryType('Delivery')}>Delivery</Button>
@@ -418,6 +433,8 @@ export default function CartSheet({ companyId }: { companyId: string}) {
                                     <p className="text-xs text-muted-foreground mt-1">O pedido será liberado após a confirmação do pagamento pelo estabelecimento.</p>
                                 </div>
                             )}
+                            </>
+                            )}
                         </div>
                     </ScrollArea>
                     <SheetFooter className="pt-4 border-t flex flex-col gap-2">
@@ -427,7 +444,7 @@ export default function CartSheet({ companyId }: { companyId: string}) {
                             <div className="flex justify-between font-bold text-lg pt-1 border-t"><span>Total</span><span className="text-primary">R$ {finalTotal.toFixed(2)}</span></div>
                         </div>
                         <Button className="w-full h-12 text-lg shadow-md" onClick={handlePlaceOrder} disabled={isSubmitting}>
-                            {isSubmitting ? 'Processando...' : 'Confirmar e Enviar'}
+                            {isSubmitting ? 'Processando...' : isTableMode ? '🍽️ Enviar para a Cozinha' : 'Confirmar e Enviar'}
                         </Button>
                     </SheetFooter>
                 </>
@@ -446,8 +463,8 @@ export default function CartSheet({ companyId }: { companyId: string}) {
       <AlertDialog open={isOrderFinished} onOpenChange={setIsOrderFinished}>
         <AlertDialogContent>
             <AlertDialogHeader>
-                <AlertDialogTitle>Pedido Salvo! 🎉</AlertDialogTitle>
-                <AlertDialogDescription>Seu pedido já está no sistema. Clique no botão abaixo para enviar a confirmação ao restaurante pelo WhatsApp.</AlertDialogDescription>
+                <AlertDialogTitle>{isTableMode ? 'Pedido Enviado! 🍽️' : 'Pedido Salvo! 🎉'}</AlertDialogTitle>
+                <AlertDialogDescription>{isTableMode ? `Seu pedido da Mesa ${tableNumber} foi enviado para a cozinha com sucesso! Aguarde no local.` : 'Seu pedido já está no sistema. Clique no botão abaixo para enviar a confirmação ao restaurante pelo WhatsApp.'}</AlertDialogDescription>
             </AlertDialogHeader>
             <div className="flex flex-col gap-3 mt-2">
                 {whatsappLink && (

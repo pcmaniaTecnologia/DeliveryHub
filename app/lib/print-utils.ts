@@ -28,7 +28,7 @@ export function generateOrderPrintHtml(order: Order, company?: Company) {
         return `
             <tr>
                 <td colspan="3" style="padding-top: 5px;">
-                    <strong style="font-size: 1.1em; color: #000;">${item.quantity}x ${item.productName || item.productId}</strong>
+                    <strong style="font-size: 1.1em; color: #000;">${item.isSoldByWeight ? `${item.quantity.toFixed(3).replace('.', ',')} kg` : `${item.quantity}x`} ${item.productName || item.productId}</strong>
                     ${variantsText}
                     ${item.notes ? `<br><span style="color: #000; padding-left: 10px; font-size: 0.9em; font-weight: bold; font-style: normal;">OBS: ${item.notes}</span>` : ''}
                 </td>

@@ -67,6 +67,7 @@ export type SalesByPaymentMethod = {
     pix: number;
     credit: number;
     debit: number;
+    others: number;
 };
 
 /**
@@ -82,44 +83,60 @@ function categorizePayment(method: string): 'cash' | 'pix' | 'credit' | 'debit' 
         .toLowerCase()
         .trim();
 
-    if (n.includes('pix')) return 'pix';
+    // 1. PIX
+    if (n === 'pix' || n.includes('pix')) return 'pix';
 
+    // 2. DINHEIRO / ESPÉCIE
     if (
         n.includes('dinheiro') ||
         n.includes('especie') ||
         n === 'din' ||
+        n === 'esp' ||
         n.includes('dinherio') ||
-        n.includes('troco')
+        n.includes('monetario') ||
+        n.includes('cash') ||
+        n.includes('cedula')
     ) {
         return 'cash';
     }
 
-    if (
-        n.includes('credito') ||
-        n.includes('credit') ||
-        n.includes('c. cred') ||
-        n.includes('cc')
-    ) {
-        return 'credit';
-    }
-
+    // 3. DÉBITO
     if (
         n.includes('debito') ||
         n.includes('debit') ||
         n.includes('c. deb') ||
-        n.includes('cd')
+        n === 'cd' ||
+        n.includes('visa d') ||
+        n.includes('master d') ||
+        n.includes('elo d') ||
+        n.includes('cartao deb') ||
+        n.includes('cartao de deb') ||
+        n.includes('deb') // Catch-all for deb
     ) {
         return 'debit';
     }
 
-    if (n.includes('cartao')) {
-        if (n.includes('deb')) return 'debit';
+    // 4. CRÉDITO
+    if (
+        n.includes('credito') ||
+        n.includes('credit') ||
+        n.includes('c. cred') ||
+        n === 'cc' ||
+        n.includes('visa c') ||
+        n.includes('master c') ||
+        n.includes('elo c') ||
+        n.includes('cartao cre') ||
+        n.includes('cartao de cre') ||
+        n.includes('cre') // Catch-all for cre
+    ) {
         return 'credit';
     }
 
-    if (n.startsWith('c.') || n.startsWith('cart')) {
+    // 5. CARTÃO GENÉRICO
+    if (n.includes('cartao') || n.startsWith('c.') || n.startsWith('cart')) {
         if (n.includes('deb')) return 'debit';
-        if (n.includes('cred')) return 'credit';
+        if (n.includes('cre')) return 'credit';
+        return 'credit';
     }
 
     return null;
@@ -127,93 +144,103 @@ function categorizePayment(method: string): 'cash' | 'pix' | 'credit' | 'debit' 
 
 /**
  * Parses a list of orders to calculate total sales by payment method.
- * Handles strings like "Pix (R$ 10,00), Dinheiro (R$ 5,00)" for multi-payments.
+ * Priority: uses `order.payments` array if present, falls back to parsing `order.paymentMethod` string.
  */
 export function parseSalesByPaymentMethod(orders: any[]): SalesByPaymentMethod {
-    const acc: SalesByPaymentMethod = { cash: 0, pix: 0, credit: 0, debit: 0 };
+    const acc: SalesByPaymentMethod = { cash: 0, pix: 0, credit: 0, debit: 0, others: 0 };
 
     orders.forEach((order: any) => {
         if (order.status === 'Cancelado') return;
 
-        const paymentStr = String(order.paymentMethod || '').trim();
         const orderTotal = Number(order.totalAmount) || 0;
         if (orderTotal <= 0) return;
 
+        // --- Priority path: use the structured payments array ---
         if (Array.isArray(order.payments) && order.payments.length > 0) {
+            let distributed = 0;
             order.payments.forEach((p: any) => {
-                const cat = categorizePayment(String(p.method || ''));
+                const methodStr = String(p.method || '');
+                const cat = categorizePayment(methodStr);
                 const val = Number(p.amount) || 0;
-                if (cat) acc[cat] += val;
-                else acc.cash += val;
+                
+                if (cat) {
+                    acc[cat] += val;
+                    distributed += val;
+                } else {
+                    // Se não reconhecer o método, joga em 'others'
+                    acc.others += val;
+                    distributed += val;
+                    if (val > 0) {
+                        console.warn(`[FinanceUtils] Valor R$ ${val} de "${methodStr}" atribuído a Outros. Order: ${order.id}`);
+                    }
+                }
             });
+
+            // If rounding/calculation caused a small gap, put it in the first recognized category
+            const diff = orderTotal - distributed;
+            if (Math.abs(diff) > 0.01) {
+                const firstCat = categorizePayment(String(order.payments[0]?.method || '')) || 'cash';
+                acc[firstCat] += diff;
+            }
             return;
         }
 
+        // --- Fallback: parse the paymentMethod string ---
+        const paymentStr = String(order.paymentMethod || '').trim();
         if (!paymentStr) {
-            acc.cash += orderTotal;
+            acc.others += orderTotal;
             return;
         }
 
-        const parts: string[] = paymentStr.includes('|')
+        // Split by pipe (multi-payment PDV format) or comma (legacy)
+        const rawParts: string[] = paymentStr.includes('|')
             ? paymentStr.split(/\s*\|\s*/)
             : paymentStr.split(/,\s*(?![0-9]{2}\))/);
 
-        const categorizedParts: { method: string; amount: number | null }[] = parts
-            .map((part: string): { method: string; amount: number | null } | null => {
-                const p = part.trim();
-                if (!p) return null;
+        const parts = rawParts.map(raw => raw.trim()).filter(Boolean);
 
-                const amountMatch = p.match(/(?:R\$\s*|[:(\s]\s*R\$\s*)([\d]+[.,][\d]{2}|[\d]+)/i);
-
-                let amount: number | null = null;
-                let methodName = p;
-
-                if (amountMatch) {
-                    const rawAmount = amountMatch[1].replace(',', '.');
-                    const parsed = parseFloat(rawAmount);
-
-                    if (!isNaN(parsed) && parsed > 0) {
-                        amount = parsed;
-                        methodName = p
-                            .substring(0, amountMatch.index)
-                            .trim()
-                            .replace(/[:(]$/, '')
-                            .trim();
-                    }
-                }
-
-                return { method: methodName, amount };
-            })
-            .filter(
-                (item): item is { method: string; amount: number | null } => item !== null
-            );
-
-        if (categorizedParts.length === 1) {
-            const cat = categorizePayment(categorizedParts[0].method) || 'cash';
+        if (parts.length === 1) {
+            // Single payment — whole order total goes to this method
+            const cat = categorizePayment(parts[0]) || 'cash';
             acc[cat] += orderTotal;
-        } else {
-            let distributedAmount = 0;
-            let firstRecognizedCat: keyof SalesByPaymentMethod | null = null;
+            return;
+        }
 
-            categorizedParts.forEach((p: { method: string; amount: number | null }) => {
-                const cat = categorizePayment(p.method);
-                const val = p.amount !== null ? p.amount : 0;
+        // Multi-payment string — extract method name and amount from each part.
+        let distributed = 0;
+        let firstCat: keyof SalesByPaymentMethod | null = null;
 
-                if (cat) {
-                    acc[cat] += val;
-                    distributedAmount += val;
-                    if (!firstRecognizedCat) firstRecognizedCat = cat;
-                }
-            });
+        parts.forEach(part => {
+            // Remove typical non-amount notes, but keep the amount part.
+            // If it's the Comandas format "Method (R$ Amount)", we don't want to strip the amount.
+            // We only strip notes that DON'T contain R$ followed by numbers.
+            const cleanPart = part.replace(/\((?!R\$\s*[\d])[^)]*\)/g, '').trim();
+            
+            // Match the amount: "Dinheiro: R$ 5.00" → 5.00
+            // Handles both . and , as decimal separator
+            const amountMatch = cleanPart.match(/R\$\s*([\d]+[.,][\d]{1,2}|[\d]+)/i);
+            const amount = amountMatch ? parseFloat(amountMatch[1].replace(',', '.')) : null;
+            
+            // Extract method name (everything before ":" or "R$")
+            const methodName = cleanPart.replace(/[:]\s*R\$.*$/, '').replace(/R\$.*$/, '').trim();
+            const cat = categorizePayment(methodName);
 
-            if (distributedAmount < orderTotal - 0.01) {
-                const diff = orderTotal - distributedAmount;
-                const cat =
-                    firstRecognizedCat ||
-                    categorizePayment(categorizedParts[0].method) ||
-                    'cash';
-                acc[cat] += diff;
+            if (cat && amount !== null && amount > 0) {
+                acc[cat] += amount;
+                distributed += amount;
+                if (!firstCat) firstCat = cat;
+            } else if (cat) {
+                // Method recognized but no amount — skip (will be handled by remainder logic)
+                if (!firstCat) firstCat = cat;
             }
+        });
+
+        // If distributed amount doesn't match total (e.g., some parts had no parseable amount),
+        // add remainder to the first recognized payment method
+        if (Math.abs(distributed - orderTotal) > 0.01) {
+            const cat = firstCat || 'others';
+            acc[cat] += orderTotal - distributed;
+            console.log(`[FinanceUtils] Diferença de R$ ${(orderTotal - distributed).toFixed(2)} atribuída a ${cat} no pedido ${order.id}`);
         }
     });
 

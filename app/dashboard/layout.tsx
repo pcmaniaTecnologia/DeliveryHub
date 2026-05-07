@@ -7,7 +7,9 @@ import {
   Menu,
   Package2,
   VolumeX,
+  AlertTriangle,
 } from 'lucide-react';
+import { format } from 'date-fns';
 import { useCollection, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, doc, type Timestamp } from 'firebase/firestore';
 import { useImpersonation } from '@/context/impersonation-context';
@@ -134,6 +136,26 @@ export default function DashboardLayout({
     if (!allOrders) return 0;
     return allOrders.filter(order => order.status === 'Novo' || order.status === 'Aguardando pagamento').length;
   }, [allOrders]);
+  
+  const subscriptionReminder = useMemo(() => {
+    if (isImpersonating || !companyData?.subscriptionEndDate) return null;
+    
+    const now = new Date();
+    const endDate = companyData.subscriptionEndDate.toDate();
+    const diffTime = endDate.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    console.log('[DEBUG] Vencimento:', endDate, 'Dias restantes:', diffDays);
+
+    // Exibe apenas quando faltarem 3 dias ou menos
+    if (diffDays > 0 && diffDays <= 3) {
+      return {
+        days: diffDays,
+        date: endDate
+      };
+    }
+    return null;
+  }, [companyData, isImpersonating]);
 
 
   useEffect(() => {
@@ -161,7 +183,11 @@ export default function DashboardLayout({
   useEffect(() => {
     if (companyData?.themeColors) {
         try {
-            const { primary, accent } = JSON.parse(companyData.themeColors);
+            // Suporta tanto string JSON quanto objeto direto do Firestore
+            const parsed = typeof companyData.themeColors === 'string'
+                ? JSON.parse(companyData.themeColors)
+                : companyData.themeColors;
+            const { primary, accent } = parsed || {};
             if (primary) {
                 const primaryHsl = hexToHsl(primary);
                 if (primaryHsl) {
@@ -175,8 +201,8 @@ export default function DashboardLayout({
                     document.documentElement.style.setProperty('--accent', `${accentHsl.h} ${accentHsl.s}% ${accentHsl.l}%`);
                  }
             }
-        } catch (error) {
-            console.error("Erro ao aplicar cores do tema:", error);
+        } catch (_) {
+            // Silencioso: mantém cores padrão se o parse falhar
         }
     }
 }, [companyData]);
@@ -196,18 +222,12 @@ export default function DashboardLayout({
       <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
         <div className="hidden border-r bg-background md:block">
           <div className="flex h-full max-h-screen flex-col gap-2">
-            <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
-              <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
-                <Package2 className="h-6 w-6 text-primary" />
-                <span className="">DeliveryHub</span>
+            <div className="flex h-16 items-center border-b px-6">
+              <Link href="/dashboard" className="flex items-center">
+                <span className="text-xl font-black tracking-tighter text-primary">DeliveryHub</span>
               </Link>
             </div>
-            <div className="p-4 border-b text-xs text-muted-foreground text-center bg-muted/30">
-                <p className="font-semibold text-foreground mb-1">Suporte Técnico DeliveryHub</p>
-                <p>(33) 9.8750-7606</p>
-                <a href="https://www.pcmania.net" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">www.pcmania.net</a>
-            </div>
-            <div className="flex-1 pt-4 overflow-y-auto">
+            <div className="flex-1 pt-2 overflow-y-auto">
               <DashboardNav newOrdersCount={newOrdersCount} isAdmin={!!adminData} comandasEnabled={companyData?.comandasEnabled ?? true} />
             </div>
           </div>
@@ -226,26 +246,30 @@ export default function DashboardLayout({
                 </Button>
               </SheetTrigger>
               <SheetContent side="left" className="flex flex-col p-0">
-                <div className="flex h-14 items-center border-b px-4">
-                  <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
-                    <Package2 className="h-6 w-6 text-primary" />
-                    <span className="">DeliveryHub</span>
+                <div className="flex h-16 items-center border-b px-6">
+                  <Link href="/dashboard" className="flex items-center">
+                    <span className="text-xl font-black tracking-tighter text-primary">DeliveryHub</span>
                   </Link>
-                </div>
-                <div className="p-4 border-b text-xs text-muted-foreground text-center bg-muted/30">
-                    <p className="font-semibold text-foreground mb-1">Suporte Técnico DeliveryHub</p>
-                    <p>(33) 9.8750-7606</p>
-                    <a href="https://www.pcmania.net" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">www.pcmania.net</a>
                 </div>
                 <div className="mt-5 flex-1 overflow-y-auto">
                   <DashboardNav newOrdersCount={newOrdersCount} isAdmin={!!adminData} comandasEnabled={companyData?.comandasEnabled ?? true} />
                 </div>
               </SheetContent>
             </Sheet>
-            <div className="w-full flex-1" />
+            <div className="w-full flex-1 flex flex-col items-center justify-center text-[10px] sm:text-xs">
+              <div className="flex items-center gap-3 text-muted-foreground">
+                <span className="font-bold text-foreground tracking-tight">Suporte Tecnico</span>
+                <a href="https://wa.me/5533987507606" target="_blank" rel="noopener noreferrer" className="hover:text-primary hover:underline transition-colors font-medium">
+                  (33) 9.8750-7606
+                </a>
+                <span className="hidden sm:inline">|</span>
+                <a href="https://www.pcmania.net" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">www.pcmania.net</a>
+              </div>
+            </div>
             <UserNav isAdmin={!!adminData} />
           </header>
           <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8 bg-muted/20">
+
             {isImpersonating && (
               <div className="flex items-center justify-between bg-destructive text-destructive-foreground px-4 py-2 rounded-lg text-sm font-medium shadow">
                 <span>👁️ Modo Admin: visualizando o painel de <strong>{impersonatedCompanyName}</strong></span>
@@ -254,6 +278,26 @@ export default function DashboardLayout({
                 </Button>
               </div>
             )}
+
+            {subscriptionReminder && pathname !== '/dashboard/settings' && (
+               <Alert className="bg-yellow-50 border-yellow-200 text-yellow-900 shadow-sm animate-in fade-in slide-in-from-top-4 duration-500">
+                  <AlertTriangle className="h-5 w-5 text-yellow-600" />
+                  <div className="flex flex-col md:flex-row md:items-center justify-between w-full gap-2">
+                    <div>
+                      <AlertTitle className="font-bold">Sua assinatura expira em breve!</AlertTitle>
+                      <AlertDescription>
+                        Faltam apenas <strong>{subscriptionReminder.days} {subscriptionReminder.days === 1 ? 'dia' : 'dias'}</strong> para o vencimento (vence em {format(subscriptionReminder.date, 'dd/MM/yyyy')}).
+                      </AlertDescription>
+                    </div>
+                    <Link href="/dashboard/settings">
+                      <Button size="sm" variant="outline" className="bg-white border-yellow-400 text-yellow-700 hover:bg-yellow-100">
+                        Renovar Agora
+                      </Button>
+                    </Link>
+                  </div>
+               </Alert>
+            )}
+            
             {children}
           </main>
         </div>

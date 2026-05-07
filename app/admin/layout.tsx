@@ -1,6 +1,7 @@
 
 'use client';
 
+import { useEffect } from 'react';
 import Link from 'next/link';
 import {
   Home,
@@ -64,6 +65,12 @@ export default function AdminLayout({
 
   const { data: adminData, isLoading: isLoadingAdmin } = useDoc(adminRef);
 
+  useEffect(() => {
+    if (!isUserLoading && !isLoadingAdmin && !user) {
+      router.replace('/');
+    }
+  }, [user, isUserLoading, isLoadingAdmin, router]);
+
   if (isUserLoading || isLoadingAdmin) {
       return (
         <div className="flex min-h-screen items-center justify-center">
@@ -73,7 +80,6 @@ export default function AdminLayout({
   }
 
   if (!user) {
-    router.replace('/');
     return (
        <div className="flex min-h-screen items-center justify-center">
             <p>Redirecionando para o login...</p>

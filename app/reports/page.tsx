@@ -11,7 +11,7 @@ import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
     PieChart, Pie, Cell, Legend, AreaChart, Area 
 } from 'recharts';
-import { DollarSign, Truck, Store, ClipboardList, Wallet, TrendingUp, Calendar } from 'lucide-react';
+import { DollarSign, Truck, Store, ClipboardList, Wallet, TrendingUp, Calendar, AlertCircle, Package, BarChart3, Activity } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format, startOfDay, endOfDay, isWithinInterval, subDays, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -24,6 +24,25 @@ type Order = {
     deliveryType: string;
     status: string;
     orderDate: Timestamp;
+    orderItems?: {
+        productId: string;
+        productName: string;
+        quantity: number;
+        unitPrice: number;
+    }[];
+}
+
+type Product = {
+    id: string;
+    name: string;
+    stock: number;
+    stockControlEnabled?: boolean;
+    categoryId: string;
+}
+
+type Category = {
+    id: string;
+    name: string;
 }
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
@@ -48,6 +67,20 @@ export default function ReportsPage() {
     }, [firestore, user?.uid]);
 
     const { data: orders, isLoading } = useCollection<Order>(ordersRef);
+
+    const productsRef = useMemoFirebase(() => {
+        if (!firestore || !user?.uid) return null;
+        return collection(firestore, `companies/${user.uid}/products`);
+    }, [firestore, user?.uid]);
+
+    const { data: products, isLoading: isLoadingProducts } = useCollection<Product>(productsRef);
+
+    const categoriesRef = useMemoFirebase(() => {
+        if (!firestore || !user?.uid) return null;
+        return collection(firestore, `companies/${user.uid}/categories`);
+    }, [firestore, user?.uid]);
+
+    const { data: categories } = useCollection<Category>(categoriesRef);
 
     const mapMethodName = (name: string) => {
         const n = (name || '').toLowerCase();
@@ -80,13 +113,9 @@ export default function ReportsPage() {
             comanda: filtered.filter(o => o.deliveryType === 'Mesa').reduce((sum, o) => sum + o.totalAmount, 0),
         };
 
-        // Payment Distribution - Normalization
+        // Payment Distribution
         const paymentsMap: { [key: string]: number } = {
-            'Dinheiro': 0,
-            'PIX': 0,
-            'Cartão de Crédito': 0,
-            'Cartão de Débito': 0,
-            'Outros': 0
+            'Dinheiro': 0, 'PIX': 0, 'Cartão de Crédito': 0, 'Cartão de Débito': 0, 'Outros': 0
         };
 
         filtered.forEach(o => {
@@ -96,24 +125,8 @@ export default function ReportsPage() {
                     paymentsMap[method] += (p.amount || 0);
                 });
             } else {
-                const str = o.paymentMethod || '';
-                if (str.includes('|')) {
-                    const parts = str.split('|');
-                    parts.forEach(part => {
-                        const match = part.match(/(.*?):\s*R\$\s*([\d,.]+)/);
-                        if (match) {
-                            const method = mapMethodName(match[1]);
-                            const amount = parseFloat(match[2].replace(',', '.'));
-                            paymentsMap[method] += isNaN(amount) ? 0 : amount;
-                        } else {
-                            const method = mapMethodName(part);
-                            paymentsMap[method] += (o.totalAmount / parts.length);
-                        }
-                    });
-                } else {
-                    const method = mapMethodName(str);
-                    paymentsMap[method] += o.totalAmount;
-                }
+                const method = mapMethodName(o.paymentMethod || '');
+                paymentsMap[method] += o.totalAmount;
             }
         });
 
@@ -134,31 +147,54 @@ export default function ReportsPage() {
                 return (ma * 100 + da) - (mb * 100 + db);
             });
 
-        // Type Distribution for Bar Chart
+        // Type Distribution
         const typeData = [
             { name: 'Delivery', value: byType.delivery },
             { name: 'Balcão', value: byType.balcao },
             { name: 'Comandas', value: byType.comanda },
         ];
 
-        return {
-            totalFaturamento,
-            byType,
-            paymentsData,
-            dailyData,
-            typeData,
-            orderCount: filtered.length,
-            recentOrders: filtered.sort((a,b) => b.orderDate.toMillis() - a.orderDate.toMillis()).slice(0, 10)
-        };
-    }, [orders, startDate, endDate]);
+        // Top Products Logic
+        const productStats: { [key: string]: { name: string, quantity: number, total: number } } = {};
+        filtered.forEach(order => {
+            (order.orderItems || []).forEach(item => {
+                if (!productStats[item.productId]) {
+                    productStats[item.productId] = { name: item.productName || 'Produto s/ Nome', quantity: 0, total: 0 };
+                }
+                productStats[item.productId].quantity += (item.quantity || 0);
+                productStats[item.productId].total += (item.quantity * item.unitPrice) || 0;
+            });
+        });
 
-    if (isUserLoading || isLoading) return <div className="p-8 text-center text-muted-foreground font-medium">Gerando relatórios...</div>;
+        const topProducts = Object.values(productStats)
+            .sort((a, b) => b.quantity - a.quantity)
+            .slice(0, 10);
+
+        // Low Stock Logic
+        const lowStockProducts = (products || [])
+            .filter(p => p.stockControlEnabled && (Number(p.stock) || 0) <= 0)
+            .map(p => ({
+                ...p,
+                categoryName: categories?.find(c => c.id === p.categoryId)?.name || 'Sem Categoria'
+            }));
+
+        return {
+            totalFaturamento, byType, paymentsData, dailyData, typeData,
+            orderCount: filtered.length,
+            topProducts, lowStockProducts
+        };
+    }, [orders, products, categories, startDate, endDate]);
+
+    if (isUserLoading || isLoading || isLoadingProducts) return <div className="p-8 text-center text-muted-foreground font-medium flex flex-col items-center gap-4">
+        <Activity className="h-8 w-8 animate-spin text-primary" />
+        Gerando relatórios...
+    </div>;
 
     return (
         <div className="space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h2 className="text-3xl font-bold tracking-tight">Relatórios de Vendas</h2>
+                    <h2 className="text-3xl font-bold tracking-tight text-blue-600">Relatórios de Vendas (ATUALIZADO)</h2>
                     <p className="text-muted-foreground text-sm flex items-center gap-1">
                         <TrendingUp className="h-4 w-4" /> Analise o desempenho do seu negócio no período.
                     </p>
@@ -168,24 +204,12 @@ export default function ReportsPage() {
                     <div className="flex items-center gap-3">
                         <div className="flex flex-col gap-1">
                             <Label htmlFor="start" className="text-[10px] uppercase font-bold text-muted-foreground px-1">Início</Label>
-                            <Input 
-                                id="start" 
-                                type="date" 
-                                className="h-9 w-40" 
-                                value={startDate} 
-                                onChange={e => setStartDate(e.target.value)} 
-                            />
+                            <Input id="start" type="date" className="h-9 w-40" value={startDate} onChange={e => setStartDate(e.target.value)} />
                         </div>
                         <Calendar className="h-4 w-4 text-muted-foreground mt-4" />
                         <div className="flex flex-col gap-1">
                             <Label htmlFor="end" className="text-[10px] uppercase font-bold text-muted-foreground px-1">Fim</Label>
-                            <Input 
-                                id="end" 
-                                type="date" 
-                                className="h-9 w-40" 
-                                value={endDate} 
-                                onChange={e => setEndDate(e.target.value)} 
-                            />
+                            <Input id="end" type="date" className="h-9 w-40" value={endDate} onChange={e => setEndDate(e.target.value)} />
                         </div>
                     </div>
                 </Card>
@@ -193,195 +217,66 @@ export default function ReportsPage() {
 
             {/* Summary Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <Card className="border-l-4 border-l-primary shadow-sm">
-                    <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0 text-muted-foreground font-medium">
-                        <CardTitle className="text-sm">Faturamento Total</CardTitle>
-                        <DollarSign className="h-4 w-4 text-primary" />
+                <Card className="border-l-4 border-l-primary shadow-sm"><CardHeader className="pb-2 text-sm">Faturamento Total</CardHeader><CardContent><div className="text-2xl font-bold">R$ {reportData?.totalFaturamento.toFixed(2)}</div></CardContent></Card>
+                <Card className="border-l-4 border-l-blue-500 shadow-sm"><CardHeader className="pb-2 text-sm">Delivery / Retirada</CardHeader><CardContent><div className="text-2xl font-bold">R$ {reportData?.byType.delivery.toFixed(2)}</div></CardContent></Card>
+                <Card className="border-l-4 border-l-orange-500 shadow-sm"><CardHeader className="pb-2 text-sm">Balcão (PDV)</CardHeader><CardContent><div className="text-2xl font-bold">R$ {reportData?.byType.balcao.toFixed(2)}</div></CardContent></Card>
+                <Card className="border-l-4 border-l-purple-500 shadow-sm"><CardHeader className="pb-2 text-sm">Comandas (Mesa)</CardHeader><CardContent><div className="text-2xl font-bold">R$ {reportData?.byType.comanda.toFixed(2)}</div></CardContent></Card>
+            </div>
+
+            {/* Inventory and Performance Section */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card className="shadow-sm border-t-4 border-t-primary">
+                    <CardHeader className="flex flex-row items-center justify-between">
+                        <CardTitle className="text-lg flex items-center gap-2"><TrendingUp className="h-5 w-5 text-primary" />Produtos Mais Vendidos</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">R$ {reportData?.totalFaturamento.toFixed(2)}</div>
-                        <p className="text-xs text-muted-foreground mt-1">{reportData?.orderCount} pedidos concluídos</p>
+                        <Table>
+                            <TableHeader><TableRow><TableHead>Produto</TableHead><TableHead className="text-center">Qtd</TableHead><TableHead className="text-right">Faturamento</TableHead></TableRow></TableHeader>
+                            <TableBody>
+                                {reportData?.topProducts?.map((p, idx) => (
+                                    <TableRow key={idx}>
+                                        <TableCell className="text-xs font-medium">{p.name}</TableCell>
+                                        <TableCell className="text-center font-bold text-xs">{p.quantity}</TableCell>
+                                        <TableCell className="text-right text-xs">R$ {p.total.toFixed(2)}</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
                     </CardContent>
                 </Card>
 
-                <Card className="border-l-4 border-l-blue-500 shadow-sm">
-                    <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0 text-muted-foreground font-medium">
-                        <CardTitle className="text-sm">Delivery / Retirada</CardTitle>
-                        <Truck className="h-4 w-4 text-blue-500" />
+                <Card className="shadow-sm border-t-4 border-t-destructive">
+                    <CardHeader className="flex flex-row items-center justify-between">
+                        <CardTitle className="text-lg flex items-center gap-2"><AlertCircle className="h-5 w-5 text-destructive" />Estoque Crítico</CardTitle>
+                        <Badge className="bg-destructive text-white">{reportData?.lowStockProducts?.length || 0} itens</Badge>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">R$ {reportData?.byType.delivery.toFixed(2)}</div>
-                    </CardContent>
-                </Card>
-
-                <Card className="border-l-4 border-l-orange-500 shadow-sm">
-                    <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0 text-muted-foreground font-medium">
-                        <CardTitle className="text-sm">Balcão (PDV)</CardTitle>
-                        <Store className="h-4 w-4 text-orange-500" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">R$ {reportData?.byType.balcao.toFixed(2)}</div>
-                    </CardContent>
-                </Card>
-
-                <Card className="border-l-4 border-l-purple-500 shadow-sm">
-                    <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0 text-muted-foreground font-medium">
-                        <CardTitle className="text-sm">Comandas (Mesa)</CardTitle>
-                        <ClipboardList className="h-4 w-4 text-purple-500" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">R$ {reportData?.byType.comanda.toFixed(2)}</div>
+                        <Table>
+                            <TableHeader><TableRow><TableHead>Produto</TableHead><TableHead className="text-right">Estoque</TableHead></TableRow></TableHeader>
+                            <TableBody>
+                                {reportData?.lowStockProducts?.map((p) => (
+                                    <TableRow key={p.id}>
+                                        <TableCell className="text-xs font-bold">{p.name}</TableCell>
+                                        <TableCell className="text-right font-black text-xs text-destructive">{p.stock}</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
                     </CardContent>
                 </Card>
             </div>
 
             {/* Charts Section */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card className="shadow-sm">
-                    <CardHeader>
-                        <CardTitle className="text-lg">Faturamento Diário</CardTitle>
-                        <CardDescription>Evolução financeira no período selecionado.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="h-[300px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={reportData?.dailyData}>
-                                <defs>
-                                    <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.8}/>
-                                        <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
-                                    </linearGradient>
-                                </defs>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                <XAxis dataKey="date" />
-                                <YAxis tickFormatter={(value) => `R$${value}`} />
-                                <Tooltip formatter={(value) => typeof value === 'number' ? `R$ ${value.toFixed(2)}` : value} labelStyle={{ fontWeight: 'bold' }} />
-                                <Area 
-                                    type="monotone" 
-                                    dataKey="total" 
-                                    stroke="hsl(var(--primary))" 
-                                    fillOpacity={1} 
-                                    fill="url(#colorTotal)" 
-                                />
-                            </AreaChart>
-                        </ResponsiveContainer>
-                    </CardContent>
-                </Card>
-
-                <Card className="shadow-sm">
-                    <CardHeader>
-                        <CardTitle className="text-lg">Formas de Pagamento</CardTitle>
-                        <CardDescription>Distribuição do faturamento por tipo de recebimento.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="h-[300px] relative">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie
-                                    data={reportData?.paymentsData}
-                                    cx="50%"
-                                    cy="50%"
-                                    innerRadius={70}
-                                    outerRadius={100}
-                                    paddingAngle={5}
-                                    dataKey="value"
-                                    stroke="none"
-                                >
-                                    {reportData?.paymentsData.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={PAYMENT_COLORS[entry.name] || COLORS[index % COLORS.length]} />
-                                    ))}
-                                </Pie>
-                                <Tooltip formatter={(value) => typeof value === 'number' ? `R$ ${value.toFixed(2)}` : value} />
-                                <Legend verticalAlign="bottom" height={36}/>
-                                <text 
-                                    x="50%" 
-                                    y="48%" 
-                                    textAnchor="middle" 
-                                    dominantBaseline="middle" 
-                                    className="fill-muted-foreground text-[10px] uppercase font-bold tracking-wider"
-                                >
-                                    Faturamento
-                                </text>
-                                <text 
-                                    x="50%" 
-                                    y="55%" 
-                                    textAnchor="middle" 
-                                    dominantBaseline="middle" 
-                                    className="fill-foreground font-bold text-base"
-                                >
-                                    R$ {reportData?.totalFaturamento.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
-                                </text>
-                            </PieChart>
-                        </ResponsiveContainer>
-                    </CardContent>
-                </Card>
-
-                <Card className="shadow-sm">
-                    <CardHeader>
-                        <CardTitle className="text-lg">Vendas por Tipo</CardTitle>
-                        <CardDescription>Volume financeiro por categoria de atendimento.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="h-[300px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={reportData?.typeData}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                <XAxis dataKey="name" />
-                                <YAxis tickFormatter={(value) => `R$${value}`} />
-                                <Tooltip formatter={(value) => typeof value === 'number' ? `R$ ${value.toFixed(2)}` : value} />
-                                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                                    {reportData?.typeData.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                    ))}
-                                </Bar>
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </CardContent>
-                </Card>
-
-                {/* Table Section: Recent Orders */}
-                <Card className="shadow-sm">
-                    <CardHeader className="flex flex-row items-center justify-between">
-                        <div>
-                            <CardTitle className="text-lg">Últimos Pedidos</CardTitle>
-                            <CardDescription>Últimas 10 vendas do período.</CardDescription>
-                        </div>
-                        <Wallet className="h-5 w-5 text-muted-foreground opacity-50" />
-                    </CardHeader>
-                    <CardContent>
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead className="text-xs uppercase">Data</TableHead>
-                                    <TableHead className="text-xs uppercase">Tipo</TableHead>
-                                    <TableHead className="text-xs uppercase">Pagamento</TableHead>
-                                    <TableHead className="text-xs uppercase text-right">Valor</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {reportData?.recentOrders.map(order => (
-                                    <TableRow key={order.id}>
-                                        <TableCell className="text-xs">{format(order.orderDate.toDate(), 'dd/MM HH:mm')}</TableCell>
-                                        <TableCell>
-                                            <Badge variant="outline" className="text-[10px] font-bold">
-                                                {order.deliveryType}
-                                            </Badge>
-                                        </TableCell>
-                                        <TableCell className="text-xs">{order.paymentMethod}</TableCell>
-                                        <TableCell className="text-right font-bold text-xs">R$ {order.totalAmount.toFixed(2)}</TableCell>
-                                    </TableRow>
-                                ))}
-                                {reportData?.recentOrders.length === 0 && (
-                                    <TableRow>
-                                        <TableCell colSpan={4} className="text-center py-10 text-muted-foreground italic">
-                                            Nenhuma venda encontrada neste período.
-                                        </TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
-                    </CardContent>
-                </Card>
+                <Card><CardHeader><CardTitle>Faturamento Diário</CardTitle></CardHeader><CardContent className="h-[300px]"><ResponsiveContainer><AreaChart data={reportData?.dailyData}><XAxis dataKey="date" /><YAxis /><Tooltip /><Area type="monotone" dataKey="total" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.2} /></AreaChart></ResponsiveContainer></CardContent></Card>
+                <Card><CardHeader><CardTitle>Formas de Pagamento</CardTitle></CardHeader><CardContent className="h-[300px]"><ResponsiveContainer><PieChart><Pie data={reportData?.paymentsData} cx="50%" cy="50%" outerRadius={80} dataKey="value"><Cell fill="#10b981" /><Cell fill="#06b6d4" /><Cell fill="#f59e0b" /><Cell fill="#f43f5e" /></Pie><Tooltip /><Legend /></PieChart></ResponsiveContainer></CardContent></Card>
             </div>
         </div>
     );
+}
+
+function Badge({ children, className }: any) {
+    return <div className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${className}`}>{children}</div>;
 }
 
 // Helper Badge component to avoid extra imports if not needed, but we'll use a local styled div

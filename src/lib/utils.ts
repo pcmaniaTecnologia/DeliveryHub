@@ -76,3 +76,14 @@ export function isStoreOpen(businessHoursStr?: string): { isOpen: boolean; messa
     return { isOpen: true }; 
   }
 }
+
+export function formatQuantity(quantity: number, isSoldByWeight?: boolean): string {
+    if (isSoldByWeight) {
+        return `${quantity.toFixed(3).replace('.', ',')} kg`;
+    }
+    // Fallback for legacy data or edge cases
+    if (quantity % 1 !== 0) {
+        return `${quantity.toFixed(3).replace('.', ',')} kg`;
+    }
+    return `${quantity}x`;
+}
