@@ -58,7 +58,7 @@ const CartItemCard = ({ item }: { item: CartItem }) => {
             <div className="flex flex-col items-center gap-2">
                 <div className="flex items-center gap-2">
                     <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateQuantity(item.id, item.quantity - 1)}><Minus className="h-3 w-3" /></Button>
-                    <span className="font-bold text-sm w-4 text-center">{item.quantity}</span>
+                    <span className="font-bold text-sm min-w-4 text-center">{item.product.isSoldByWeight ? `${item.quantity.toFixed(3).replace('.', ',')}kg` : item.quantity}</span>
                     <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateQuantity(item.id, item.quantity + 1)}><Plus className="h-3 w-3" /></Button>
                 </div>
                 <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeFromCart(item.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
@@ -143,6 +143,7 @@ export default function WaiterCartSheet({ companyId }: { companyId: string}) {
             finalPrice: item.finalPrice,
             notes: item.notes || '',
             selectedVariants: item.selectedVariants || [],
+            isSoldByWeight: item.product.isSoldByWeight,
         })),
         totalAmount: finalTotal,
     };

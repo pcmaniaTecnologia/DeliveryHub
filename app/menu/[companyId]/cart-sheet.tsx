@@ -23,7 +23,7 @@ import {
   useCollection,
   useUser,
 } from '@/firebase';
-import { collection, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, serverTimestamp, getDocs, query, where } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -139,6 +139,23 @@ export default function CartSheet({ companyId }: { companyId: string}) {
 
   const handlePlaceOrder = async () => {
     if (!firestore || !companyId || !companyData) return;
+
+    // Check stock for all items before proceeding
+    for (const item of cartItems) {
+        if (item.product.stockControlEnabled) {
+            const productSnap = await getDocs(query(collection(firestore, 'companies', companyId, 'products'), where('__name__', '==', item.product.id)));
+            const currentStock = productSnap.docs[0]?.data()?.stock || 0;
+            
+            if (currentStock < item.quantity) {
+                toast({
+                    variant: 'destructive',
+                    title: 'Ops! Estoque Esgotado',
+                    description: `O produto ${item.product.name} acabou de esgotar ou possui estoque insuficiente (${currentStock} un).`
+                });
+                return;
+            }
+        }
+    }
 
     if (!customerName.trim()) {
         toast({ variant: 'destructive', title: 'Nome Completo Obrigatório' });

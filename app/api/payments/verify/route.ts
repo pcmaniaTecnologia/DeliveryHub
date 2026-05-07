@@ -54,10 +54,20 @@ export async function POST(req: Request) {
             }
         }
 
-        const subscriptionEndDate = addDays(new Date(), daysToAdd);
-
         // Save to Firestore server-side
         const companyRef = doc(firestore, 'companies', companyId);
+        const companySnap = await getDoc(companyRef);
+        let baseDate = new Date();
+
+        if (companySnap.exists()) {
+            const currentEndDate = companySnap.data()?.subscriptionEndDate?.toDate();
+            if (currentEndDate && currentEndDate > baseDate) {
+                baseDate = currentEndDate;
+            }
+        }
+
+        const subscriptionEndDate = addDays(baseDate, daysToAdd);
+
         await updateDoc(companyRef, {
             isActive: true,
             planId: planId || 'unknown',

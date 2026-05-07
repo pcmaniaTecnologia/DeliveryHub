@@ -54,10 +54,16 @@ type PaymentMethods = {
   cashAskForChange: boolean;
 };
 
+type TimeSlot = {
+  openTime: string;
+  closeTime: string;
+};
+
 type DayHours = {
   isOpen: boolean;
   openTime: string;
   closeTime: string;
+  slots?: TimeSlot[];
 };
 
 type BusinessHours = {
@@ -108,6 +114,7 @@ type CompanySettingsData = {
     name?: string;
     phone?: string;
     themeColors?: string;
+    logoUrl?: string;
     soundNotificationEnabled?: boolean;
     closedMessage?: string;
     averagePrepTime?: number;
@@ -364,6 +371,17 @@ export default function SettingsPage() {
   const [waiterPhone, setWaiterPhone] = useState('');
   const [waiterPin, setWaiterPin] = useState('');
 
+  // Lógica para abrir na aba correta via URL
+  const searchParams = useSearchParams();
+  const [activeTab, setActiveTab] = useState('profile');
+
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
+
   const companyRef = useMemoFirebase(() => {
       if (!firestore || !user) return null;
       return doc(firestore, 'companies', user.uid)
@@ -396,6 +414,7 @@ export default function SettingsPage() {
   const [phone, setPhone] = useState('');
   const [primaryColor, setPrimaryColor] = useState('#29ABE2');
   const [accentColor, setAccentColor] = useState('#29E2D1');
+  const [logoUrl, setLogoUrl] = useState('');
   const [soundNotificationEnabled, setSoundNotificationEnabled] = useState(true);
   const [closedMessage, setClosedMessage] = useState('');
   const [averagePrepTime, setAveragePrepTime] = useState(30);
@@ -412,13 +431,13 @@ export default function SettingsPage() {
     cashAskForChange: false,
   });
   const [businessHours, setBusinessHours] = useState<BusinessHours>({
-    monday: { isOpen: true, openTime: '09:00', closeTime: '18:00' },
-    tuesday: { isOpen: true, openTime: '09:00', closeTime: '18:00' },
-    wednesday: { isOpen: true, openTime: '09:00', closeTime: '18:00' },
-    thursday: { isOpen: true, openTime: '09:00', closeTime: '18:00' },
-    friday: { isOpen: true, openTime: '09:00', closeTime: '18:00' },
-    saturday: { isOpen: false, openTime: '', closeTime: '' },
-    sunday: { isOpen: false, openTime: '', closeTime: '' },
+    monday: { isOpen: true, openTime: '09:00', closeTime: '18:00', slots: [{ openTime: '09:00', closeTime: '18:00' }] },
+    tuesday: { isOpen: true, openTime: '09:00', closeTime: '18:00', slots: [{ openTime: '09:00', closeTime: '18:00' }] },
+    wednesday: { isOpen: true, openTime: '09:00', closeTime: '18:00', slots: [{ openTime: '09:00', closeTime: '18:00' }] },
+    thursday: { isOpen: true, openTime: '09:00', closeTime: '18:00', slots: [{ openTime: '09:00', closeTime: '18:00' }] },
+    friday: { isOpen: true, openTime: '09:00', closeTime: '18:00', slots: [{ openTime: '09:00', closeTime: '18:00' }] },
+    saturday: { isOpen: false, openTime: '', closeTime: '', slots: [{ openTime: '', closeTime: '' }] },
+    sunday: { isOpen: false, openTime: '', closeTime: '', slots: [{ openTime: '', closeTime: '' }] },
   });
 
   const [whatsappTemplates, setWhatsappTemplates] = useState<WhatsAppTemplates>({
@@ -431,6 +450,7 @@ export default function SettingsPage() {
     if (companyData) {
       setStoreName(companyData.name || '');
       setPhone(companyData.phone || '');
+      setLogoUrl(companyData.logoUrl || '');
       setSoundNotificationEnabled(companyData.soundNotificationEnabled ?? true);
       setClosedMessage(companyData.closedMessage || '');
       setAveragePrepTime(companyData.averagePrepTime || 30);
@@ -454,6 +474,11 @@ export default function SettingsPage() {
        if (companyData.businessHours) {
         try {
           const hours = JSON.parse(companyData.businessHours);
+          Object.keys(hours).forEach(key => {
+              if (!hours[key].slots) {
+                  hours[key].slots = [{ openTime: hours[key].openTime || '', closeTime: hours[key].closeTime || '' }];
+              }
+          });
           setBusinessHours(hours);
         } catch (e) {
           console.error("Error parsing business hours", e);
@@ -496,6 +521,7 @@ export default function SettingsPage() {
     const updatedData = {
         name: storeName,
         phone: phone,
+        logoUrl: logoUrl,
         themeColors: themeColors,
         soundNotificationEnabled: soundNotificationEnabled,
         closedMessage: closedMessage,
@@ -539,6 +565,41 @@ export default function SettingsPage() {
         [field]: value,
       }
     }));
+  };
+
+  const handleSlotChange = (day: keyof BusinessHours, slotIndex: number, field: keyof TimeSlot, value: string) => {
+    setBusinessHours(prev => {
+        const slots = [...(prev[day].slots || [{ openTime: prev[day].openTime, closeTime: prev[day].closeTime }])];
+        slots[slotIndex] = { ...slots[slotIndex], [field]: value };
+        // Sync legacy fields with the first slot just in case
+        const openTime = slots[0]?.openTime || '';
+        const closeTime = slots[0]?.closeTime || '';
+        return {
+            ...prev,
+            [day]: { ...prev[day], slots, openTime, closeTime }
+        };
+    });
+  };
+
+  const handleAddSlot = (day: keyof BusinessHours) => {
+      setBusinessHours(prev => {
+          const slots = [...(prev[day].slots || [{ openTime: prev[day].openTime, closeTime: prev[day].closeTime }])];
+          slots.push({ openTime: '', closeTime: '' });
+          return { ...prev, [day]: { ...prev[day], slots } };
+      });
+  };
+
+  const handleRemoveSlot = (day: keyof BusinessHours, slotIndex: number) => {
+      setBusinessHours(prev => {
+          const slots = [...(prev[day].slots || [{ openTime: prev[day].openTime, closeTime: prev[day].closeTime }])];
+          slots.splice(slotIndex, 1);
+          if (slots.length === 0) {
+              slots.push({ openTime: '', closeTime: '' }); // keep at least one
+          }
+          const openTime = slots[0]?.openTime || '';
+          const closeTime = slots[0]?.closeTime || '';
+          return { ...prev, [day]: { ...prev[day], slots, openTime, closeTime } };
+      });
   };
 
   const handleSaveHours = () => {
@@ -717,13 +778,13 @@ export default function SettingsPage() {
         <p className="text-muted-foreground">Gerencie sua loja e conta.</p>
       </div>
 
-      <Tabs defaultValue="profile" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-2 md:grid-cols-7">
           <TabsTrigger value="profile">Empresa</TabsTrigger>
           <TabsTrigger value="hours">Horários</TabsTrigger>
           <TabsTrigger value="delivery">Entrega</TabsTrigger>
           <TabsTrigger value="payments">Pagamentos</TabsTrigger>
-          <TabsTrigger value="waiters">Garçons</TabsTrigger>
+
           <TabsTrigger value="notifications">Mensagens</TabsTrigger>
           <TabsTrigger value="subscription">Assinatura</TabsTrigger>
         </TabsList>
@@ -742,6 +803,11 @@ export default function SettingsPage() {
               <div className="space-y-2">
                 <Label htmlFor="phone">Telefone/WhatsApp</Label>
                 <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} disabled={isLoading} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="logoUrl">URL da Logo (Link da imagem)</Label>
+                <Input id="logoUrl" placeholder="Ex: https://imgur.com/sua-logo.png" value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} disabled={isLoading} />
+                <p className="text-xs text-muted-foreground">Cole o link de uma imagem hospedada na internet para aparecer no topo do seu cardápio online.</p>
               </div>
                <div className="space-y-2">
                 <Label htmlFor="average-prep-time">Tempo médio de preparo (minutos)</Label>
@@ -790,7 +856,7 @@ export default function SettingsPage() {
               )}
               <Separator />
                <div className="space-y-4">
-                 <Label className="text-base">Notificações</Label>
+                 <Label className="text-base" translate="no">Notificações</Label>
                  <div className="flex flex-row items-center justify-between rounded-lg border p-4">
                     <div className="space-y-0.5">
                       <Label className="font-medium" htmlFor="sound-notification">Ativar campainha para novos pedidos</Label>
@@ -827,19 +893,38 @@ export default function SettingsPage() {
               <CardDescription>Defina os horários de abertura.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {weekDays.map(({ key, label }, index) => (
-                <div key={`${key}-${index}`} className="flex items-center justify-between rounded-lg border p-4">
-                  <div className="flex items-center gap-4">
-                    <Switch checked={businessHours[key]?.isOpen} onCheckedChange={(checked) => handleHoursChange(key, 'isOpen', checked)} id={`switch-${key}-${index}`} disabled={isLoading} />
-                    <Label htmlFor={`switch-${key}-${index}`} className="w-24">{label}</Label>
+              {weekDays.map(({ key, label }, index) => {
+                const dayConfig = businessHours[key];
+                const slots = dayConfig?.slots || [{ openTime: dayConfig?.openTime || '', closeTime: dayConfig?.closeTime || '' }];
+                
+                return (
+                <div key={`${key}-${index}`} className="flex flex-col sm:flex-row sm:items-start justify-between rounded-lg border p-4 gap-4">
+                  <div className="flex items-center gap-4 mt-2">
+                    <Switch checked={dayConfig?.isOpen} onCheckedChange={(checked) => handleHoursChange(key, 'isOpen', checked)} id={`switch-${key}-${index}`} disabled={isLoading} />
+                    <Label htmlFor={`switch-${key}-${index}`} className="w-24 font-bold">{label}</Label>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Input type="time" value={businessHours[key]?.openTime} onChange={(e) => handleHoursChange(key, 'openTime', e.target.value)} disabled={!businessHours[key]?.isOpen || isLoading} className="w-32" />
-                    <span>às</span>
-                    <Input type="time" value={businessHours[key]?.closeTime} onChange={(e) => handleHoursChange(key, 'closeTime', e.target.value)} disabled={!businessHours[key]?.isOpen || isLoading} className="w-32" />
+                  
+                  <div className="flex flex-col gap-2 flex-1 items-end">
+                    {slots.map((slot, slotIndex) => (
+                        <div key={slotIndex} className="flex items-center gap-2 w-full sm:w-auto">
+                            <Input type="time" value={slot.openTime} onChange={(e) => handleSlotChange(key, slotIndex, 'openTime', e.target.value)} disabled={!dayConfig?.isOpen || isLoading} className="w-24 sm:w-32" />
+                            <span className="text-muted-foreground">às</span>
+                            <Input type="time" value={slot.closeTime} onChange={(e) => handleSlotChange(key, slotIndex, 'closeTime', e.target.value)} disabled={!dayConfig?.isOpen || isLoading} className="w-24 sm:w-32" />
+                            {slots.length > 1 && (
+                                <Button variant="ghost" size="icon" onClick={() => handleRemoveSlot(key, slotIndex)} disabled={!dayConfig?.isOpen || isLoading} className="h-8 w-8 text-destructive">
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                            )}
+                        </div>
+                    ))}
+                    {dayConfig?.isOpen && (
+                        <Button variant="ghost" size="sm" onClick={() => handleAddSlot(key)} disabled={isLoading} className="text-xs h-7 mt-1 mr-8 sm:mr-0">
+                            + Adicionar turno
+                        </Button>
+                    )}
                   </div>
                 </div>
-              ))}
+              )})}
             </CardContent>
             <CardFooter>
               <Button onClick={handleSaveHours} disabled={isLoading}>Salvar Horários</Button>
@@ -859,7 +944,8 @@ export default function SettingsPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                <Table>
+                <div className="overflow-x-auto">
+                  <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Bairro</TableHead>
@@ -883,7 +969,8 @@ export default function SettingsPage() {
                     ))}
                   </TableBody>
                 </Table>
-              </CardContent>
+              </div>
+            </CardContent>
             </Card>
             <DialogContent>
               <DialogHeader><DialogTitle>Adicionar Bairro</DialogTitle></DialogHeader>
@@ -939,153 +1026,6 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="waiters">
-          <Dialog open={isWaiterDialogOpen} onOpenChange={(isOpen) => {
-            setIsWaiterDialogOpen(isOpen);
-            if (!isOpen) setEditingWaiter(null);
-          }}>
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Garçons</CardTitle>
-                    <CardDescription>Gerencie os garçons que terão acesso às comandas.</CardDescription>
-                  </div>
-                  <DialogTrigger asChild>
-                    <Button size="sm" className="gap-1" disabled={isLoading} onClick={() => handleOpenWaiterDialog()}>
-                      <PlusCircle className="h-4 w-4" /> Adicionar Garçom
-                    </Button>
-                  </DialogTrigger>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Nome</TableHead>
-                      <TableHead>Telefone</TableHead>
-                      <TableHead>PIN</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {!isLoading && waiters?.map((waiter) => (
-                      <TableRow key={waiter.id}>
-                        <TableCell className="font-medium">{waiter.name}</TableCell>
-                        <TableCell>{waiter.phone || '-'}</TableCell>
-                        <TableCell>
-                          <code className="bg-muted px-2 py-1 rounded text-sm">{waiter.pin}</code>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={waiter.isActive ? 'default' : 'secondary'}>
-                            {waiter.isActive ? 'Ativo' : 'Inativo'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center gap-2 justify-end">
-                            <Switch
-                              checked={waiter.isActive}
-                              onCheckedChange={() => handleToggleWaiterStatus(waiter)}
-                            />
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleOpenWaiterDialog(waiter)}
-                            >
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="icon">
-                                  <Trash2 className="h-4 w-4 text-destructive" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Excluir Garçom</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Tem certeza que deseja excluir {waiter.name}? Esta ação não pode ser desfeita.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() => handleDeleteWaiter(waiter.id, waiter.name)}
-                                    className="bg-destructive hover:bg-destructive/90"
-                                  >
-                                    Excluir
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {!isLoading && (!waiters || waiters.length === 0) && (
-                      <TableRow>
-                        <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                          Nenhum garçom cadastrado ainda.
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>{editingWaiter ? 'Editar Garçom' : 'Adicionar Garçom'}</DialogTitle>
-                <DialogDescription>
-                  {editingWaiter ? 'Atualize as informações do garçom.' : 'Cadastre um novo garçom para acessar as comandas.'}
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="waiter-name">Nome Completo</Label>
-                  <Input
-                    id="waiter-name"
-                    placeholder="Ex: João Silva"
-                    value={waiterName}
-                    onChange={(e) => setWaiterName(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="waiter-phone">Telefone (Opcional)</Label>
-                  <Input
-                    id="waiter-phone"
-                    placeholder="Ex: (11) 99999-9999"
-                    value={waiterPhone}
-                    onChange={(e) => setWaiterPhone(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="waiter-pin">PIN de Acesso</Label>
-                  <Input
-                    id="waiter-pin"
-                    type="password"
-                    placeholder="Ex: 1234"
-                    value={waiterPin}
-                    onChange={(e) => setWaiterPin(e.target.value)}
-                    maxLength={6}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Código de 4-6 dígitos para o garçom acessar as comandas.
-                  </p>
-                </div>
-              </div>
-              <DialogFooter>
-                <DialogClose asChild>
-                  <Button variant="outline" disabled={isLoading}>Cancelar</Button>
-                </DialogClose>
-                <Button onClick={handleSaveWaiter} disabled={isLoading}>
-                  {editingWaiter ? 'Atualizar' : 'Cadastrar'} Garçom
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </TabsContent>
 
         <TabsContent value="notifications">
           <Card>

@@ -1,6 +1,6 @@
 'use client';
 
-import MenuPage from '@/app/menu/[companyId]/page';
+import MenuPage from '../../../../menu/[companyId]/page';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';

@@ -1,5 +1,6 @@
 
 
+
 'use client';
 
 import React, { useMemo, useState, useEffect } from 'react';
@@ -64,6 +65,8 @@ export type Product = {
     ingredients?: string;
     sortOrder?: number;
     stockControlEnabled?: boolean;
+    blockIfOutOfStock?: boolean;
+    stock?: number;
     isSoldByWeight?: boolean;
 };
 
@@ -332,9 +335,15 @@ const ProductDetailDialog = ({
                         </div>
                     )}
                     {/* Add to cart button */}
-                    <Button className="flex-1 h-11 text-base font-semibold" onClick={handleConfirm}>
-                        Adicionar · R$ {finalPrice.toFixed(2)}
-                    </Button>
+                    {product.stockControlEnabled && product.blockIfOutOfStock !== false && (Number(product.stock) || 0) <= 0 ? (
+                        <Button className="flex-1 h-11 text-base font-semibold" disabled variant="destructive">
+                            Esgotado
+                        </Button>
+                    ) : (
+                        <Button className="flex-1 h-11 text-base font-semibold" onClick={handleConfirm}>
+                            Adicionar · R$ {finalPrice.toFixed(2)}
+                        </Button>
+                    )}
                 </div>
             </DialogContent>
         </Dialog>
@@ -356,6 +365,10 @@ const ProductCard = ({ product }: { product: Product }) => {
                 className="group relative flex cursor-pointer overflow-hidden rounded-2xl border bg-card p-4 shadow-sm transition-all duration-300 hover:border-primary/40 hover:shadow-md"
                 onClick={() => setIsDetailOpen(true)}
             >
+                {product.stockControlEnabled && product.blockIfOutOfStock !== false && (Number(product.stock) || 0) <= 0 && (
+                    <div className="absolute inset-0 z-20 border-4 border-destructive rounded-2xl pointer-events-none" />
+                )}
+                
                 <div className="flex flex-1 flex-col justify-between pr-4">
                     <div>
                         <h3 className="text-base font-bold leading-tight text-foreground">{product.name}</h3>
@@ -365,6 +378,9 @@ const ProductCard = ({ product }: { product: Product }) => {
                         <span className="font-semibold text-primary">R$ {product.price.toFixed(2)}</span>
                         {product.isSoldByWeight && (
                             <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-primary/30 text-primary/70">por Kg</Badge>
+                        )}
+                        {product.stockControlEnabled && product.blockIfOutOfStock !== false && (Number(product.stock) || 0) <= 0 && (
+                            <Badge variant="destructive" className="text-xs font-bold px-2 py-1 animate-pulse">ESGOTADO</Badge>
                         )}
                     </div>
                 </div>
@@ -376,9 +392,14 @@ const ProductCard = ({ product }: { product: Product }) => {
                             alt={product.name}
                             fill
                             style={{ objectFit: 'cover' }}
-                            className="transition-transform duration-500 group-hover:scale-110"
+                            className={`transition-transform duration-500 group-hover:scale-110 ${product.stockControlEnabled && product.blockIfOutOfStock !== false && (Number(product.stock) || 0) <= 0 ? 'grayscale opacity-40' : ''}`}
                             unoptimized
                         />
+                        {product.stockControlEnabled && product.blockIfOutOfStock !== false && (Number(product.stock) || 0) <= 0 && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+                                <span className="text-[10px] font-black text-white uppercase tracking-widest -rotate-12 border border-white px-1">INDISPONÍVEL</span>
+                            </div>
+                        )}
                         <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
                         <div className="absolute bottom-1 right-1 flex h-8 w-8 translate-x-4 translate-y-4 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md transition-transform duration-300 group-hover:translate-x-0 group-hover:translate-y-0">
                             <Plus className="h-5 w-5" />

@@ -214,7 +214,7 @@ export default function CashierPage() {
       start = startOfDay(dateRange.from);
       end = dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from);
     } else {
-      return { cash: 0, pix: 0, credit: 0, debit: 0 };
+      return { cash: 0, pix: 0, credit: 0, debit: 0, others: 0 };
     }
 
     const sessionOrders = rawOrders.filter(order => {
@@ -257,7 +257,7 @@ export default function CashierPage() {
     
     // Caso venha como Objeto (formato novo/caixa)
     const s = salesByPaymentMethod as any;
-    return (s.cash || 0) + (s.pix || 0) + (s.credit || 0) + (s.debit || 0);
+    return (s.cash || 0) + (s.pix || 0) + (s.credit || 0) + (s.debit || 0) + (s.others || 0);
   }, [salesByPaymentMethod]);
 
   const handlePrintReport = () => {
@@ -303,8 +303,95 @@ export default function CashierPage() {
           <div class="item"><span>PIX</span> <span>${formatCurrency(salesByPaymentMethod.pix)}</span></div>
           <div class="item"><span>Cartão de Crédito</span> <span>${formatCurrency(salesByPaymentMethod.credit)}</span></div>
           <div class="item"><span>Cartão de Débito</span> <span>${formatCurrency(salesByPaymentMethod.debit)}</span></div>
+          <div class="item"><span>Outros/Diversos</span> <span>${formatCurrency((salesByPaymentMethod as any).others || 0)}</span></div>
           
           <div class="total"><span>Total</span> <span>${formatCurrency(sessionTotalSales)}</span></div>
+
+          <script>
+            window.print();
+            window.onafterprint = () => window.close();
+          </script>
+        </body>
+      </html>
+    `;
+    
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(printHtml);
+      printWindow.document.close();
+    }
+  };
+
+  const handlePrintTransactions = () => {
+    if (!transactions || transactions.length === 0) {
+      toast({ variant: 'destructive', title: 'Sem dados', description: 'Não há movimentações para imprimir.' });
+      return;
+    }
+
+    let title = "Relatório de Movimentações";
+    let periodInfo = activePreset === 'session' && currentSession?.openedAt 
+      ? `Sessão Iniciada: ${format(currentSession.openedAt.toDate(), "dd/MM/yyyy HH:mm")}`
+      : dateRange?.from 
+        ? `Período: ${format(dateRange.from, "dd/MM/yyyy")} a ${dateRange.to ? format(dateRange.to, "dd/MM/yyyy") : format(dateRange.from, "dd/MM/yyyy")}`
+        : 'Todas as movimentações';
+
+    const formatCurrency = (value: number) => `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+    let rowsHtml = transactions.map(t => {
+      const typeLabel = t.type === 'withdrawal' ? 'Sangria' : t.type === 'deposit' ? 'Reforço' : t.type === 'opening' ? 'Abertura' : 'Venda';
+      const typeColor = t.type === 'withdrawal' ? '#e11d48' : '#16a34a';
+      const sign = t.type === 'withdrawal' ? '-' : '+';
+      const timeStr = t.timestamp?.toDate ? format(t.timestamp.toDate(), 'HH:mm') : '--:--';
+      const dateStr = t.timestamp?.toDate ? format(t.timestamp.toDate(), 'dd/MM/yyyy') : '--/--/----';
+      
+      return `
+        <tr>
+          <td>${dateStr} ${timeStr}</td>
+          <td><strong>${typeLabel}</strong></td>
+          <td>${t.description || '-'}</td>
+          <td style="color: ${typeColor}; text-align: right; font-weight: bold;">${sign} ${formatCurrency(t.amount)}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const printHtml = `
+      <html>
+        <head>
+          <title>${title}</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
+            h2, h3 { text-align: center; margin-bottom: 5px; }
+            .meta { text-align: center; font-size: 0.9em; color: #666; margin-bottom: 20px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }
+            th, td { border-bottom: 1px solid #ddd; padding: 10px; text-align: left; }
+            th { background-color: #f8f9fa; }
+            .totals { margin-top: 30px; border: 1px solid #ddd; padding: 15px; border-radius: 8px; background-color: #f8f9fa; }
+            .totals div { display: flex; justify-content: space-between; margin-bottom: 8px; font-weight: bold; }
+          </style>
+        </head>
+        <body>
+          <h2>${title}</h2>
+          <div class="meta">${periodInfo}</div>
+          
+          <table>
+            <thead>
+              <tr>
+                <th>Data/Hora</th>
+                <th>Tipo</th>
+                <th>Descrição</th>
+                <th style="text-align: right;">Valor</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+          </table>
+
+          <div class="totals">
+             <div><span>Entradas (Vendas + Reforços + Abertura):</span> <span style="color: #16a34a;">+ ${formatCurrency(stats.sales + stats.deposits + (currentSession?.openingBalance || 0))}</span></div>
+             <div><span>Saídas (Sangrias):</span> <span style="color: #e11d48;">- ${formatCurrency(stats.withdrawals)}</span></div>
+             <div style="border-top: 1px solid #ccc; padding-top: 8px; margin-top: 8px; font-size: 1.1em;"><span>Saldo Final / Atual:</span> <span>${formatCurrency(stats.current)}</span></div>
+          </div>
 
           <script>
             window.print();
@@ -693,6 +780,7 @@ export default function CashierPage() {
                             { label: 'PIX', value: salesByPaymentMethod.pix, icon: Landmark },
                             { label: 'Cartão de Crédito', value: salesByPaymentMethod.credit, icon: CreditCard },
                             { label: 'Cartão de Débito', value: salesByPaymentMethod.debit, icon: CreditCard },
+                            { label: 'Outros/Diversos', value: (salesByPaymentMethod as any).others || 0, icon: Calculator },
                           ].map((item) => (
                             <div key={item.label} className="flex items-center group">
                                 <item.icon className="h-5 w-5 mr-3 text-muted-foreground group-hover:text-primary transition-colors" />
@@ -747,14 +835,19 @@ export default function CashierPage() {
             {/* Transactions History Card */}
             <div className="lg:col-span-4 space-y-6">
               <Card className="shadow-sm">
-                <CardHeader className="flex flex-row items-center justify-between pb-4">
+                <CardHeader className="flex flex-col sm:flex-row sm:items-start justify-between pb-4 gap-4">
                   <div className="space-y-1">
                     <CardTitle className="flex items-center gap-2 text-lg"><Plus className="h-5 w-5 text-muted-foreground" /> Movimentações</CardTitle>
                     <CardDescription>Entradas, saídas e vendas detalhadas.</CardDescription>
                   </div>
                   
-                  {activePreset === 'session' && currentSession && (
-                    <div className="flex gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button variant="outline" size="sm" className="h-9" onClick={handlePrintTransactions} disabled={!transactions || transactions.length === 0}>
+                      <Printer className="mr-2 h-4 w-4" /> Imprimir
+                    </Button>
+                    
+                    {activePreset === 'session' && currentSession && (
+                      <div className="flex gap-2">
                     <Dialog open={isAddingTransaction} onOpenChange={setIsAddingTransaction}>
                         <DialogTrigger asChild>
                             <Button size="sm" variant="outline" className="h-9 shadow-sm"><Plus className="mr-2 h-4 w-4" /> Sangria / Reforço</Button>
@@ -860,6 +953,7 @@ export default function CashierPage() {
                     </Dialog>
                     </div>
                   )}
+                  </div>
                 </CardHeader>
                 <CardContent className="p-0">
                   <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">

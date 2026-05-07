@@ -6,13 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Package2 } from 'lucide-react';
 import { useUser, useAuth, initiateEmailSignIn } from '@/firebase';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
@@ -77,15 +71,14 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-muted/40 p-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader className="text-center">
-          <div className="mb-4 flex justify-center">
-            <Package2 className="h-10 w-10 text-primary" />
-          </div>
-          <CardTitle className="text-2xl font-bold">BEM VINDO AO DeliveryHub</CardTitle>
-          <CardDescription>Digite seu e-mail abaixo para fazer login em sua conta</CardDescription>
-        </CardHeader>
-        <CardContent>
+    <div className="w-full max-w-sm space-y-6">
+      <div className="text-center">
+        <div className="mb-2 flex justify-center">
+          <img src="/logo.png" alt="DeliveryHub" className="h-48 sm:h-64 md:h-80 w-auto object-contain animate-in fade-in zoom-in duration-500" />
+        </div>
+        <p className="text-sm text-muted-foreground">Digite seu e-mail abaixo para fazer login em sua conta</p>
+      </div>
+      <div className="bg-background/80 backdrop-blur-sm p-6 rounded-xl border shadow-sm">
           <form onSubmit={handleLogin}>
             <div className="grid gap-4">
               <div className="grid gap-2">
@@ -130,11 +123,16 @@ export default function LoginPage() {
               Inscreva-se
             </Link>
           </div>
-        </CardContent>
-      </Card>
-      <div className="mt-4 text-center text-sm text-muted-foreground">
-        Criado por PC MANIA
+        </div>
+      <div className="mt-8 text-center text-lg text-muted-foreground font-semibold space-y-2">
+        <p>Criado por PC MANIA</p>
+        <p>
+            <a href="https://www.pcmania.net" target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary/80 transition-colors font-bold underline-offset-4 hover:underline">
+                www.pcmania.net
+            </a>
+        </p>
       </div>
     </div>
+  </div>
   );
 }

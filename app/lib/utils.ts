@@ -17,7 +17,7 @@ export function hexToHsl(hex: string): { h: number; s: number; l: number } | nul
   let h = 0, s = 0, l = (max + min) / 2;
 
   if (max === min) {
-    h = s = 0;
+    h = s = 0; // achromatic
   } else {
     const d = max - min;
     s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
@@ -36,9 +36,12 @@ export function hexToHsl(hex: string): { h: number; s: number; l: number } | nul
   };
 }
 
+/**
+ * Verifica se a loja está aberta com base no JSON de horários.
+ */
 export function isStoreOpen(businessHoursStr?: string): { isOpen: boolean; message?: string } {
   if (!businessHoursStr) return { isOpen: true };
-
+  
   try {
     const hours = JSON.parse(businessHoursStr);
     const now = new Date();
@@ -51,52 +54,50 @@ export function isStoreOpen(businessHoursStr?: string): { isOpen: boolean; messa
     }
 
     const currentTime = now.getHours() * 60 + now.getMinutes();
-    const [openH, openM] = config.openTime.split(':').map(Number);
-    const [closeH, closeM] = config.closeTime.split(':').map(Number);
 
-    const openMinutes = openH * 60 + openM;
-    const closeMinutes = closeH * 60 + closeM;
+    const checkSlot = (open: string, close: string) => {
+        const [openH, openM] = open.split(':').map(Number);
+        const [closeH, closeM] = close.split(':').map(Number);
+        const openMinutes = openH * 60 + openM;
+        const closeMinutes = closeH * 60 + closeM;
 
-    if (closeMinutes < openMinutes) {
-      if (currentTime >= openMinutes || currentTime < closeMinutes) {
-        return { isOpen: true };
-      }
-    } else {
-      if (currentTime >= openMinutes && currentTime < closeMinutes) {
-        return { isOpen: true };
-      }
+        if (closeMinutes < openMinutes) {
+            return currentTime >= openMinutes || currentTime < closeMinutes;
+        } else {
+            return currentTime >= openMinutes && currentTime < closeMinutes;
+        }
+    };
+
+    if (config.slots && config.slots.length > 0) {
+        // New structure with multiple slots
+        for (const slot of config.slots) {
+            if (checkSlot(slot.openTime, slot.closeTime)) {
+                return { isOpen: true };
+            }
+        }
+        return { isOpen: false };
+    } else if (config.openTime && config.closeTime) {
+        // Legacy single slot
+        if (checkSlot(config.openTime, config.closeTime)) {
+            return { isOpen: true };
+        }
+        return { isOpen: false };
     }
 
     return { isOpen: false };
   } catch (e) {
     console.error("Erro ao validar horário:", e);
-    return { isOpen: true };
+    return { isOpen: true }; 
   }
 }
 
-/* ✅ ADICIONA ISSO AQUI EMBAIXO */
-export function parseSalesByPaymentMethod(orders: any[]) {
-  const result = {
-    cash: 0,
-    pix: 0,
-    credit: 0,
-    debit: 0,
-  };
-
-  orders.forEach((order) => {
-    const method = (order.paymentMethod || '').toLowerCase();
-    const total = Number(order.total || order.amount || 0);
-
-    if (method.includes('dinheiro') || method.includes('cash')) {
-      result.cash += total;
-    } else if (method.includes('pix')) {
-      result.pix += total;
-    } else if (method.includes('credito') || method.includes('credit')) {
-      result.credit += total;
-    } else if (method.includes('debito') || method.includes('debit')) {
-      result.debit += total;
+export function formatQuantity(quantity: number, isSoldByWeight?: boolean): string {
+    if (isSoldByWeight) {
+        return `${quantity.toFixed(3).replace('.', ',')} kg`;
     }
-  });
-
-  return result;
+    // Fallback for legacy data or edge cases
+    if (quantity % 1 !== 0) {
+        return `${quantity.toFixed(3).replace('.', ',')} kg`;
+    }
+    return `${quantity}x`;
 }

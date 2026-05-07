@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState } from 'react';
@@ -37,6 +38,7 @@ import { generateOrderPrintHtml } from '@/lib/print-utils';
 import { Input } from '@/components/ui/input';
 import { Search } from 'lucide-react';
 import { recordCashierSale } from '@/lib/finance-utils';
+import { formatQuantity } from '@/lib/utils';
 
 
 type Company = {
@@ -57,6 +59,7 @@ type OrderItem = {
   notes?: string;
   productName?: string;
   selectedVariants?: { groupName: string; itemName: string; price: number }[];
+  isSoldByWeight?: boolean;
 };
 
 export type Order = {
@@ -380,7 +383,7 @@ const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order; co
                             return (
                                 <div key={idx} className="text-sm">
                                     <div className="flex justify-between font-medium">
-                                        <span>{item.quantity}x {item.productName}</span>
+                                        <span>{formatQuantity(item.quantity, item.isSoldByWeight)} {item.productName}</span>
                                         <span>R${(item.finalPrice || item.unitPrice).toFixed(2)}</span>
                                     </div>
                                     {Object.entries(groupedVariants).map(([group, items], vIdx) => (

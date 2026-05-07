@@ -10,6 +10,9 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 export const metadata: Metadata = {
   title: 'DeliveryHub',
   description: 'A solução SaaS completa para o seu negócio de delivery.',
+  icons: {
+    icon: '/logo.png',
+  },
 };
 
 export default function RootLayout({

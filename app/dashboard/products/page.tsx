@@ -839,7 +839,8 @@ export default function ProductsPage() {
             className="pl-9"
           />
         </div>
-        <Table>
+        <div className="overflow-x-auto">
+          <Table>
           <TableHeader>
             <TableRow>
               <TableHead className="hidden w-[64px] sm:table-cell">
@@ -948,7 +949,8 @@ export default function ProductsPage() {
               )}
           </TableBody>
         </Table>
-      </CardContent>
+      </div>
+    </CardContent>
       <CardFooter>
         <div className="text-xs text-muted-foreground">
           Mostrando <strong>{sortedAndFilteredProducts.length}</strong> de <strong>{products?.length ?? 0}</strong> produtos
