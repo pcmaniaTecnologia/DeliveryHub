@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { initializeFirebase } from '@/firebase';
+import { getServerFirestore } from '@/firebase/server';
 import { doc, getDoc, updateDoc, Timestamp } from 'firebase/firestore';
 import { addDays } from 'date-fns';
 
@@ -16,7 +16,7 @@ export async function POST(req: Request) {
     }
 
     const paymentId = String(body.data.id);
-    const { firestore } = initializeFirebase();
+    const firestore = getServerFirestore();
 
     // Get MP Access Token
     const settingsDoc = await getDoc(doc(firestore, 'platform_settings', 'main'));

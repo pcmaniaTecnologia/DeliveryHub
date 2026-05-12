@@ -55,6 +55,7 @@ type OrderItem = {
   finalPrice?: number;
   notes?: string;
   productName?: string;
+  isSoldByWeight?: boolean;
   selectedVariants?: { groupName: string; itemName: string; price: number }[];
 };
 

@@ -152,6 +152,8 @@ const SubscriptionView = ({ isExpired, trialEndDate, companyData }: { isExpired?
     const { data: platformSettings, isLoading: isLoadingSettings } = useDoc<PlatformSettings>(platformSettingsRef);
 
     const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
+    const [showPixPayment, setShowPixPayment] = useState(false);
+    const [pixCopied, setPixCopied] = useState(false);
     const { user } = useUser();
     const searchParams = useSearchParams();
     const router = useRouter();
@@ -233,8 +235,14 @@ const SubscriptionView = ({ isExpired, trialEndDate, companyData }: { isExpired?
     const handleCopyPixKey = () => {
         if (platformSettings?.pixKey) {
             navigator.clipboard.writeText(platformSettings.pixKey);
-            toast({ title: "Chave PIX copiada!" });
+            setPixCopied(true);
+            toast({ title: "Chave PIX copiada!", description: "Cole no app do seu banco para realizar o pagamento." });
+            setTimeout(() => setPixCopied(false), 3000);
         }
+    };
+
+    const handlePixPayment = () => {
+        setShowPixPayment(true);
     };
     
     if (isLoadingPlans || isLoadingSettings) {
@@ -326,27 +334,93 @@ const SubscriptionView = ({ isExpired, trialEndDate, companyData }: { isExpired?
             </div>
             <Card className="max-w-lg mx-auto shadow-xl">
                 <CardHeader>
-                    <CardTitle>Pagamento Automático</CardTitle>
+                    <CardTitle>Pagamento via PIX</CardTitle>
                     <CardDescription>Plano selecionado: <span className="font-bold text-primary">{selectedPlan.name}</span></CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                    {/* Valor */}
                     <div className="flex justify-between items-center border-2 border-primary/20 p-6 rounded-xl bg-primary/5">
                         <span className="text-lg font-medium">Valor da Assinatura:</span>
                         <span className="text-3xl font-bold text-primary">R${selectedPlan.price.toFixed(2)}</span>
                     </div>
-                     <Alert className="bg-primary/5 border-primary/20">
-                        <Send className="h-4 w-4 text-primary" />
-                        <AlertTitle className="text-primary font-bold">Processamento Automático</AlertTitle>
-                        <AlertDescription className="text-muted-foreground">
-                            Você será redirecionado para o Checkout seguro do <strong>Mercado Pago</strong>. Retorne à esta página após o pagamento (PIX ou Cartão) e seu acesso será liberado instantaneamente na mesma hora.
-                        </AlertDescription>
-                    </Alert>
+
+                    {!showPixPayment ? (
+                        // Instrução inicial
+                        <Alert className="bg-primary/5 border-primary/20">
+                            <Send className="h-4 w-4 text-primary" />
+                            <AlertTitle className="text-primary font-bold">Pagamento via PIX</AlertTitle>
+                            <AlertDescription className="text-muted-foreground">
+                                Clique em <strong>"Pagar Agora"</strong> para ver a chave PIX e as instruções de pagamento.
+                            </AlertDescription>
+                        </Alert>
+                    ) : (
+                        // Painel de PIX
+                        <div className="space-y-4">
+                            {/* Chave PIX */}
+                            <div className="rounded-xl border-2 border-green-400 bg-green-50 p-4 space-y-3">
+                                <div className="flex items-center gap-2 text-green-700 font-bold text-base">
+                                    <CheckCircle className="h-5 w-5" />
+                                    Chave PIX para Pagamento
+                                </div>
+                                {platformSettings?.pixKey ? (
+                                    <div className="space-y-2">
+                                        <div className="flex items-center gap-2 bg-white border border-green-300 rounded-lg px-3 py-2">
+                                            <span className="flex-1 font-mono text-sm font-bold text-gray-800 break-all select-all">
+                                                {platformSettings.pixKey}
+                                            </span>
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="outline"
+                                                className={`shrink-0 gap-1 transition-all ${pixCopied ? 'bg-green-500 text-white border-green-500' : 'border-green-400 text-green-700 hover:bg-green-100'}`}
+                                                onClick={handleCopyPixKey}
+                                            >
+                                                <Copy className="h-4 w-4" />
+                                                {pixCopied ? 'Copiado!' : 'Copiar'}
+                                            </Button>
+                                        </div>
+                                        <p className="text-xs text-green-600">Toque na chave para selecionar ou clique em <strong>Copiar</strong>.</p>
+                                    </div>
+                                ) : (
+                                    <p className="text-sm text-red-600 font-medium">⚠️ Chave PIX não configurada. Entre em contato com o suporte.</p>
+                                )}
+                            </div>
+
+                            {/* Aviso do comprovante */}
+                            <Alert className="border-orange-300 bg-orange-50">
+                                <AlertTriangle className="h-4 w-4 text-orange-600" />
+                                <AlertTitle className="text-orange-700 font-bold">⚠️ Importante: Envie o Comprovante!</AlertTitle>
+                                <AlertDescription className="text-orange-700 text-sm space-y-1">
+                                    <p>Após realizar o pagamento via PIX, <strong>envie o comprovante</strong> para o nosso suporte para que seu sistema seja liberado.</p>
+                                    <p className="mt-2 font-semibold">Seu acesso será ativado manualmente após a confirmação do pagamento.</p>
+                                </AlertDescription>
+                            </Alert>
+
+                            {/* Passos de como pagar */}
+                            <div className="rounded-xl border bg-muted/40 p-4 space-y-2">
+                                <p className="text-sm font-bold text-foreground">Como pagar:</p>
+                                <ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground">
+                                    <li>Abra o aplicativo do seu banco</li>
+                                    <li>Vá em <strong>Pix → Pagar</strong> e cole a chave acima</li>
+                                    <li>Informe o valor: <strong>R${selectedPlan.price.toFixed(2)}</strong></li>
+                                    <li>Confirme o pagamento e <strong>salve o comprovante</strong></li>
+                                    <li>Envie o comprovante ao suporte para liberação</li>
+                                </ol>
+                            </div>
+                        </div>
+                    )}
                 </CardContent>
                 <CardFooter className="flex flex-col gap-3">
-                    <Button className="w-full text-lg h-12 gap-2" size="lg" onClick={handleCheckout} disabled={isCheckingOut || isVerifying}>
-                        {isCheckingOut || isVerifying ? 'Processando...' : 'Pagar Agora'}
-                    </Button>
-                    <Button variant="ghost" className="w-full" onClick={() => setSelectedPlan(null)} disabled={isCheckingOut || isVerifying}>Cancelar e voltar</Button>
+                    {!showPixPayment ? (
+                        <Button className="w-full text-lg h-12 gap-2" size="lg" onClick={handlePixPayment}>
+                            Pagar Agora
+                        </Button>
+                    ) : (
+                        <Button className="w-full text-lg h-12 gap-2" size="lg" variant="outline" onClick={() => setShowPixPayment(false)}>
+                            Fechar instruções
+                        </Button>
+                    )}
+                    <Button variant="ghost" className="w-full" onClick={() => { setSelectedPlan(null); setShowPixPayment(false); }} disabled={isCheckingOut || isVerifying}>Cancelar e voltar</Button>
                 </CardFooter>
             </Card>
         </div>

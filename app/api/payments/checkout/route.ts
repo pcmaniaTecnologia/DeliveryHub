@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { initializeFirebase } from '@/firebase';
+import { getServerFirestore } from '@/firebase/server';
 import { doc, getDoc } from 'firebase/firestore';
 
 export async function POST(req: Request) {
@@ -7,7 +7,7 @@ export async function POST(req: Request) {
     const { planId, companyId } = await req.json();
     if (!planId || !companyId) return NextResponse.json({ error: 'Missing data' }, { status: 400 });
 
-    const { firestore } = initializeFirebase();
+    const firestore = getServerFirestore();
     
     // get platform settings for access token
     const settingsDoc = await getDoc(doc(firestore, 'platform_settings', 'main'));
@@ -73,6 +73,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ init_point: mpData.init_point });
   } catch (error) {
     console.error(error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal Server Error', msg: String(error) }, { status: 500 });
   }
 }

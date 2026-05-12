@@ -103,7 +103,7 @@ const CartItemCard = ({ item }: { item: CartItem }) => {
     );
 };
 
-export default function CartSheet({ companyId }: { companyId: string}) {
+export default function CartSheet({ companyId, tableNumber }: { companyId: string; tableNumber?: string | null }) {
   const { cartItems, totalItems, totalPrice, clearCart } = useCart();
   const firestore = useFirestore();
   const { user } = useUser();

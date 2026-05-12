@@ -2,7 +2,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, ReactNode, useMemo, useEffect } from 'react';
-import type { Product } from '@/app/menu/[companyId]/page';
+import type { Product } from '../../app/menu/[companyId]/page';
 
 export type SelectedVariant = {
     groupName: string;

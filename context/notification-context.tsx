@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { useFirestore, useUser, errorEmitter, FirestorePermissionError, updateDocument } from '@/firebase';
 import { collection, query, where, onSnapshot, Timestamp, doc } from 'firebase/firestore';
-import type { Order } from '@/app/dashboard/orders/page';
+import type { Order } from '../app/dashboard/orders/page';
 import { generateOrderPrintHtml } from '@/lib/print-utils';
 import { useToast } from '@/hooks/use-toast';
 

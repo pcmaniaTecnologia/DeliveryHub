@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { initializeFirebase } from '@/firebase';
+import { getServerFirestore } from '@/firebase/server';
 import { doc, getDoc, updateDoc, Timestamp } from 'firebase/firestore';
 import { addDays } from 'date-fns';
 
@@ -8,7 +8,7 @@ export async function POST(req: Request) {
     const { payment_id, companyId } = await req.json();
     if (!payment_id || !companyId) return NextResponse.json({ error: 'Missing data' }, { status: 400 });
 
-    const { firestore } = initializeFirebase();
+    const firestore = getServerFirestore();
     
     // get platform settings for access token
     const settingsDoc = await getDoc(doc(firestore, 'platform_settings', 'main'));

@@ -1,4 +1,4 @@
-import type { Order } from '@/app/dashboard/orders/page';
+import type { Order } from '../../app/dashboard/orders/page';
 
 type Company = {
     id?: string;

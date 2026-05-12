@@ -350,6 +350,7 @@ export default function ReportsPage() {
                                 )}
                             </TableBody>
                         </Table>
+                        </div>
                     </CardContent>
                 </Card>
 
@@ -400,6 +401,7 @@ export default function ReportsPage() {
                                 )}
                             </TableBody>
                         </Table>
+                        </div>
                     </CardContent>
                 </Card>
             </div>
