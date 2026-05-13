@@ -137,6 +137,13 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
   const [selectedPayment, setSelectedPayment] = useState<string>('');
   const [cashAmount, setCashAmount] = useState('');
 
+  // Get waiter name from URL if present
+  const waiterNameFromUrl = useMemo(() => {
+    if (typeof window === 'undefined') return null;
+    const params = new URLSearchParams(window.location.search);
+    return params.get('waiter');
+  }, []);
+
   const selectedZone = useMemo(() => {
     if (deliveryType !== 'Delivery' || !addressNeighborhood) return null;
     return deliveryZones?.find(z => z.neighborhood === addressNeighborhood);
@@ -158,7 +165,7 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
         return;
     }
 
-    if (!customerName.trim()) {
+    if (!isTableMode && !customerName.trim()) {
         toast({ variant: 'destructive', title: 'Nome Completo Obrigatório' });
         return;
     }
@@ -198,30 +205,30 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
         const orderData = {
             companyId: companyId,
             customerId: user?.uid || 'anonymous',
-            customerName: (customerName || '').trim(),
+            customerName: customerName.trim() || (isTableMode ? `Mesa ${tableNumber}` : 'Cliente'),
             customerPhone: customerPhone || '',
             orderDate: serverTimestamp(),
             status: 'Novo',
             deliveryAddress: fullAddress || '',
             deliveryType: (isTableMode ? 'Mesa' : deliveryType) || 'Mesa',
             ...(isTableMode ? { tableNumber: String(tableNumber || '') } : {}),
-            ...(isTableMode ? { waiterName: 'Autoatendimento' } : {}),
+            ...(isTableMode ? { waiterName: waiterNameFromUrl || 'Autoatendimento' } : {}),
             deliveryFee: deliveryFee || 0,
             paymentMethod: isTableMode ? 'A Combinar' : (selectedPayment === 'Dinheiro' && cashAmount ? `Dinheiro (Troco para R$${parseFloat(cashAmount.replace(',', '.')).toFixed(2)})` : (selectedPayment || 'A Combinar')),
             orderItems: cartItems.map(item => ({
                 productId: item.product.id || 'unknown',
                 productName: item.product.name || 'Produto',
                 quantity: item.quantity || 1,
-                unitPrice: item.product.price || 0,
-                finalPrice: item.finalPrice || 0,
+                unitPrice: Number(item.product.price) || 0,
+                finalPrice: Number(item.finalPrice) || 0,
                 notes: (item.notes || '').trim(),
                 selectedVariants: (item.selectedVariants || []).map(v => ({
                     groupName: v.groupName || '',
                     itemName: v.itemName || '',
-                    price: v.price || 0
+                    price: Number(v.price) || 0
                 })),
             })),
-            totalAmount: finalTotal || 0,
+            totalAmount: Number(finalTotal) || 0,
         };
         
         const docRef = await addDocument(ordersRef, orderData);
