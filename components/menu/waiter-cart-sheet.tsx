@@ -123,28 +123,32 @@ export default function WaiterCartSheet({ companyId }: { companyId: string}) {
     const ordersRef = collection(firestore, 'companies', companyId, 'orders');
 
     const orderData = {
-        companyId,
+        companyId: companyId,
         customerId: 'waiter_system',
-        customerName: customerName.trim() || 'Cliente na Mesa',
+        customerName: (customerName || '').trim() || 'Cliente na Mesa',
         customerPhone: '',
         orderDate: serverTimestamp(),
         status: 'Novo',
-        deliveryAddress: `Mesa ${tableNumber.trim()}`,
+        deliveryAddress: `Mesa ${(tableNumber || '').trim()}`,
         deliveryType: 'Mesa',
-        tableNumber: tableNumber.trim(),
-        waiterName: waiterSession.name,
+        tableNumber: (tableNumber || '').trim(),
+        waiterName: waiterSession.name || 'Garçom',
         deliveryFee: 0,
         paymentMethod: 'A Combinar',
         orderItems: cartItems.map(item => ({
-            productId: item.product.id,
-            productName: item.product.name,
-            quantity: item.quantity,
-            unitPrice: item.product.price,
-            finalPrice: item.finalPrice,
-            notes: item.notes || '',
-            selectedVariants: item.selectedVariants || [],
+            productId: item.product.id || 'unknown',
+            productName: item.product.name || 'Produto',
+            quantity: Number(item.quantity) || 1,
+            unitPrice: Number(item.product.price) || 0,
+            finalPrice: Number(item.finalPrice) || 0,
+            notes: (item.notes || '').trim(),
+            selectedVariants: (item.selectedVariants || []).map(v => ({
+                groupName: v.groupName || '',
+                itemName: v.itemName || '',
+                price: Number(v.price) || 0
+            })),
         })),
-        totalAmount: finalTotal,
+        totalAmount: Number(finalTotal) || 0,
     };
     
     try {
