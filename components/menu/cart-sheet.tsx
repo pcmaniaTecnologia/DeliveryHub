@@ -196,25 +196,25 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
         // Firebase Firestore does not support 'undefined' values.
         // Ensure all properties have a valid fallback value or remove them if undefined.
         const orderData = {
-            companyId,
+            companyId: companyId,
             customerId: user?.uid || 'anonymous',
-            customerName: customerName.trim(),
-            customerPhone,
+            customerName: (customerName || '').trim(),
+            customerPhone: customerPhone || '',
             orderDate: serverTimestamp(),
             status: 'Novo',
-            deliveryAddress: fullAddress,
-            deliveryType: isTableMode ? 'Mesa' : deliveryType,
-            ...(isTableMode ? { tableNumber: tableNumber } : {}),
+            deliveryAddress: fullAddress || '',
+            deliveryType: (isTableMode ? 'Mesa' : deliveryType) || 'Mesa',
+            ...(isTableMode ? { tableNumber: String(tableNumber || '') } : {}),
             ...(isTableMode ? { waiterName: 'Autoatendimento' } : {}),
             deliveryFee: deliveryFee || 0,
-            paymentMethod: isTableMode ? 'A Combinar' : (selectedPayment === 'Dinheiro' && cashAmount ? `Dinheiro (Troco para R$${parseFloat(cashAmount.replace(',', '.')).toFixed(2)})` : selectedPayment),
+            paymentMethod: isTableMode ? 'A Combinar' : (selectedPayment === 'Dinheiro' && cashAmount ? `Dinheiro (Troco para R$${parseFloat(cashAmount.replace(',', '.')).toFixed(2)})` : (selectedPayment || 'A Combinar')),
             orderItems: cartItems.map(item => ({
                 productId: item.product.id || 'unknown',
                 productName: item.product.name || 'Produto',
                 quantity: item.quantity || 1,
                 unitPrice: item.product.price || 0,
                 finalPrice: item.finalPrice || 0,
-                notes: item.notes || '',
+                notes: (item.notes || '').trim(),
                 selectedVariants: (item.selectedVariants || []).map(v => ({
                     groupName: v.groupName || '',
                     itemName: v.itemName || '',
