@@ -201,7 +201,7 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
     }
 
     const rawPhone = customerPhone.replace(/\D/g, '');
-    if (rawPhone.length < 10 || rawPhone.length > 11) {
+    if (deliveryType !== 'Mesa' && (rawPhone.length < 10 || rawPhone.length > 11)) {
         toast({ variant: 'destructive', title: 'WhatsApp Inválido. Digite o DDD + número válido.' });
         return;
     }
@@ -268,11 +268,11 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
         paymentMethod: isMultiPayment 
             ? multiPayments.map(p => {
                 if (p.method === 'Dinheiro' && p.cashAmount) {
-                    return `${p.method}: R$ ${parseFloat(p.amount).toFixed(2)} (Troco p/ R$ ${parseFloat(p.cashAmount).toFixed(2)})`;
+                    return `${p.method}: R$ ${parseFloat(p.amount || '0').toFixed(2)} (Troco p/ R$ ${parseFloat(p.cashAmount || '0').toFixed(2)})`;
                 }
-                return `${p.method}: R$ ${parseFloat(p.amount).toFixed(2)}`;
+                return `${p.method}: R$ ${parseFloat(p.amount || '0').toFixed(2)}`;
             }).join(' | ')
-            : (selectedPayment === 'Dinheiro' && cashAmount ? `Dinheiro (Troco para R$ ${parseFloat(cashAmount).toFixed(2)})` : selectedPayment),
+            : (selectedPayment === 'Dinheiro' && cashAmount ? `Dinheiro (Troco para R$ ${parseFloat(cashAmount || '0').toFixed(2)})` : selectedPayment),
         orderItems: cartItems.map(item => ({
             productId: item.product.id,
             productName: item.product.name,
@@ -288,6 +288,19 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
     
     
         const docRef = await addDocument(ordersRef, orderData);
+        
+        // Decrementar estoque em background
+        const stockItems = cartItems
+            .filter(item => item.product.stockControlEnabled)
+            .map(item => ({ productId: item.product.id, quantity: item.quantity }));
+
+        if (stockItems.length > 0) {
+            fetch('/api/stock/decrement', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ companyId, items: stockItems }),
+            }).catch(err => console.error("Erro ao baixar estoque:", err));
+        }
         
         if (companyData.phone) {
             const itemsSummary = cartItems.map(item => {

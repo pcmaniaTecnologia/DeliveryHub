@@ -1,20 +1,14 @@
 import { NextResponse } from 'next/server';
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, doc, getDoc, updateDoc, increment } from 'firebase/firestore';
-import { firebaseConfig } from '@/firebase/config';
+import { adminDb } from '@/lib/firebase-admin';
+import { admin } from '@/lib/firebase-admin';
 
 /**
  * POST /api/stock/decrement
  * Body: { companyId: string, items: [{ productId: string, quantity: number }] }
  *
- * Decrementa o estoque usando Firebase Client SDK no Servidor.
- * Como o servidor roda de forma "anônima", as firestore.rules precisam permitir o decremento.
+ * Decrementa o estoque usando Firebase Admin SDK (Server-side).
+ * O Admin SDK ignora as firestore.rules, garantindo que a operação seja bem-sucedida.
  */
-
-function getServerFirestore() {
-  const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-  return getFirestore(app);
-}
 
 export async function POST(req: Request) {
   try {
@@ -28,17 +22,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'companyId e items são obrigatórios' }, { status: 400 });
     }
 
-    const firestore = getServerFirestore();
     const updated: string[] = [];
 
+    // Usamos um batch ou Promise.all para processar os itens
     await Promise.all(
       items.map(async ({ productId, quantity }) => {
         if (!productId || quantity <= 0) return;
 
-        const productRef = doc(firestore, 'companies', companyId, 'products', productId);
-        const snap = await getDoc(productRef);
+        const productRef = adminDb.collection('companies').doc(companyId).collection('products').doc(productId);
+        const snap = await productRef.get();
 
-        if (!snap.exists()) {
+        if (!snap.exists) {
             console.log(`[stock/decrement] produto não encontrado: ${productId}`);
             return;
         }
@@ -49,16 +43,18 @@ export async function POST(req: Request) {
             return;
         }
 
-        await updateDoc(productRef, { stock: increment(-quantity) });
+        await productRef.update({ 
+            stock: admin.firestore.FieldValue.increment(-quantity) 
+        });
         updated.push(productId);
       })
     );
 
-    console.log(`[stock/decrement-fallback] company=${companyId} updated=[${updated.join(',')}]`);
+    console.log(`[stock/decrement-admin] company=${companyId} updated=[${updated.join(',')}]`);
     return NextResponse.json({ ok: true, updated }, { status: 200 });
 
   } catch (error: any) {
-    console.error('[stock/decrement-fallback] error:', error?.code, error?.message);
+    console.error('[stock/decrement-admin] error:', error?.code, error?.message);
     return NextResponse.json({ error: error?.message || 'Erro ao atualizar estoque' }, { status: 500 });
   }
 }

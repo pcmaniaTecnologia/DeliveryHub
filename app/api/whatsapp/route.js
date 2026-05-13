@@ -41,16 +41,21 @@ ${entrega > 0 ? `*Entrega:* R$${entrega.toFixed(2)}` : ''}
 *Total:* *R$${total.toFixed(2)}*
 *Pagamento:* ${pagamento}`;
 
-    await fetch("https://api.z-api.io/instances/SEU_ID/token/SEU_TOKEN/send-text", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        phone: telefoneEmpresa,
-        message: mensagem
-      })
-    });
+    const zapiInstance = process.env.ZAPI_INSTANCE;
+    const zapiToken = process.env.ZAPI_TOKEN;
+
+    if (zapiInstance && zapiToken) {
+      await fetch(`https://api.z-api.io/instances/${zapiInstance}/token/${zapiToken}/send-text`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          phone: telefoneEmpresa,
+          message: mensagem
+        })
+      }).catch(err => console.error("Erro ao enviar para Z-API:", err));
+    }
 
     return new Response(JSON.stringify({ ok: true }), { status: 200 });
 

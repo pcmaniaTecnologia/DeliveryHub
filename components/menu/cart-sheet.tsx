@@ -169,7 +169,7 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
     }
 
     const rawPhone = customerPhone.replace(/\D/g, '');
-    if (rawPhone.length < 10 || rawPhone.length > 11) {
+    if (!isTableMode && (rawPhone.length < 10 || rawPhone.length > 11)) {
         toast({ variant: 'destructive', title: 'WhatsApp Inválido. Digite o DDD + número válido.' });
         return;
     }
