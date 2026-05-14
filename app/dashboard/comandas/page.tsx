@@ -643,7 +643,7 @@ export default function ComandasPage() {
                         );
 
                         if (result && result.success && result.sessionId) {
-                            const orderRef = doc(firestore, 'companies', effectiveCompanyId, 'orders', mainOrderId);
+                            const orderRef = doc(firestore, 'companies', effectiveCompanyId as string, 'orders', mainOrderId as string);
                             await updateDocument(orderRef, { sessionId: result.sessionId });
                         }
                     }
