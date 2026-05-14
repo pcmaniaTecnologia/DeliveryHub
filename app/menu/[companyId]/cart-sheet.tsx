@@ -191,58 +191,59 @@ export default function CartSheet({ companyId }: { companyId: string}) {
     }
     
     setIsSubmitting(true);
-    try {
-        const ordersRef = collection(firestore, 'companies', companyId, 'orders');
-    const street = addressStreet?.trim() || 'Rua não informada';
-    const number = addressNumber?.trim() || 'S/N';
-    const neighborhood = addressNeighborhood?.trim() || 'Bairro não informado';
-    const complement = addressComplement?.trim() || '';
+    const ordersRef = collection(firestore, 'companies', companyId, 'orders');
+    const street = (addressStreet || 'Rua não informada').trim();
+    const num = (addressNumber || 'S/N').trim();
+    const neigh = (addressNeighborhood || 'Bairro não informado').trim();
+    const comp = (addressComplement || '').trim();
 
     const fullAddress = deliveryType === 'Delivery'
-      ? `${street}, ${number} - ${neighborhood}${complement ? ` (${complement})` : ''}`
+      ? `${street}, ${num} - ${neigh}${comp ? ` (${comp})` : ''}`
       : 'Retirada no local';
 
+    // Build the order items array with absolute safety
+    const orderItems = cartItems.map(item => {
+        const mappedItem: any = {
+            productId: String(item.product?.id || 'unknown'),
+            productName: String(item.product?.name || 'Produto'),
+            quantity: Number(item.quantity) || 1,
+            unitPrice: Number(item.product?.price) || 0,
+            finalPrice: Number(item.finalPrice) || 0,
+            notes: String(item.notes || ''),
+            selectedVariants: (item.selectedVariants || []).map(v => ({
+                groupName: String(v.groupName || ''),
+                itemName: String(v.itemName || ''),
+                price: Number(v.price) || 0
+            }))
+        };
+        return mappedItem;
+    });
 
-    const orderDataRaw = {
-        companyId: safeStr(companyId),
-        customerId: safeStr(user?.uid || 'anonymous'),
-        customerName: safeStr(customerName || 'Cliente').trim(),
-        customerPhone: safeStr(customerPhone),
+    // Build the main order object with absolute safety
+    const orderData: any = {
+        companyId: String(companyId || ''),
+        customerId: String(user?.uid || 'anonymous'),
+        customerName: String(customerName || 'Cliente').trim(),
+        customerPhone: String(customerPhone || ''),
         orderDate: serverTimestamp(),
         status: 'Novo',
-        deliveryAddress: safeStr(fullAddress || 'Não informado'),
-        deliveryType: safeStr(deliveryType || 'Delivery'),
-        deliveryFee: safeNum(deliveryFee),
-        paymentMethod: safeStr(selectedPayment === 'Dinheiro' && cashAmount 
-            ? `Dinheiro (Troco para R$${safeNum(cashAmount.replace(',', '.')).toFixed(2)})` 
-            : (selectedPayment || 'Não informado')),
-        orderItems: cartItems.map(item => ({
-            productId: safeStr(item.product?.id || 'unknown'),
-            productName: safeStr(item.product?.name || 'Produto'),
-            quantity: safeNum(item.quantity) || 1,
-            unitPrice: safeNum(item.product?.price),
-            finalPrice: safeNum(item.finalPrice),
-            notes: safeStr(item.notes),
-            selectedVariants: (item.selectedVariants || []).map(v => ({
-                groupName: safeStr(v.groupName),
-                itemName: safeStr(v.itemName),
-                price: safeNum(v.price)
-            })),
-        })),
-        totalAmount: safeNum(finalTotal),
+        deliveryAddress: String(fullAddress),
+        deliveryType: String(deliveryType || 'Delivery'),
+        deliveryFee: Number(deliveryFee) || 0,
+        paymentMethod: String(selectedPayment || 'Não informado'),
+        orderItems: orderItems,
+        totalAmount: Number(finalTotal) || 0,
     };
 
-    // Final deep clean to remove any potential undefined values
-    const orderData = JSON.parse(JSON.stringify(orderDataRaw, (key, value) => {
-        if (value === undefined) return null; // Firebase handles null better than undefined, but we aim for no undefined
-        return value;
-    }));
-    
-    // Restore serverTimestamp as JSON.stringify destroys it
-    orderData.orderDate = serverTimestamp();
+    // Specific logic for Cash payment with change
+    if (selectedPayment === 'Dinheiro' && cashAmount) {
+        const changeValue = Number(cashAmount.replace(',', '.'));
+        if (!isNaN(changeValue)) {
+            orderData.paymentMethod = `Dinheiro (Troco para R$${changeValue.toFixed(2)})`;
+        }
+    }
 
-    
-    
+    try {
         const docRef = await addDocument(ordersRef, orderData);
 
         // ── Baixa de estoque via API (server-side) ────────────────────────
