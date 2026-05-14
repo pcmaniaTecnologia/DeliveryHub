@@ -505,7 +505,6 @@ export default function SettingsPage() {
     cashAskForChange: false,
   });
   const [isSaving, setIsSaving] = useState(false);
-  const [isZoneDialogOpen, setIsZoneDialogOpen] = useState(false);
   const [businessHours, setBusinessHours] = useState<BusinessHours>({
     monday: { isOpen: true, openTime: '09:00', closeTime: '18:00', slots: [{ openTime: '09:00', closeTime: '18:00' }] },
     tuesday: { isOpen: true, openTime: '09:00', closeTime: '18:00', slots: [{ openTime: '09:00', closeTime: '18:00' }] },
