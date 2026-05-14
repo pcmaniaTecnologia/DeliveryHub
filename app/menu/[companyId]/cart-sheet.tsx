@@ -140,6 +140,13 @@ export default function CartSheet({ companyId }: { companyId: string}) {
   const handlePlaceOrder = async () => {
     if (!firestore || !companyId || !companyData) return;
 
+    // Helper functions to prevent Firebase 'undefined' or 'NaN' errors
+    const safeNum = (v: any) => {
+        const n = Number(v);
+        return isNaN(n) ? 0 : n;
+    };
+    const safeStr = (v: any) => (v || '').toString();
+
     // Check stock for all items before proceeding
     for (const item of cartItems) {
         if (item.product.stockControlEnabled) {
@@ -196,34 +203,44 @@ export default function CartSheet({ companyId }: { companyId: string}) {
       : 'Retirada no local';
 
 
-    const orderData = {
-        companyId: companyId || '',
-        customerId: user?.uid || 'anonymous',
-        customerName: (customerName || 'Cliente').trim(),
-        customerPhone: customerPhone || '',
+    const orderDataRaw = {
+        companyId: safeStr(companyId),
+        customerId: safeStr(user?.uid || 'anonymous'),
+        customerName: safeStr(customerName || 'Cliente').trim(),
+        customerPhone: safeStr(customerPhone),
         orderDate: serverTimestamp(),
         status: 'Novo',
-        deliveryAddress: fullAddress || 'Não informado',
-        deliveryType: deliveryType || 'Delivery',
-        deliveryFee: Number(deliveryFee) || 0,
-        paymentMethod: selectedPayment === 'Dinheiro' && cashAmount 
-            ? `Dinheiro (Troco para R$${parseFloat(cashAmount.replace(',', '.')).toFixed(2)})` 
-            : (selectedPayment || 'Não informado'),
+        deliveryAddress: safeStr(fullAddress || 'Não informado'),
+        deliveryType: safeStr(deliveryType || 'Delivery'),
+        deliveryFee: safeNum(deliveryFee),
+        paymentMethod: safeStr(selectedPayment === 'Dinheiro' && cashAmount 
+            ? `Dinheiro (Troco para R$${safeNum(cashAmount.replace(',', '.')).toFixed(2)})` 
+            : (selectedPayment || 'Não informado')),
         orderItems: cartItems.map(item => ({
-            productId: item.product?.id || 'unknown',
-            productName: item.product?.name || 'Produto',
-            quantity: Number(item.quantity) || 1,
-            unitPrice: Number(item.product?.price) || 0,
-            finalPrice: Number(item.finalPrice) || 0,
-            notes: item.notes || '',
+            productId: safeStr(item.product?.id || 'unknown'),
+            productName: safeStr(item.product?.name || 'Produto'),
+            quantity: safeNum(item.quantity) || 1,
+            unitPrice: safeNum(item.product?.price),
+            finalPrice: safeNum(item.finalPrice),
+            notes: safeStr(item.notes),
             selectedVariants: (item.selectedVariants || []).map(v => ({
-                groupName: v.groupName || '',
-                itemName: v.itemName || '',
-                price: Number(v.price) || 0
+                groupName: safeStr(v.groupName),
+                itemName: safeStr(v.itemName),
+                price: safeNum(v.price)
             })),
         })),
-        totalAmount: Number(finalTotal) || 0,
+        totalAmount: safeNum(finalTotal),
     };
+
+    // Final deep clean to remove any potential undefined values
+    const orderData = JSON.parse(JSON.stringify(orderDataRaw, (key, value) => {
+        if (value === undefined) return null; // Firebase handles null better than undefined, but we aim for no undefined
+        return value;
+    }));
+    
+    // Restore serverTimestamp as JSON.stringify destroys it
+    orderData.orderDate = serverTimestamp();
+
     
     
         const docRef = await addDocument(ordersRef, orderData);
