@@ -186,36 +186,43 @@ export default function CartSheet({ companyId }: { companyId: string}) {
     setIsSubmitting(true);
     try {
         const ordersRef = collection(firestore, 'companies', companyId, 'orders');
+    const street = addressStreet?.trim() || 'Rua não informada';
+    const number = addressNumber?.trim() || 'S/N';
+    const neighborhood = addressNeighborhood?.trim() || 'Bairro não informado';
+    const complement = addressComplement?.trim() || '';
+
     const fullAddress = deliveryType === 'Delivery'
-  ? `${addressStreet || 'Rua não informada'}, ${addressNumber || 'S/N'} - ${addressNeighborhood || 'Bairro não informado'} ${addressComplement || ''}`
-  : 'Retirada no local';
+      ? `${street}, ${number} - ${neighborhood}${complement ? ` (${complement})` : ''}`
+      : 'Retirada no local';
 
 
     const orderData = {
-        companyId,
+        companyId: companyId || '',
         customerId: user?.uid || 'anonymous',
-        customerName: customerName.trim(),
-        customerPhone,
+        customerName: (customerName || 'Cliente').trim(),
+        customerPhone: customerPhone || '',
         orderDate: serverTimestamp(),
         status: 'Novo',
-        deliveryAddress: fullAddress,
-        deliveryType,
-        deliveryFee: deliveryFee || 0,
-        paymentMethod: selectedPayment === 'Dinheiro' && cashAmount ? `Dinheiro (Troco para R$${parseFloat(cashAmount.replace(',', '.')).toFixed(2)})` : selectedPayment,
+        deliveryAddress: fullAddress || 'Não informado',
+        deliveryType: deliveryType || 'Delivery',
+        deliveryFee: Number(deliveryFee) || 0,
+        paymentMethod: selectedPayment === 'Dinheiro' && cashAmount 
+            ? `Dinheiro (Troco para R$${parseFloat(cashAmount.replace(',', '.')).toFixed(2)})` 
+            : (selectedPayment || 'Não informado'),
         orderItems: cartItems.map(item => ({
-            productId: item.product.id || 'unknown',
-            productName: item.product.name || 'Produto',
-            quantity: item.quantity || 1,
-            unitPrice: item.product.price || 0,
-            finalPrice: item.finalPrice || 0,
+            productId: item.product?.id || 'unknown',
+            productName: item.product?.name || 'Produto',
+            quantity: Number(item.quantity) || 1,
+            unitPrice: Number(item.product?.price) || 0,
+            finalPrice: Number(item.finalPrice) || 0,
             notes: item.notes || '',
             selectedVariants: (item.selectedVariants || []).map(v => ({
                 groupName: v.groupName || '',
                 itemName: v.itemName || '',
-                price: v.price || 0
+                price: Number(v.price) || 0
             })),
         })),
-        totalAmount: finalTotal || 0,
+        totalAmount: Number(finalTotal) || 0,
     };
     
     
