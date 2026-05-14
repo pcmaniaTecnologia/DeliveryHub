@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Package2 } from 'lucide-react';
+import { LoadingScreen } from '@/components/LoadingScreen';
 import { useUser, useAuth, initiateEmailSignIn } from '@/firebase';
 import { Button } from '@/components/ui/button';
 
@@ -62,11 +63,7 @@ export default function LoginPage() {
   };
 
   if (isUserLoading || user) {
-    return (
-        <div className="flex min-h-screen flex-col items-center justify-center">
-            <p>Carregando...</p>
-        </div>
-    )
+    return <LoadingScreen />;
   }
 
   return (

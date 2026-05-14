@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { UserNav } from '@/components/user-nav';
 import { DashboardNav } from '@/components/dashboard-nav';
+import { LoadingScreen } from '@/components/LoadingScreen';
 import { useUser } from '@/firebase';
 import { hexToHsl } from '@/lib/utils';
 import type { Order } from './orders/page';
@@ -209,11 +210,7 @@ export default function DashboardLayout({
 
 
   if (isUserLoading || isLoadingCompany || !user || isLoadingAllOrders || isLoadingAdmin) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p>Carregando...</p>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   return (

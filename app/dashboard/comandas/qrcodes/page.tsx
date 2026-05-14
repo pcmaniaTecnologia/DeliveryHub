@@ -1,5 +1,7 @@
 'use client';
 
+import { LoadingScreen } from '@/components/LoadingScreen';
+
 import React, { useMemo, useEffect, useState } from 'react';
 import { useFirestore, useDoc, useUser, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
@@ -40,7 +42,7 @@ export default function QRCodesPage() {
     };
 
     if (isLoading) {
-        return <div className="flex h-[50vh] items-center justify-center"><p>Carregando...</p></div>;
+        return <LoadingScreen />;
     }
 
     return (

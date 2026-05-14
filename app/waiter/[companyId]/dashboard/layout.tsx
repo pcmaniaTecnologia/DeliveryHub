@@ -2,6 +2,8 @@ import { CartProvider } from '@/context/cart-context';
 import WaiterCartSheet from '@/components/menu/waiter-cart-sheet';
 import { Suspense } from 'react';
 
+import { LoadingScreen } from '@/components/LoadingScreen';
+
 export default async function WaiterDashboardLayout({
   children,
   params
@@ -14,7 +16,7 @@ export default async function WaiterDashboardLayout({
   return (
     <CartProvider>
       <div className="min-h-screen bg-background pb-20">
-        <Suspense fallback={<div className="p-8 text-center">Carregando...</div>}>
+        <Suspense fallback={<LoadingScreen />}>
           {children}
         </Suspense>
         <Suspense fallback={null}>

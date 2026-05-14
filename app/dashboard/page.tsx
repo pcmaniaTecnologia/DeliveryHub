@@ -1,5 +1,7 @@
 'use client';
 
+import { LoadingScreen } from '@/components/LoadingScreen';
+
 import {
   Banknote, CreditCard, DollarSign, Package, PieChart, Landmark,
   ShoppingCart, Users, Calendar as CalendarIcon, Printer, ShieldCheck,
@@ -399,7 +401,7 @@ export default function DashboardPage() {
   };
 
   if (isLoading) {
-    return <div className="flex min-h-screen items-center justify-center"><p>Carregando painel...</p></div>;
+    return <LoadingScreen />;
   }
 
   // ── Render ──────────────────────────────────────────────────────────────

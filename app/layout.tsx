@@ -12,7 +12,21 @@ export const metadata: Metadata = {
   description: 'A solução SaaS completa para o seu negócio de delivery.',
   icons: {
     icon: '/logo.png',
+    apple: '/logo.png',
   },
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'DeliveryHub',
+  },
+};
+
+export const viewport = {
+  themeColor: '#1fb6e5',
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
 };
 
 export default function RootLayout({
