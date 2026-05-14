@@ -881,7 +881,10 @@ export default function SettingsPage() {
               <div className="space-y-2">
                 <Label htmlFor="logoUrl">URL da Logo (Link da imagem)</Label>
                 <Input id="logoUrl" placeholder="Ex: https://imgur.com/sua-logo.png" value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} disabled={isLoading} />
-                <p className="text-xs text-muted-foreground">Cole o link de uma imagem hospedada na internet para aparecer no topo do seu cardápio online.</p>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">Cole o link direto da imagem (deve terminar em .png, .jpg ou ser um link direto do Google Fotos/Imgur).</p>
+                  <p className="text-[10px] text-primary font-medium italic">Dica Google Fotos: Abra a imagem, clique com o botão direito e selecione "Copiar endereço da imagem".</p>
+                </div>
               </div>
                <div className="space-y-2">
                 <Label htmlFor="average-prep-time">Tempo médio de preparo (minutos)</Label>

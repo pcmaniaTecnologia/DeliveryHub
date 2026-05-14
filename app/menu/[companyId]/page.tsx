@@ -533,7 +533,7 @@ export default function MenuPage() {
             
             {company.logoUrl && (
                 <div className="mx-auto mb-5 h-24 w-24 overflow-hidden rounded-full border-4 border-background shadow-lg">
-                    <Image src={company.logoUrl} alt={`${company.name} logo`} width={96} height={96} className="h-full w-full object-cover" />
+                    <Image src={company.logoUrl} alt={`${company.name} logo`} width={96} height={96} className="h-full w-full object-cover" unoptimized />
                 </div>
             )}
           <h1 className="text-4xl font-extrabold tracking-tight text-foreground sm:text-5xl bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70 pb-1">{company.name}</h1>
