@@ -504,6 +504,8 @@ export default function SettingsPage() {
     debit: false,
     cashAskForChange: false,
   });
+  const [isSaving, setIsSaving] = useState(false);
+  const [isZoneDialogOpen, setIsZoneDialogOpen] = useState(false);
   const [businessHours, setBusinessHours] = useState<BusinessHours>({
     monday: { isOpen: true, openTime: '09:00', closeTime: '18:00', slots: [{ openTime: '09:00', closeTime: '18:00' }] },
     tuesday: { isOpen: true, openTime: '09:00', closeTime: '18:00', slots: [{ openTime: '09:00', closeTime: '18:00' }] },
@@ -584,33 +586,68 @@ export default function SettingsPage() {
     });
   };
 
-  const handleSaveChanges = () => {
+  const handleSaveChanges = async () => {
     if (!companyRef || !user) return;
+    setIsSaving(true);
 
-    const themeColors = JSON.stringify({
-        primary: primaryColor,
-        accent: accentColor,
-    });
+    try {
+        let finalLogoUrl = logoUrl;
 
-    const updatedData = {
-        name: storeName,
-        phone: phone,
-        logoUrl: logoUrl,
-        themeColors: themeColors,
-        soundNotificationEnabled: soundNotificationEnabled,
-        closedMessage: closedMessage,
-        averagePrepTime: averagePrepTime,
-        numberOfTables: numberOfTables,
-        comandasEnabled: comandasEnabled,
-        ownerId: user.uid,
-    };
+        // Tentar extrair imagem real se for link do Google
+        if (finalLogoUrl && (
+            finalLogoUrl.includes('photos.app.goo.gl') || 
+            finalLogoUrl.includes('photos.google.com') || 
+            finalLogoUrl.includes('drive.google.com') ||
+            finalLogoUrl.includes('images.app.goo.gl')
+        )) {
+            try {
+                const res = await fetch(`/api/extract-og-image?url=${encodeURIComponent(finalLogoUrl)}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.imageUrl) {
+                        finalLogoUrl = data.imageUrl;
+                        setLogoUrl(finalLogoUrl); // Atualiza o estado para o usuário ver
+                    }
+                }
+            } catch (e) {
+                console.error('Erro ao extrair imagem:', e);
+            }
+        }
 
-    setDocument(companyRef, updatedData, { merge: true }).then(() => {
+        const themeColors = JSON.stringify({
+            primary: primaryColor,
+            accent: accentColor,
+        });
+
+        const updatedData = {
+            name: storeName,
+            phone: phone,
+            logoUrl: finalLogoUrl,
+            themeColors: themeColors,
+            soundNotificationEnabled: soundNotificationEnabled,
+            closedMessage: closedMessage,
+            averagePrepTime: averagePrepTime,
+            numberOfTables: numberOfTables,
+            comandasEnabled: comandasEnabled,
+            ownerId: user.uid,
+        };
+
+        await setDocument(companyRef, updatedData, { merge: true });
+        
         toast({
             title: 'Perfil Atualizado!',
             description: 'As informações da sua loja foram salvas com sucesso.',
         });
-    });
+    } catch (error) {
+        console.error('Erro ao salvar:', error);
+        toast({
+            variant: 'destructive',
+            title: 'Erro ao Salvar',
+            description: 'Não foi possível salvar as alterações.',
+        });
+    } finally {
+        setIsSaving(false);
+    }
   };
 
   const handlePaymentMethodChange = (method: keyof Omit<PaymentMethods, 'cashAskForChange'>, checked: boolean) => {
@@ -958,7 +995,9 @@ export default function SettingsPage() {
               </div>
             </CardContent>
             <CardFooter>
-              <Button onClick={handleSaveChanges} disabled={isLoading}>Salvar Alterações</Button>
+              <Button onClick={handleSaveChanges} disabled={isLoading || isSaving}>
+                {isSaving ? 'Salvando...' : 'Salvar Alterações'}
+              </Button>
             </CardFooter>
           </Card>
         </TabsContent>

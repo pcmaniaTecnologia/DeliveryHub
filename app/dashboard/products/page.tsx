@@ -213,7 +213,12 @@ export default function ProductsPage() {
 
     let finalImageUrl = values.imageUrl;
 
-    if (finalImageUrl && (finalImageUrl.includes('photos.app.goo.gl') || finalImageUrl.includes('photos.google.com') || finalImageUrl.includes('drive.google.com'))) {
+    if (finalImageUrl && (
+        finalImageUrl.includes('photos.app.goo.gl') || 
+        finalImageUrl.includes('photos.google.com') || 
+        finalImageUrl.includes('drive.google.com') ||
+        finalImageUrl.includes('images.app.goo.gl')
+    )) {
         try {
             const res = await fetch(`/api/extract-og-image?url=${encodeURIComponent(finalImageUrl)}`);
             if (res.ok) {
