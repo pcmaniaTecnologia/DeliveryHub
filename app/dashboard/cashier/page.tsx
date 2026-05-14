@@ -962,15 +962,16 @@ export default function CashierPage() {
                       <TableRow>
                         <TableHead className="w-[100px] pl-6">Horário</TableHead>
                         <TableHead>Tipo</TableHead>
+                        <TableHead>Descrição</TableHead>
                         <TableHead>Valor</TableHead>
                         <TableHead>Espécie</TableHead>
-                        <TableHead className="text-right">Ação</TableHead>
+                        <TableHead className="text-right pr-6">Ação</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {!transactions || transactions.length === 0 ? (
                         <TableRow>
-                            <TableCell colSpan={5} className="text-center text-muted-foreground py-16">
+                            <TableCell colSpan={6} className="text-center text-muted-foreground py-16">
                                 <div className="flex flex-col items-center gap-3">
                                     <FilterX className="h-10 w-10 opacity-20" />
                                     <p>Nenhuma movimentação para exibir.</p>
@@ -1003,10 +1004,16 @@ export default function CashierPage() {
                                 {t.description}
                             </TableCell>
                             <TableCell className={cn(
-                                "text-right font-bold pr-6 whitespace-nowrap",
+                                "font-bold whitespace-nowrap",
                                 t.type === 'withdrawal' ? 'text-rose-600' : 'text-emerald-600'
                             )}>
                               {t.type === 'withdrawal' ? '-' : '+'} R$ {t.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground truncate max-w-[120px]">
+                                {t.paymentMethod || '-'}
+                            </TableCell>
+                            <TableCell className="text-right pr-6">
+                                {/* Ações se necessário */}
                             </TableCell>
                           </TableRow>
                         ))

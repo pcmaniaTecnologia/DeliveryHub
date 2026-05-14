@@ -272,13 +272,13 @@ export default function ComandasPage() {
         }
     };
 
-    const handleCancelReservation = async (tableNum: any) => {
+    const handleCancelReservation = async (tableNum: any, keepSelected = false) => {
         if (!effectiveCompanyId) return;
         try {
             await deleteDocument(doc(firestore, `companies/${effectiveCompanyId}/tableReservations`, String(tableNum)));
             toast({ title: 'Reserva cancelada' });
-            // Se estivermos visualizando a mesa, voltamos para a tela principal
-            setSelectedTable(null);
+            // Se estivermos visualizando a mesa, voltamos para a tela principal (a menos que keepSelected seja true)
+            if (!keepSelected) setSelectedTable(null);
         } catch (error) {
             console.error("Error canceling reservation:", error);
             toast({ variant: 'destructive', title: 'Erro ao cancelar reserva' });
@@ -630,14 +630,36 @@ export default function ComandasPage() {
             }
 
             // ── Registra venda no Caixa (se houver sessão aberta) ──
-            await recordCashierSale(
-                firestore,
-                effectiveCompanyId,
-                totalPaidAmount,
-                `Mesa ${selectedTable.tableNumber} — ${paymentSummary}`,
-                mainOrderId,
-                paymentSummary
-            );
+            try {
+                if (payments && payments.length > 0) {
+                    for (const p of payments) {
+                        const result = await recordCashierSale(
+                            firestore,
+                            effectiveCompanyId,
+                            p.amount,
+                            `Mesa ${selectedTable.tableNumber} — ${p.method}`,
+                            mainOrderId,
+                            p.method
+                        );
+
+                        if (result && result.success && result.sessionId) {
+                            const orderRef = doc(firestore, 'companies', effectiveCompanyId, 'orders', mainOrderId);
+                            await updateDocument(orderRef, { sessionId: result.sessionId });
+                        }
+                    }
+                } else {
+                    await recordCashierSale(
+                        firestore,
+                        effectiveCompanyId,
+                        totalPaidAmount,
+                        `Mesa ${selectedTable.tableNumber} — ${paymentSummary}`,
+                        mainOrderId,
+                        paymentSummary
+                    );
+                }
+            } catch (cashierError) {
+                console.error('Error recording cashier sale:', cashierError);
+            }
 
             toast({ title: "✅ Pagamento realizado!", description: `Mesa ${selectedTable.tableNumber} — R$ ${totalPaidAmount.toFixed(2)}. Redirecionando para o relatório...` });
             
@@ -655,7 +677,25 @@ export default function ComandasPage() {
                 // Verificamos se ainda restam itens não pagos na mesa (além dos que acabamos de pagar)
                 const remainingKeys = tableItems.filter(i => !selectedItemsKeys.has(i.uniqueKey));
                 if (remainingKeys.length === 0) {
-                    await handleCancelReservation(selectedTable.tableNumber);
+                    // Limpa metadados da mesa (nome do cliente e ocupantes) ao fechar totalmente
+                    if (companyRef) {
+                        try {
+                            await updateDocument(companyRef, {
+                                [`tableMetadata.${selectedTable.tableNumber}`]: {
+                                    customerName: '',
+                                    occupants: 1,
+                                    updatedAt: serverTimestamp()
+                                }
+                            });
+                        } catch (e) {
+                            console.error("Erro ao limpar metadados da mesa:", e);
+                        }
+                    }
+
+                    // Só tentamos cancelar a reserva se ela realmente existir (evita erro de permissão no Firestore)
+                    if (selectedTable.isReserved) {
+                        await handleCancelReservation(selectedTable.tableNumber, true);
+                    }
                 }
             }
 

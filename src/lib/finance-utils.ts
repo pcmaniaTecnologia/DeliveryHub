@@ -95,7 +95,8 @@ function categorizePayment(method: string): 'cash' | 'pix' | 'credit' | 'debit' 
         n.includes('dinherio') ||
         n.includes('monetario') ||
         n.includes('cash') ||
-        n.includes('cedula')
+        n.includes('cedula') ||
+        n === 'd'
     ) {
         return 'cash';
     }
@@ -111,7 +112,9 @@ function categorizePayment(method: string): 'cash' | 'pix' | 'credit' | 'debit' 
         n.includes('elo d') ||
         n.includes('cartao deb') ||
         n.includes('cartao de deb') ||
-        n.includes('deb') // Catch-all for deb
+        n === 'deb' ||
+        n === 'débito' ||
+        n === 'debito'
     ) {
         return 'debit';
     }
@@ -127,7 +130,9 @@ function categorizePayment(method: string): 'cash' | 'pix' | 'credit' | 'debit' 
         n.includes('elo c') ||
         n.includes('cartao cre') ||
         n.includes('cartao de cre') ||
-        n.includes('cre') // Catch-all for cre
+        n === 'cre' ||
+        n === 'crédito' ||
+        n === 'credito'
     ) {
         return 'credit';
     }

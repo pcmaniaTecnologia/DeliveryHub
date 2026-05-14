@@ -37,6 +37,7 @@ import { cn } from '@/lib/utils';
 import { Calendar } from '@/components/ui/calendar';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
+import { parseSalesByPaymentMethod } from '@/lib/finance-utils';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -325,34 +326,7 @@ export default function DashboardPage() {
       ['Novo', 'Aguardando pagamento', 'Em preparo'].includes(o.status)
     ).length;
 
-    const salesByPaymentMethod = successfulOrders.reduce<SalesByPaymentMethod>((acc, order) => {
-      const methods = order.paymentMethod.split(', ');
-      const orderTotal = order.totalAmount;
-      const methodsWithValues = methods.map(m => {
-        const matchTroco = m.match(/(.+) \(troco para R\$\s*([\d,.]+)\)/);
-        if (matchTroco) return { method: matchTroco[1].trim(), amount: orderTotal };
-        const matchVal = m.match(/(.+) \(R\$\s*([\d,.]+)\)/);
-        if (matchVal) return { method: matchVal[1].trim(), amount: parseFloat(matchVal[2].replace(',', '.')) };
-        return { method: m.trim(), amount: null };
-      });
-      if (methodsWithValues.length === 1 && methodsWithValues[0].amount === null) {
-        const sm = methodsWithValues[0].method.toLowerCase();
-        if (sm.includes('dinheiro')) acc.cash += orderTotal;
-        else if (sm.includes('pix')) acc.pix += orderTotal;
-        else if (sm.includes('crédito')) acc.credit += orderTotal;
-        else if (sm.includes('débito')) acc.debit += orderTotal;
-      } else {
-        methodsWithValues.forEach(({ method, amount }) => {
-          const ml = method.toLowerCase();
-          const v = amount || 0;
-          if (ml.includes('dinheiro')) acc.cash += v;
-          else if (ml.includes('pix')) acc.pix += v;
-          else if (ml.includes('crédito')) acc.credit += v;
-          else if (ml.includes('débito')) acc.debit += v;
-        });
-      }
-      return acc;
-    }, { cash: 0, pix: 0, credit: 0, debit: 0 });
+    const salesByPaymentMethod = parseSalesByPaymentMethod(successfulOrders);
 
     const salesChartData = Array.from({ length: 7 }).map((_, i) => {
       const date = subDays(new Date(), i);
@@ -747,7 +721,6 @@ export default function DashboardPage() {
           <CardHeader><CardTitle>Visão Geral de Vendas (Últimos 7 dias)</CardTitle></CardHeader>
           <CardContent className="pl-2">
             <ChartContainer config={chartConfig} className="h-[350px] w-full">
-              <ResponsiveContainer>
                 <BarChart data={salesChartData}>
                   <XAxis dataKey="date" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
                   <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={v => `R$${v}`} />
@@ -755,7 +728,6 @@ export default function DashboardPage() {
                   <Legend />
                   <Bar dataKey="Vendas" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="Vendas" />
                 </BarChart>
-              </ResponsiveContainer>
             </ChartContainer>
           </CardContent>
         </Card>

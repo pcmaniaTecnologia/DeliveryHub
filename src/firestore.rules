@@ -150,10 +150,13 @@ service cloud.firestore {
     }
 
     match /companies/{companyId}/tableReservations/{reservationId} {
-      allow get, list: if true;
-      allow create: if isCompanyMember(companyId) || isOwner(companyId) || isSuperAdmin();
-      allow update: if (isCompanyMember(companyId) || isOwner(companyId) || isSuperAdmin()) && resource != null;
-      allow delete: if (isCompanyMember(companyId) || isOwner(companyId) || isSuperAdmin()) && resource != null;
+      allow read: if isCompanyMember(companyId) || isOwner(companyId) || isSuperAdmin();
+      allow write: if isCompanyMember(companyId) || isOwner(companyId) || isSuperAdmin();
+    }
+
+    match /companies/{companyId}/tableContributions/{contributionId} {
+      allow read: if isCompanyMember(companyId) || isOwner(companyId) || isSuperAdmin();
+      allow write: if isCompanyMember(companyId) || isOwner(companyId) || isSuperAdmin();
     }
 
     match /customers/{customerId} {

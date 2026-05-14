@@ -288,28 +288,47 @@ export default function POSPage() {
             const docRef = await addDocument(ordersRef, orderData);
 
             try {
-                const result = await recordCashierSale(
-                    firestore,
-                    effectiveCompanyId as string,
-                    totalWithDiscount,
-                    `Venda de Balcão #${docRef.id.substring(0, 6).toUpperCase()}`,
-                    docRef.id,
-                    fullPaymentMethod
-                );
+                if (isMultiPayment && payments.length > 0) {
+                    // Para pagamentos múltiplos, registra uma transação para cada método
+                    for (const p of payments) {
+                        const result = await recordCashierSale(
+                            firestore,
+                            effectiveCompanyId as string,
+                            p.amount,
+                            `Venda de Balcão #${docRef.id.substring(0, 6).toUpperCase()} (${p.method})`,
+                            docRef.id,
+                            p.method
+                        );
 
-                if (result && result.success) {
-                    // Vincula o sessionId ao pedido para garantir sincronismo perfeito no relatório
-                    if (result.sessionId) {
-                        const orderRef = doc(firestore, 'companies', effectiveCompanyId as string, 'orders', docRef.id);
-                        await updateDocument(orderRef, { sessionId: result.sessionId });
+                        if (result && result.success && result.sessionId) {
+                            const orderRef = doc(firestore, 'companies', effectiveCompanyId as string, 'orders', docRef.id);
+                            await updateDocument(orderRef, { sessionId: result.sessionId });
+                        }
                     }
                 } else {
-                    console.warn('Venda não vinculada ao caixa (caixa pode estar fechado)');
-                    toast({
-                        variant: 'destructive',
-                        title: "Aviso de Caixa",
-                        description: "A venda foi salva, mas não foi possível vincular ao caixa (verifique se há um caixa aberto)."
-                    });
+                    // Pagamento único
+                    const result = await recordCashierSale(
+                        firestore,
+                        effectiveCompanyId as string,
+                        totalWithDiscount,
+                        `Venda de Balcão #${docRef.id.substring(0, 6).toUpperCase()}`,
+                        docRef.id,
+                        fullPaymentMethod
+                    );
+
+                    if (result && result.success) {
+                        if (result.sessionId) {
+                            const orderRef = doc(firestore, 'companies', effectiveCompanyId as string, 'orders', docRef.id);
+                            await updateDocument(orderRef, { sessionId: result.sessionId });
+                        }
+                    } else {
+                        console.warn('Venda não vinculada ao caixa (caixa pode estar fechado)');
+                        toast({
+                            variant: 'destructive',
+                            title: "Aviso de Caixa",
+                            description: "A venda foi salva, mas não foi possível vincular ao caixa (verifique se há um caixa aberto)."
+                        });
+                    }
                 }
             } catch (cashierError) {
                 console.error('Erro ao vincular venda ao caixa:', cashierError);
@@ -956,6 +975,7 @@ export default function POSPage() {
                     <DialogHeader>
                         <VisuallyHidden>
                             <DialogTitle>Venda Concluída</DialogTitle>
+                            <DialogDescription>A venda foi processada com sucesso e o cupom está pronto para impressão.</DialogDescription>
                         </VisuallyHidden>
                     </DialogHeader>
                     <div className="flex flex-col items-center text-center py-6">

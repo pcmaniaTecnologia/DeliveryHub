@@ -345,7 +345,6 @@ export default function AdminDashboardPage() {
           </CardHeader>
           <CardContent className="pl-2">
             <ChartContainer config={chartConfig} className="h-[300px] w-full">
-              <ResponsiveContainer>
                 <BarChart data={stats?.salesByCompany} layout="vertical" margin={{ left: 20, right: 20 }}>
                   <XAxis type="number" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `R$${value}`}/>
                   <YAxis type="category" dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} width={120} />
@@ -353,7 +352,6 @@ export default function AdminDashboardPage() {
                   <Legend />
                   <Bar dataKey="Ganho" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} name="Ganho" />
                 </BarChart>
-              </ResponsiveContainer>
             </ChartContainer>
           </CardContent>
         </Card>
