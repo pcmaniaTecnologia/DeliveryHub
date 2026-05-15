@@ -227,11 +227,14 @@ export default function CartSheet({ companyId }: { companyId: string}) {
         customerPhone: String(customerPhone || ''),
         orderDate: serverTimestamp(),
         status: 'Novo',
-        deliveryAddress: String(fullAddress),
+        deliveryAddress: String(fullAddress || ''),
         deliveryType: String(deliveryType || 'Delivery'),
         deliveryFee: Number(deliveryFee) || 0,
         paymentMethod: String(selectedPayment || 'Não informado'),
-        orderItems: orderItems,
+        orderItems: orderItems.map((item: any) => ({
+            ...item,
+            isSoldByWeight: Boolean(item.isSoldByWeight)
+        })),
         totalAmount: Number(finalTotal) || 0,
     };
 

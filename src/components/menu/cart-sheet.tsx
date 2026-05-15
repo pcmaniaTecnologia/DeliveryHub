@@ -254,36 +254,40 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
         : 'Retirada no local';
 
     const orderData = {
-        companyId,
-        customerId: user?.uid || 'anonymous',
-        customerName: customerName.trim(),
-        customerPhone,
+        companyId: String(companyId || ''),
+        customerId: String(user?.uid || 'anonymous'),
+        customerName: String(customerName || 'Cliente').trim(),
+        customerPhone: String(customerPhone || ''),
         orderDate: serverTimestamp(),
         status: 'Novo',
-        deliveryAddress: fullAddress,
-        deliveryType,
-        deliveryFee,
-        tableNumber: tableParam || null,
-        waiterName: waiterParam || (isAdmin ? 'Admin' : null),
-        paymentMethod: isMultiPayment 
+        deliveryAddress: String(fullAddress || ''),
+        deliveryType: String(deliveryType || 'Delivery'),
+        deliveryFee: Number(deliveryFee) || 0,
+        tableNumber: tableParam ? String(tableParam) : null,
+        waiterName: waiterParam ? String(waiterParam) : (isAdmin ? 'Admin' : null),
+        paymentMethod: String(isMultiPayment 
             ? multiPayments.map(p => {
                 if (p.method === 'Dinheiro' && p.cashAmount) {
                     return `${p.method}: R$ ${parseFloat(p.amount || '0').toFixed(2)} (Troco p/ R$ ${parseFloat(p.cashAmount || '0').toFixed(2)})`;
                 }
                 return `${p.method}: R$ ${parseFloat(p.amount || '0').toFixed(2)}`;
             }).join(' | ')
-            : (selectedPayment === 'Dinheiro' && cashAmount ? `Dinheiro (Troco para R$ ${parseFloat(cashAmount || '0').toFixed(2)})` : selectedPayment),
+            : (selectedPayment === 'Dinheiro' && cashAmount ? `Dinheiro (Troco para R$ ${parseFloat(cashAmount || '0').toFixed(2)})` : (selectedPayment || 'A Combinar'))),
         orderItems: cartItems.map(item => ({
-            productId: item.product.id,
-            productName: item.product.name,
-            quantity: item.quantity,
-            unitPrice: item.product.price,
-            finalPrice: item.finalPrice,
-            notes: item.notes || '',
-            selectedVariants: item.selectedVariants || [],
-            isSoldByWeight: item.product.isSoldByWeight,
+            productId: String(item.product.id || ''),
+            productName: String(item.product.name || 'Produto'),
+            quantity: Number(item.quantity) || 0,
+            unitPrice: Number(item.product.price) || 0,
+            finalPrice: Number(item.finalPrice) || 0,
+            notes: String(item.notes || '').trim(),
+            selectedVariants: (item.selectedVariants || []).map(v => ({
+                groupName: String(v.groupName || ''),
+                itemName: String(v.itemName || ''),
+                price: Number(v.price) || 0
+            })),
+            isSoldByWeight: Boolean(item.product.isSoldByWeight),
         })),
-        totalAmount: finalTotal,
+        totalAmount: Number(finalTotal) || 0,
     };
     
     
