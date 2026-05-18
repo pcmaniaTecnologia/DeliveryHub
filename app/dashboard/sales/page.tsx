@@ -286,6 +286,7 @@ export default function POSPage() {
             };
 
             const docRef = await addDocument(ordersRef, orderData);
+            let assignedSessionId: string | null = null;
 
             try {
                 if (isMultiPayment && payments.length > 0) {
@@ -301,6 +302,7 @@ export default function POSPage() {
                         );
 
                         if (result && result.success && result.sessionId) {
+                            assignedSessionId = result.sessionId;
                             const orderRef = doc(firestore, 'companies', effectiveCompanyId as string, 'orders', docRef.id);
                             await updateDocument(orderRef, { sessionId: result.sessionId });
                         }
@@ -318,6 +320,7 @@ export default function POSPage() {
 
                     if (result && result.success) {
                         if (result.sessionId) {
+                            assignedSessionId = result.sessionId;
                             const orderRef = doc(firestore, 'companies', effectiveCompanyId as string, 'orders', docRef.id);
                             await updateDocument(orderRef, { sessionId: result.sessionId });
                         }
@@ -360,7 +363,7 @@ export default function POSPage() {
                 }
             }
 
-            setLastOrder({ ...orderData, id: docRef.id });
+            setLastOrder({ ...orderData, id: docRef.id, sessionId: assignedSessionId });
             setCart([]);
             setIsCheckoutOpen(false);
             setIsSuccessOpen(true);
