@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { Search, Plus, Minus, Trash2, ShoppingCart, User, Smartphone, CreditCard, DollarSign, Landmark, CheckCircle2, Printer, X, Package, Loader2 } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, ShoppingCart, User, Smartphone, CreditCard, DollarSign, Landmark, CheckCircle2, Printer, X, XCircle, Package, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from '@/components/ui/card';
@@ -416,6 +416,72 @@ export default function POSPage() {
             fetchRecentOrders();
         }
     }, [isHistoryOpen]);
+
+    const handleCancelSale = async (orderId: string) => {
+        if (!firestore || !effectiveCompanyId) return;
+        
+        try {
+            const orderToCancel = recentOrders.find(o => o.id === orderId) || (lastOrder?.id === orderId ? lastOrder : null);
+            if (!orderToCancel || orderToCancel.status === 'Cancelado') return;
+            
+            const orderRef = doc(firestore, 'companies', effectiveCompanyId as string, 'orders', orderId);
+            await updateDocument(orderRef, { status: 'Cancelado' });
+            
+            // Revert Cashier
+            if (orderToCancel.sessionId) {
+                if (orderToCancel.payments && orderToCancel.payments.length > 0) {
+                     for (const p of orderToCancel.payments) {
+                         await recordCashierSale(
+                             firestore,
+                             effectiveCompanyId as string,
+                             -p.amount,
+                             `Cancelamento - Venda de Balcão #${orderToCancel.id.substring(0, 6).toUpperCase()} (${p.method})`,
+                             orderToCancel.id,
+                             p.method
+                         );
+                     }
+                } else {
+                     await recordCashierSale(
+                         firestore,
+                         effectiveCompanyId as string,
+                         -orderToCancel.totalAmount,
+                         `Cancelamento - Venda de Balcão #${orderToCancel.id.substring(0, 6).toUpperCase()}`,
+                         orderToCancel.id,
+                         orderToCancel.paymentMethod
+                     );
+                }
+            }
+            
+            // Revert Stock
+            const stockItems = orderToCancel.orderItems
+                ?.filter((item: any) => {
+                    const freshProduct = productsData?.find(p => p.id === item.productId);
+                    return freshProduct?.stockControlEnabled;
+                })
+                .map((item: any) => ({ productId: item.productId, quantity: item.quantity }));
+                
+            if (stockItems && stockItems.length > 0) {
+                await Promise.all(stockItems.map((item: any) => {
+                    const productRef = doc(firestore, 'companies', effectiveCompanyId as string, 'products', item.productId);
+                    return updateDocument(productRef, { stock: increment(item.quantity) });
+                }));
+            }
+            
+            toast({ title: 'Venda Cancelada', description: 'A venda foi cancelada com sucesso.' });
+            
+            if (isHistoryOpen) {
+                fetchRecentOrders();
+            }
+            if (lastOrder && lastOrder.id === orderId) {
+                setLastOrder({ ...lastOrder, status: 'Cancelado' });
+                setIsSuccessOpen(false); // Close the success modal if cancelling from there
+            }
+            
+        } catch (error) {
+            console.error('Erro ao cancelar venda:', error);
+            toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível cancelar a venda.' });
+        }
+    };
 
     const handlePrint = (orderToPrint?: any) => {
         const order = orderToPrint || lastOrder;
@@ -1051,6 +1117,9 @@ export default function POSPage() {
                         <Button variant="outline" onClick={() => setIsSuccessOpen(false)} className="w-full">
                             Nova Venda
                         </Button>
+                        <Button variant="ghost" onClick={() => { if(window.confirm('Deseja realmente cancelar esta venda?')) handleCancelSale(lastOrder?.id); }} className="w-full text-destructive hover:text-destructive hover:bg-destructive/10 mt-2">
+                            Cancelar Venda
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
@@ -1114,16 +1183,25 @@ export default function POSPage() {
                                         <div className="flex-1">
                                             <div className="flex items-center gap-2">
                                                 <span className="font-bold text-sm">#{order.id.substring(0, 8).toUpperCase()}</span>
-                                                <Badge variant="outline" className="text-[10px]">{order.orderDate?.toDate ? order.orderDate.toDate().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'Sem data'}</Badge>
+                                                <Badge variant={order.status === 'Cancelado' ? 'destructive' : 'outline'} className="text-[10px]">
+                                                    {order.status === 'Cancelado' ? 'Cancelado' : (order.orderDate?.toDate ? order.orderDate.toDate().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'Sem data')}
+                                                </Badge>
                                             </div>
                                             <p className="text-xs text-muted-foreground mt-1">
                                                 <span className="font-medium text-foreground">{order.customerName}</span> • 
                                                 R$ {order.totalAmount.toFixed(2)} • {order.paymentMethod?.split('|')[0] || order.paymentMethod}
                                             </p>
                                         </div>
-                                        <Button variant="outline" size="icon" onClick={() => handlePrint(order)} className="h-9 w-9" title="Imprimir Cupom">
-                                            <Printer className="h-4 w-4" />
-                                        </Button>
+                                        <div className="flex gap-1">
+                                            {order.status !== 'Cancelado' && (
+                                                <Button variant="ghost" size="icon" onClick={() => { if(window.confirm('Deseja realmente cancelar esta venda?')) handleCancelSale(order.id); }} className="h-9 w-9 text-destructive hover:bg-destructive/10" title="Cancelar Venda">
+                                                    <XCircle className="h-4 w-4" />
+                                                </Button>
+                                            )}
+                                            <Button variant="outline" size="icon" onClick={() => handlePrint(order)} className="h-9 w-9" title="Imprimir Cupom" disabled={order.status === 'Cancelado'}>
+                                                <Printer className="h-4 w-4" />
+                                            </Button>
+                                        </div>
                                     </div>
                                 ))}
                             </div>

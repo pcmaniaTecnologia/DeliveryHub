@@ -22,6 +22,7 @@ type Order = {
     paymentMethod: string;
     payments?: { method: string, amount: number }[];
     deliveryType: string;
+    origin?: string;
     status: string;
     orderDate: Timestamp;
     orderItems?: {
@@ -104,15 +105,17 @@ export default function ReportsPage() {
             return isInRange && isFinished;
         });
 
-        // Totals
-        const totalFaturamento = filtered.reduce((sum, o) => sum + o.totalAmount, 0);
-        
+        const normalizeStr = (s: string | undefined) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+
         const byType = {
-            deliveryOnly: filtered.filter(o => String(o.deliveryType || '').toLowerCase() === 'delivery').reduce((sum, o) => sum + o.totalAmount, 0),
-            retiradaOnly: filtered.filter(o => String(o.deliveryType || '').toLowerCase() === 'retirada').reduce((sum, o) => sum + o.totalAmount, 0),
-            balcao: filtered.filter(o => String(o.deliveryType || '').toLowerCase() === 'balcao' || String(o.deliveryType || '').toLowerCase().includes('pdv')).reduce((sum, o) => sum + o.totalAmount, 0),
-            comanda: filtered.filter(o => String(o.deliveryType || '').toLowerCase() === 'mesa').reduce((sum, o) => sum + o.totalAmount, 0),
+            deliveryOnly: filtered.filter(o => normalizeStr(o.deliveryType) === 'delivery').reduce((sum, o) => sum + o.totalAmount, 0),
+            retiradaOnly: filtered.filter(o => normalizeStr(o.deliveryType) === 'retirada').reduce((sum, o) => sum + o.totalAmount, 0),
+            balcao: filtered.filter(o => normalizeStr(o.deliveryType) === 'balcao' || normalizeStr(o.origin) === 'pdv').reduce((sum, o) => sum + o.totalAmount, 0),
+            comanda: filtered.filter(o => normalizeStr(o.deliveryType) === 'mesa' || normalizeStr(o.origin) === 'comanda').reduce((sum, o) => sum + o.totalAmount, 0),
         };
+
+        // Totals
+        const totalFaturamento = byType.deliveryOnly + byType.retiradaOnly + byType.balcao + byType.comanda;
 
         // Payment Distribution - Normalization
         const paymentsMap: { [key: string]: number } = {
