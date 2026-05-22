@@ -359,7 +359,7 @@ export default function AdminDashboardPage() {
                   <YAxis type="category" dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} width={130} />
                   <Tooltip content={<ChartTooltipContent indicator="dashed" />} cursor={{ fill: 'hsl(var(--muted))' }} />
                   <Bar dataKey="Ganho" fill="url(#colorGanho)" radius={[0, 4, 4, 0]} barSize={28}>
-                     <LabelList dataKey="Ganho" position="right" formatter={(value: number) => `R$ ${value.toFixed(2)}`} fill="#888888" fontSize={12} />
+                     <LabelList dataKey="Ganho" position="right" formatter={(value: any) => `R$ ${Number(value || 0).toFixed(2)}`} fill="#888888" fontSize={12} />
                   </Bar>
                 </BarChart>
             </ChartContainer>
