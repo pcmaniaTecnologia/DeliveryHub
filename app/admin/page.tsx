@@ -17,6 +17,8 @@ import {
   YAxis,
   Tooltip,
   Legend,
+  CartesianGrid,
+  LabelList
 } from 'recharts';
 import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart';
 import { useUser, useFirestore, errorEmitter, FirestorePermissionError } from '@/firebase';
@@ -215,7 +217,7 @@ export default function AdminDashboardPage() {
         }).filter(s => s.Ganho > 0);
 
         // 3. Orders by company for table
-        const ordersByCompany = rawCompanies.map(company => {
+        const ordersByCompany = activeCompanies.map(company => {
              const companyOrders = filteredOrders.filter(o => o.companyId === company.id);
              return {
                  id: company.id,
@@ -343,14 +345,22 @@ export default function AdminDashboardPage() {
           <CardHeader>
             <CardTitle>Ganhos por Loja Assinante</CardTitle>
           </CardHeader>
-          <CardContent className="pl-2">
-            <ChartContainer config={chartConfig} className="h-[300px] w-full">
-                <BarChart data={stats?.salesByCompany} layout="vertical" margin={{ left: 20, right: 20 }}>
+          <CardContent className="pl-0">
+            <ChartContainer config={chartConfig} className="h-[350px] w-full">
+                <BarChart data={stats?.salesByCompany} layout="vertical" margin={{ left: 0, right: 60, top: 10, bottom: 10 }}>
+                  <defs>
+                    <linearGradient id="colorGanho" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.6}/>
+                      <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={1}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid horizontal={true} vertical={true} strokeDasharray="3 3" opacity={0.3} />
                   <XAxis type="number" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `R$${value}`}/>
-                  <YAxis type="category" dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} width={120} />
-                  <Tooltip content={<ChartTooltipContent />} />
-                  <Legend />
-                  <Bar dataKey="Ganho" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} name="Ganho" />
+                  <YAxis type="category" dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} width={130} />
+                  <Tooltip content={<ChartTooltipContent indicator="dashed" />} cursor={{ fill: 'hsl(var(--muted))' }} />
+                  <Bar dataKey="Ganho" fill="url(#colorGanho)" radius={[0, 4, 4, 0]} barSize={28}>
+                     <LabelList dataKey="Ganho" position="right" formatter={(value: number) => `R$ ${value.toFixed(2)}`} fill="#888888" fontSize={12} />
+                  </Bar>
                 </BarChart>
             </ChartContainer>
           </CardContent>

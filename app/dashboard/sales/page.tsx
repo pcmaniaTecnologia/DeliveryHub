@@ -590,23 +590,24 @@ export default function POSPage() {
 
     const renderProductSection = () => (
         <div className="flex-[2] flex flex-col gap-4 h-full min-h-0">
-            <Card className="flex-1 flex flex-col overflow-hidden">
-                <CardHeader className="p-4 bg-muted/30">
-                    <div className="flex flex-col sm:flex-row gap-4">
-                        <div className="relative flex-1">
+            <Card className="flex-1 flex flex-col overflow-hidden border-none shadow-none bg-transparent">
+                <div className="pb-4 flex flex-col gap-4">
+                    <div className="flex flex-col sm:flex-row gap-3 items-center">
+                        <div className="relative w-full sm:max-w-md">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                             <Input
                                 ref={searchInputRef}
                                 placeholder="Buscar produto... [F3]"
-                                className="pl-9"
+                                className="pl-9 bg-background border-border/50 rounded-full h-10 shadow-sm transition-all focus:ring-primary/20"
                                 value={searchQuery}
                                 onChange={e => setSearchQuery(e.target.value)}
                             />
                         </div>
-                        <div className="flex gap-2 overflow-x-auto pb-1 max-w-full sm:max-w-[400px]">
+                        <div className="flex gap-2 overflow-x-auto pb-1 w-full sm:flex-1 no-scrollbar">
                             <Button
-                                variant={selectedCategory === null ? 'default' : 'outline'}
+                                variant={selectedCategory === null ? 'default' : 'secondary'}
                                 size="sm"
+                                className={`whitespace-nowrap rounded-full px-5 font-medium transition-all ${selectedCategory !== null ? 'bg-background hover:bg-muted' : ''}`}
                                 onClick={() => setSelectedCategory(null)}
                             >
                                 Tudo
@@ -614,9 +615,9 @@ export default function POSPage() {
                             {categoriesData?.map(cat => (
                                 <Button
                                     key={cat.id}
-                                    variant={selectedCategory === cat.id ? 'default' : 'outline'}
+                                    variant={selectedCategory === cat.id ? 'default' : 'secondary'}
                                     size="sm"
-                                    className="whitespace-nowrap"
+                                    className={`whitespace-nowrap rounded-full px-5 font-medium transition-all ${selectedCategory !== cat.id ? 'bg-background hover:bg-muted' : ''}`}
                                     onClick={() => setSelectedCategory(cat.id)}
                                 >
                                     {cat.name}
@@ -624,41 +625,41 @@ export default function POSPage() {
                             ))}
                         </div>
                     </div>
-                </CardHeader>
-                <CardContent className="p-2 sm:p-4 flex-1 overflow-y-auto">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-4">
+                </div>
+                <div className="flex-1 overflow-y-auto pr-1 pb-4 no-scrollbar">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
                         {filteredProducts.map(product => (
                             <div
                                 key={product.id}
                                 onClick={() => addToCart(product)}
-                                className="group relative flex flex-row sm:flex-col items-center sm:items-stretch border rounded-xl p-2 sm:p-3 cursor-pointer hover:border-primary transition-all hover:bg-primary/5 active:scale-95 shadow-sm bg-card"
+                                className="group relative flex flex-row sm:flex-col overflow-hidden rounded-2xl cursor-pointer bg-card border border-border/40 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 active:scale-[0.98]"
                             >
-                                <div className="relative h-16 w-16 sm:h-auto sm:w-full sm:aspect-square shrink-0 rounded-lg overflow-hidden bg-muted">
+                                <div className="relative h-24 w-24 sm:h-auto sm:w-full sm:aspect-[4/3] shrink-0 bg-muted/30 overflow-hidden">
                                     {product.imageUrls?.[0] ? (
                                         <Image
                                             src={product.imageUrls[0]}
                                             alt={product.name}
                                             fill
-                                            className={`object-cover group-hover:scale-110 transition-transform ${product.stockControlEnabled && product.blockIfOutOfStock !== false && (Number(product.stock) || 0) <= 0 ? 'grayscale opacity-30' : ''}`}
+                                            className={`object-cover transition-transform duration-500 group-hover:scale-110 ${product.stockControlEnabled && product.blockIfOutOfStock !== false && (Number(product.stock) || 0) <= 0 ? 'grayscale opacity-30' : ''}`}
                                             unoptimized
                                         />
                                     ) : (
-                                        <div className="flex items-center justify-center h-full text-muted-foreground">
-                                            <Package className="h-6 w-6 sm:h-8 sm:w-8 opacity-20" />
+                                        <div className="flex items-center justify-center h-full w-full text-muted-foreground/30 bg-muted/10">
+                                            <Package className="h-8 w-8 sm:h-10 sm:w-10" />
                                         </div>
                                     )}
                                     {product.stockControlEnabled && product.blockIfOutOfStock !== false && (Number(product.stock) || 0) <= 0 && (
-                                        <div className="absolute inset-0 flex items-center justify-center bg-black/70 z-10">
-                                            <span className="text-white font-black text-[8px] sm:text-xs uppercase tracking-widest -rotate-12 border border-white px-1">ESGOTADO</span>
+                                        <div className="absolute inset-0 flex items-center justify-center bg-background/70 backdrop-blur-[2px] z-10">
+                                            <Badge variant="destructive" className="uppercase tracking-widest text-[10px] sm:text-xs shadow-md">Esgotado</Badge>
                                         </div>
                                     )}
                                 </div>
-                                <div className="flex flex-col flex-1 ml-3 sm:ml-0 sm:mt-3 min-w-0">
-                                    <h3 className="font-bold text-sm sm:text-xs md:text-sm line-clamp-2 leading-tight sm:leading-normal text-foreground">{product.name}</h3>
-                                    <div className="flex items-center justify-between mt-1 sm:mt-2">
-                                        <span className="text-primary font-black text-base sm:text-sm">R$ {product.price.toFixed(2)}</span>
+                                <div className="flex flex-col flex-1 p-3 sm:p-4 min-w-0">
+                                    <h3 className="font-semibold text-sm md:text-base line-clamp-2 leading-tight text-foreground/90 group-hover:text-primary transition-colors">{product.name}</h3>
+                                    <div className="flex items-end justify-between mt-auto pt-3">
+                                        <span className="font-bold text-base sm:text-lg text-primary tracking-tight">R$ {product.price.toFixed(2)}</span>
                                         {product.stockControlEnabled && (
-                                            <Badge variant={product.stock > 0 ? 'secondary' : 'destructive'} className="text-[9px] sm:text-[10px] px-1.5 py-0 h-4">
+                                            <Badge variant={product.stock > 0 ? 'secondary' : 'destructive'} className="text-[10px] px-2 py-0.5 rounded-full bg-muted/50 text-muted-foreground font-medium">
                                                 {product.stock} un
                                             </Badge>
                                         )}
@@ -673,47 +674,50 @@ export default function POSPage() {
                             <p>Nenhum produto encontrado.</p>
                         </div>
                     )}
-                </CardContent>
+                </div>
             </Card>
         </div>
     );
 
     const renderCartSection = () => (
-        <div className="flex-1 flex flex-col min-w-0 xl:min-w-[320px] h-full overflow-hidden">
-            <Card className="flex-1 flex flex-col overflow-hidden border-2 border-primary/20">
-                <CardHeader className="p-3 sm:p-4 flex flex-row items-center justify-between">
-                    <CardTitle className="text-base sm:text-lg flex items-center gap-2">
-                        <ShoppingCart className="h-5 w-5" /> Carrinho
+        <div className="flex-1 flex flex-col min-w-0 xl:min-w-[340px] h-full overflow-hidden xl:ml-2">
+            <Card className="flex-1 flex flex-col overflow-hidden border-0 shadow-2xl bg-card rounded-2xl relative">
+                {/* Decorative top bar */}
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary/50 via-primary to-primary/50"></div>
+                
+                <CardHeader className="p-4 sm:p-5 flex flex-row items-center justify-between border-b border-border/40 z-10 bg-card">
+                    <CardTitle className="text-lg font-bold flex items-center gap-2 text-foreground">
+                        <ShoppingCart className="h-5 w-5 text-primary" /> Seu Pedido
                     </CardTitle>
-                    <Badge variant="secondary">{cart.length} itens</Badge>
+                    <Badge variant="secondary" className="rounded-full px-3 py-1 font-semibold bg-primary/10 text-primary">{cart.length} itens</Badge>
                 </CardHeader>
-                <CardContent className="p-0 flex-1 overflow-hidden">
+                <CardContent className="p-0 flex-1 overflow-hidden bg-muted/10">
                     <ScrollArea className="h-full">
-                        <div className="p-3 sm:p-4 space-y-3 sm:space-y-4">
+                        <div className="p-4 space-y-4">
                             {cart.map(item => (
-                                <div key={item.id} className="flex gap-2 sm:gap-3">
-                                    <div className="flex-1 min-w-0">
-                                        <p className="font-medium text-xs sm:text-sm truncate">{item.product.name}</p>
-                                        <p className="text-[10px] sm:text-xs text-muted-foreground">
+                                <div key={item.id} className="flex gap-3 group bg-card p-3 rounded-xl border border-border/50 shadow-sm hover:shadow-md transition-shadow">
+                                    <div className="flex-1 min-w-0 flex flex-col justify-center">
+                                        <p className="font-semibold text-sm truncate text-foreground/90 group-hover:text-primary transition-colors">{item.product.name}</p>
+                                        <p className="text-xs text-muted-foreground mt-0.5">
                                             {item.product.isSoldByWeight
                                                 ? `${formatQuantity(item.quantity, true)} x R$ ${item.product.price.toFixed(2).replace('.', ',')}`
                                                 : `R$ ${item.finalPrice.toFixed(2).replace('.', ',')} x ${item.quantity}`}
                                         </p>
                                     </div>
-                                    <div className="flex items-center gap-1 sm:gap-2">
-                                        <div className="flex flex-col items-end gap-1">
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex flex-col items-end gap-1.5">
                                             {!item.product.isSoldByWeight ? (
-                                                <div className="flex items-center border rounded-md px-1">
-                                                    <Button variant="ghost" size="icon" className="h-6 w-6 sm:h-7 sm:w-7" onClick={() => updateQuantity(item.id, -1)}>
+                                                <div className="flex items-center border border-border/60 rounded-full px-1 bg-background shadow-sm h-7">
+                                                    <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full hover:bg-destructive/10 hover:text-destructive" onClick={() => updateQuantity(item.id, -1)}>
                                                         <Minus className="h-3 w-3" />
                                                     </Button>
-                                                    <span className="w-5 sm:w-6 text-center text-xs sm:text-sm font-bold">{item.quantity}</span>
-                                                    <Button variant="ghost" size="icon" className="h-6 w-6 sm:h-7 sm:w-7" onClick={() => updateQuantity(item.id, 1)}>
+                                                    <span className="w-5 text-center text-xs font-bold">{item.quantity}</span>
+                                                    <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full hover:bg-primary/10 hover:text-primary" onClick={() => updateQuantity(item.id, 1)}>
                                                         <Plus className="h-3 w-3" />
                                                     </Button>
                                                 </div>
                                             ) : (
-                                                <Button variant="outline" size="sm" className="h-7 text-[9px] sm:text-[10px]" onClick={() => {
+                                                <Button variant="outline" size="sm" className="h-7 text-[10px] rounded-full" onClick={() => {
                                                     setSelectedProductForWeight(item.product);
                                                     setCurrentWeight(item.quantity.toFixed(3));
                                                     setIsWeightDialogOpen(true);
@@ -723,59 +727,64 @@ export default function POSPage() {
                                                 </Button>
                                             )}
 
-                                            <div className="flex items-center gap-1">
-                                                <span className="text-[9px] text-muted-foreground">R$</span>
+                                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <span className="text-[10px] text-muted-foreground font-medium">R$</span>
                                                 <input
                                                     type="number"
-                                                    className="w-12 sm:w-16 h-5 sm:h-6 text-[10px] sm:text-xs text-right border rounded bg-muted/50 px-1 focus:outline-none focus:ring-1 focus:ring-primary"
+                                                    className="w-14 h-5 text-xs text-right border-0 border-b border-dashed border-border/50 bg-transparent px-1 focus:outline-none focus:border-primary/50 transition-colors font-medium text-muted-foreground"
                                                     value={item.finalPrice}
                                                     onChange={(e) => updateItemPrice(item.id, parseFloat(e.target.value) || 0)}
                                                     step="0.01"
                                                 />
                                             </div>
                                         </div>
-                                        <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8 text-destructive" onClick={() => removeFromCart(item.id)}>
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
+                                        <div className="flex flex-col justify-between h-full py-0.5 items-end min-w-[60px]">
+                                            <span className="font-bold text-sm text-foreground">R$ {(item.finalPrice * item.quantity).toFixed(2)}</span>
+                                            <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full" onClick={() => removeFromCart(item.id)}>
+                                                <Trash2 className="h-3 w-3" />
+                                            </Button>
+                                        </div>
                                     </div>
                                 </div>
                             ))}
                             {cart.length === 0 && (
-                                <div className="py-10 sm:py-20 text-center text-muted-foreground opacity-30 flex flex-col items-center">
-                                    <ShoppingCart className="h-8 w-8 sm:h-12 sm:w-12 mb-2" />
-                                    <p className="text-sm">Carrinho vazio</p>
+                                <div className="py-20 text-center text-muted-foreground opacity-40 flex flex-col items-center">
+                                    <ShoppingCart className="h-12 w-12 sm:h-16 sm:w-16 mb-4" />
+                                    <p className="text-sm font-medium">Seu carrinho está vazio</p>
                                 </div>
                             )}
                         </div>
                     </ScrollArea>
                 </CardContent>
-                <CardFooter className="p-3 sm:p-4 flex flex-col gap-3 sm:gap-4 bg-muted/10 border-t">
-                    <div className="w-full space-y-1 sm:space-y-2">
-                        <div className="flex justify-between items-center text-xs sm:text-sm">
+                <CardFooter className="p-4 sm:p-5 flex flex-col gap-4 bg-card border-t border-border/40 shadow-[0_-10px_30px_-15px_rgba(0,0,0,0.1)] z-10">
+                    <div className="w-full space-y-2">
+                        <div className="flex justify-between items-center text-sm text-muted-foreground font-medium px-1">
                             <span>Subtotal</span>
                             <span>R$ {total.toFixed(2)}</span>
                         </div>
-                        <div className="flex justify-between items-center font-bold text-lg sm:text-xl text-primary">
+                        <div className="flex justify-between items-center font-black text-xl sm:text-2xl text-foreground px-1">
                             <span>Total</span>
-                            <span>R$ {total.toFixed(2)}</span>
+                            <span className="text-primary">R$ {total.toFixed(2)}</span>
                         </div>
                     </div>
-                    <Button
-                        className="w-full h-10 sm:h-14 text-base sm:text-lg font-bold gap-2"
-                        disabled={cart.length === 0}
-                        onClick={() => setIsCheckoutOpen(true)}
-                    >
-                        <CheckCircle2 className="h-4 w-4 sm:h-5 sm:w-5" /> Finalizar [F9]
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="w-full text-[10px] sm:text-xs"
-                        disabled={cart.length === 0}
-                        onClick={() => setCart([])}
-                    >
-                        Limpar Carrinho
-                    </Button>
+                    <div className="grid grid-cols-1 gap-2.5 w-full mt-2">
+                        <Button
+                            className="w-full h-12 sm:h-14 text-base sm:text-lg font-bold gap-2 rounded-xl shadow-lg shadow-primary/20 hover:shadow-primary/30 hover:-translate-y-0.5 transition-all"
+                            disabled={cart.length === 0}
+                            onClick={() => setIsCheckoutOpen(true)}
+                        >
+                            <CheckCircle2 className="h-5 w-5" /> Finalizar Pedido <span className="text-primary-foreground/70 text-xs sm:text-sm ml-1 font-normal">[F9]</span>
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="w-full text-xs text-muted-foreground hover:text-foreground rounded-xl h-10"
+                            disabled={cart.length === 0}
+                            onClick={() => setCart([])}
+                        >
+                            Limpar Carrinho
+                        </Button>
+                    </div>
                 </CardFooter>
             </Card>
         </div>
