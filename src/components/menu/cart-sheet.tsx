@@ -206,15 +206,17 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
         return;
     }
 
-    if (isMultiPayment) {
-        const totalPaid = multiPayments.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
-        if (Math.abs(totalPaid - finalTotal) > 0.01) {
-            toast({ variant: 'destructive', title: `O total dos pagamentos (R$ ${totalPaid.toFixed(2)}) deve ser igual ao total do pedido (R$ ${finalTotal.toFixed(2)})` });
-            return;
+    if (deliveryType !== 'Mesa') {
+        if (isMultiPayment) {
+            const totalPaid = multiPayments.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
+            if (Math.abs(totalPaid - finalTotal) > 0.01) {
+                toast({ variant: 'destructive', title: `O total dos pagamentos (R$ ${totalPaid.toFixed(2)}) deve ser igual ao total do pedido (R$ ${finalTotal.toFixed(2)})` });
+                return;
+            }
+        } else if (!selectedPayment) {
+          toast({ variant: 'destructive', title: 'Selecione a forma de pagamento' });
+          return;
         }
-    } else if (!selectedPayment) {
-      toast({ variant: 'destructive', title: 'Selecione a forma de pagamento' });
-      return;
     }
 
     if (deliveryType === 'Delivery' && (!addressStreet || !addressNumber || !addressNeighborhood)) {
@@ -265,14 +267,14 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
         deliveryFee: Number(deliveryFee) || 0,
         tableNumber: tableParam ? String(tableParam) : null,
         waiterName: waiterParam ? String(waiterParam) : (isAdmin ? 'Admin' : null),
-        paymentMethod: String(isMultiPayment 
+        paymentMethod: String(deliveryType === 'Mesa' ? 'A Combinar' : (isMultiPayment 
             ? multiPayments.map(p => {
                 if (p.method === 'Dinheiro' && p.cashAmount) {
                     return `${p.method}: R$ ${parseFloat(p.amount || '0').toFixed(2)} (Troco p/ R$ ${parseFloat(p.cashAmount || '0').toFixed(2)})`;
                 }
                 return `${p.method}: R$ ${parseFloat(p.amount || '0').toFixed(2)}`;
             }).join(' | ')
-            : (selectedPayment === 'Dinheiro' && cashAmount ? `Dinheiro (Troco para R$ ${parseFloat(cashAmount || '0').toFixed(2)})` : (selectedPayment || 'A Combinar'))),
+            : (selectedPayment === 'Dinheiro' && cashAmount ? `Dinheiro (Troco para R$ ${parseFloat(cashAmount || '0').toFixed(2)})` : (selectedPayment || 'A Combinar')))),
         orderItems: cartItems.map(item => ({
             productId: String(item.product.id || ''),
             productName: String(item.product.name || 'Produto'),
@@ -315,14 +317,14 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
                 return `- ${item.quantity}x ${item.product.name} (R$${item.finalPrice.toFixed(2)})${variantsSummary}${notesSummary}`;
             }).join('\n');
 
-            const paymentText = isMultiPayment 
+            const paymentText = deliveryType === 'Mesa' ? 'A Combinar no Caixa' : (isMultiPayment 
                 ? multiPayments.map(p => {
                     if (p.method === 'Dinheiro' && p.cashAmount) {
                         return `- ${p.method}: R$ ${parseFloat(p.amount).toFixed(2)} (Troco p/ R$ ${parseFloat(p.cashAmount).toFixed(2)})`;
                     }
                     return `- ${p.method}: R$ ${parseFloat(p.amount).toFixed(2)}`;
                 }).join('\n')
-                : (selectedPayment === 'Dinheiro' && cashAmount ? `Dinheiro (Troco para R$ ${parseFloat(cashAmount).toFixed(2)})` : selectedPayment);
+                : (selectedPayment === 'Dinheiro' && cashAmount ? `Dinheiro (Troco para R$ ${parseFloat(cashAmount).toFixed(2)})` : selectedPayment));
 
             const message = `*Novo Pedido!* 🎉\n` +
                             `*ID:* ${docRef.id.substring(0, 6).toUpperCase()}\n` +
@@ -488,35 +490,39 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
                                     <Input placeholder="Complemento (Opcional)" value={addressComplement} onChange={e => setAddressComplement(e.target.value)} />
                                 </div>
                             )}
-                            <Separator />
-                            <div className="flex items-center justify-between">
-                                <h3 className="font-semibold">Pagamento <span className="text-destructive">*</span></h3>
-                            </div>
+                            {!tableParam && (
+                                <>
+                                <Separator />
+                                <div className="flex items-center justify-between">
+                                    <h3 className="font-semibold">Pagamento <span className="text-destructive">*</span></h3>
+                                </div>
 
-                            <>
-                                <RadioGroup value={selectedPayment} onValueChange={setSelectedPayment}>
-                                    {enabledPaymentMethods.map(m => (
-                                        <div key={m.id} className="flex items-center space-x-2">
-                                            <RadioGroupItem value={m.id} id={m.id} /><Label htmlFor={m.id}>{m.label}</Label>
+                                <>
+                                    <RadioGroup value={selectedPayment} onValueChange={setSelectedPayment}>
+                                        {enabledPaymentMethods.map(m => (
+                                            <div key={m.id} className="flex items-center space-x-2">
+                                                <RadioGroupItem value={m.id} id={m.id} /><Label htmlFor={m.id}>{m.label}</Label>
+                                            </div>
+                                        ))}
+                                    </RadioGroup>
+                                    {selectedPayment === 'Dinheiro' && (
+                                        <div className="grid gap-2 pl-6 pt-2">
+                                            <Label className="text-xs">Precisa de troco? Troco para quanto? (opcional)</Label>
+                                            <Input type="number" value={cashAmount} onChange={e => setCashAmount(e.target.value)} placeholder="Ex: 50.00 (deixe vazio se não precisar)" />
                                         </div>
-                                    ))}
-                                </RadioGroup>
-                                {selectedPayment === 'Dinheiro' && (
-                                    <div className="grid gap-2 pl-6 pt-2">
-                                        <Label className="text-xs">Precisa de troco? Troco para quanto? (opcional)</Label>
-                                        <Input type="number" value={cashAmount} onChange={e => setCashAmount(e.target.value)} placeholder="Ex: 50.00 (deixe vazio se não precisar)" />
-                                    </div>
-                                )}
-                                {selectedPayment === 'PIX' && companyData?.pixKey && (
-                                    <div className="grid gap-2 pl-6 pt-2">
-                                        <Label className="text-sm font-semibold text-primary">Chave PIX para pagamento:</Label>
-                                        <div className="bg-primary/10 p-3 rounded-md mt-1 mb-2 border border-primary/20">
-                                            <p className="font-mono text-sm break-all font-bold select-all">{companyData.pixKey}</p>
+                                    )}
+                                    {selectedPayment === 'PIX' && companyData?.pixKey && (
+                                        <div className="grid gap-2 pl-6 pt-2">
+                                            <Label className="text-sm font-semibold text-primary">Chave PIX para pagamento:</Label>
+                                            <div className="bg-primary/10 p-3 rounded-md mt-1 mb-2 border border-primary/20">
+                                                <p className="font-mono text-sm break-all font-bold select-all">{companyData.pixKey}</p>
+                                            </div>
+                                            <p className="text-xs text-muted-foreground mt-1">O pedido será liberado após a confirmação do pagamento pelo estabelecimento.</p>
                                         </div>
-                                        <p className="text-xs text-muted-foreground mt-1">O pedido será liberado após a confirmação do pagamento pelo estabelecimento.</p>
-                                    </div>
-                                )}
-                            </>
+                                    )}
+                                </>
+                                </>
+                            )}
                         </div>
                     </ScrollArea>
                     <SheetFooter className="pt-4 border-t flex flex-col gap-2">
