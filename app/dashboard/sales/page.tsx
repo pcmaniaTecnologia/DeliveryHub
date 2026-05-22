@@ -627,14 +627,14 @@ export default function POSPage() {
                     </div>
                 </div>
                 <div className="flex-1 overflow-y-auto pr-1 pb-4 no-scrollbar">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
                         {filteredProducts.map(product => (
                             <div
                                 key={product.id}
                                 onClick={() => addToCart(product)}
                                 className="group relative flex flex-row sm:flex-col overflow-hidden rounded-2xl cursor-pointer bg-card border border-border/40 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 active:scale-[0.98]"
                             >
-                                <div className="relative h-24 w-24 sm:h-auto sm:w-full sm:aspect-[4/3] shrink-0 bg-muted/30 overflow-hidden">
+                                <div className="relative h-24 w-24 sm:h-auto sm:w-full sm:aspect-video shrink-0 bg-muted/30 overflow-hidden">
                                     {product.imageUrls?.[0] ? (
                                         <Image
                                             src={product.imageUrls[0]}
