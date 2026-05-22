@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Sheet,
   SheetContent,
@@ -40,6 +40,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { isStoreOpen } from '@/lib/utils';
+import { useSearchParams } from 'next/navigation';
 
 
 type PaymentMethods = {
@@ -102,7 +103,9 @@ const CartItemCard = ({ item }: { item: CartItem }) => {
     );
 };
 
-export default function CartSheet({ companyId, tableNumber }: { companyId: string; tableNumber?: string | null }) {
+export default function CartSheet({ companyId, tableNumber: propTableNumber }: { companyId: string; tableNumber?: string | null }) {
+  const searchParams = useSearchParams();
+  const tableNumber = propTableNumber || searchParams?.get('table');
   const isTableMode = !!tableNumber;
   const { cartItems, totalItems, totalPrice, clearCart } = useCart();
   const firestore = useFirestore();
@@ -130,6 +133,14 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [deliveryType, setDeliveryType] = useState<'Delivery' | 'Retirada' | 'Mesa'>(isTableMode ? 'Mesa' : 'Delivery');
+
+  useEffect(() => {
+    if (isTableMode) {
+      setDeliveryType('Mesa');
+    } else if (deliveryType === 'Mesa') {
+        setDeliveryType('Delivery');
+    }
+  }, [isTableMode]);
   const [addressStreet, setAddressStreet] = useState('');
   const [addressNumber, setAddressNumber] = useState('');
   const [addressNeighborhood, setAddressNeighborhood] = useState('');
