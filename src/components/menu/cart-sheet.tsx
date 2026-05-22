@@ -441,12 +441,15 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
                                 <Label>WhatsApp <span className="text-destructive">*</span></Label>
                                 <Input placeholder="(99) 99999-9999" value={customerPhone} onChange={handlePhoneChange} maxLength={15} />
                             </div>
+                            {!tableParam && (
+                            <>
                             <Separator />
                             <div className="flex gap-2">
                                 <Button variant={deliveryType === 'Delivery' ? 'default' : 'outline'} className="flex-1" onClick={() => setDeliveryType('Delivery')}>Delivery</Button>
                                 <Button variant={deliveryType === 'Retirada' ? 'default' : 'outline'} className="flex-1" onClick={() => setDeliveryType('Retirada')}>Retirada</Button>
                             </div>
-
+                            </>
+                            )}
                             {deliveryType === 'Mesa' && (
                                 <div className="bg-primary/10 p-4 rounded-xl border border-primary/20 text-center space-y-1">
                                     <p className="text-xs text-primary font-bold uppercase tracking-wider">Pedido para</p>
