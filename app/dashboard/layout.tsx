@@ -216,8 +216,8 @@ export default function DashboardLayout({
   return (
     <NotificationProvider companyData={companyData}>
       <SoundPlayer />
-      <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
-        <div className="hidden border-r bg-background md:block">
+      <div className="grid min-h-screen w-full lg:grid-cols-[280px_1fr]">
+        <div className="hidden border-r bg-background lg:block">
           <div className="flex h-full max-h-screen flex-col gap-2">
             <div className="flex h-16 items-center border-b px-6">
               <Link href="/dashboard" className="flex items-center">
@@ -236,7 +236,7 @@ export default function DashboardLayout({
                 <Button
                   variant="outline"
                   size="icon"
-                  className="shrink-0 md:hidden"
+                  className="shrink-0 lg:hidden"
                 >
                   <Menu className="h-5 w-5" />
                   <span className="sr-only">Alternar menu de navegação</span>
@@ -265,7 +265,7 @@ export default function DashboardLayout({
             </div>
             <UserNav isAdmin={!!adminData} />
           </header>
-          <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8 bg-muted/20">
+          <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-8 lg:p-8 bg-muted/20">
 
             {isImpersonating && (
               <div className="flex items-center justify-between bg-destructive text-destructive-foreground px-4 py-2 rounded-lg text-sm font-medium shadow">
