@@ -562,9 +562,9 @@ export default function POSPage() {
                             <div
                                 key={product.id}
                                 onClick={() => addToCart(product)}
-                                className="group relative flex flex-col border rounded-lg p-2 sm:p-3 cursor-pointer hover:border-primary transition-all hover:bg-primary/5 active:scale-95"
+                                className="group relative flex flex-col border rounded-lg p-2 sm:p-3 cursor-pointer hover:border-primary transition-all hover:bg-primary/5 active:scale-95 bg-card shadow-sm"
                             >
-                                <div className="relative aspect-square w-full mb-2 sm:mb-3 rounded-md overflow-hidden bg-muted">
+                                <div className="relative aspect-video w-full mb-2 sm:mb-3 rounded-md overflow-hidden bg-muted">
                                     {product.imageUrls?.[0] ? (
                                         <Image
                                             src={product.imageUrls[0]}
