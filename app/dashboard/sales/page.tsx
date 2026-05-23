@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { Search, Plus, Minus, Trash2, ShoppingCart, User, Smartphone, CreditCard, DollarSign, Landmark, CheckCircle2, Printer, X, XCircle, Package, Loader2 } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, ShoppingCart, User, Smartphone, CreditCard, DollarSign, Landmark, CheckCircle2, Printer, X, Package, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from '@/components/ui/card';
@@ -286,7 +286,6 @@ export default function POSPage() {
             };
 
             const docRef = await addDocument(ordersRef, orderData);
-            let assignedSessionId: string | null = null;
 
             try {
                 if (isMultiPayment && payments.length > 0) {
@@ -302,7 +301,6 @@ export default function POSPage() {
                         );
 
                         if (result && result.success && result.sessionId) {
-                            assignedSessionId = result.sessionId;
                             const orderRef = doc(firestore, 'companies', effectiveCompanyId as string, 'orders', docRef.id);
                             await updateDocument(orderRef, { sessionId: result.sessionId });
                         }
@@ -320,7 +318,6 @@ export default function POSPage() {
 
                     if (result && result.success) {
                         if (result.sessionId) {
-                            assignedSessionId = result.sessionId;
                             const orderRef = doc(firestore, 'companies', effectiveCompanyId as string, 'orders', docRef.id);
                             await updateDocument(orderRef, { sessionId: result.sessionId });
                         }
@@ -363,7 +360,7 @@ export default function POSPage() {
                 }
             }
 
-            setLastOrder({ ...orderData, id: docRef.id, sessionId: assignedSessionId });
+            setLastOrder({ ...orderData, id: docRef.id });
             setCart([]);
             setIsCheckoutOpen(false);
             setIsSuccessOpen(true);
@@ -419,72 +416,6 @@ export default function POSPage() {
             fetchRecentOrders();
         }
     }, [isHistoryOpen]);
-
-    const handleCancelSale = async (orderId: string) => {
-        if (!firestore || !effectiveCompanyId) return;
-        
-        try {
-            const orderToCancel = recentOrders.find(o => o.id === orderId) || (lastOrder?.id === orderId ? lastOrder : null);
-            if (!orderToCancel || orderToCancel.status === 'Cancelado') return;
-            
-            const orderRef = doc(firestore, 'companies', effectiveCompanyId as string, 'orders', orderId);
-            await updateDocument(orderRef, { status: 'Cancelado' });
-            
-            // Revert Cashier
-            if (orderToCancel.sessionId) {
-                if (orderToCancel.payments && orderToCancel.payments.length > 0) {
-                     for (const p of orderToCancel.payments) {
-                         await recordCashierSale(
-                             firestore,
-                             effectiveCompanyId as string,
-                             -p.amount,
-                             `Cancelamento - Venda de Balcão #${orderToCancel.id.substring(0, 6).toUpperCase()} (${p.method})`,
-                             orderToCancel.id,
-                             p.method
-                         );
-                     }
-                } else {
-                     await recordCashierSale(
-                         firestore,
-                         effectiveCompanyId as string,
-                         -orderToCancel.totalAmount,
-                         `Cancelamento - Venda de Balcão #${orderToCancel.id.substring(0, 6).toUpperCase()}`,
-                         orderToCancel.id,
-                         orderToCancel.paymentMethod
-                     );
-                }
-            }
-            
-            // Revert Stock
-            const stockItems = orderToCancel.orderItems
-                ?.filter((item: any) => {
-                    const freshProduct = productsData?.find(p => p.id === item.productId);
-                    return freshProduct?.stockControlEnabled;
-                })
-                .map((item: any) => ({ productId: item.productId, quantity: item.quantity }));
-                
-            if (stockItems && stockItems.length > 0) {
-                await Promise.all(stockItems.map((item: any) => {
-                    const productRef = doc(firestore, 'companies', effectiveCompanyId as string, 'products', item.productId);
-                    return updateDocument(productRef, { stock: increment(item.quantity) });
-                }));
-            }
-            
-            toast({ title: 'Venda Cancelada', description: 'A venda foi cancelada com sucesso.' });
-            
-            if (isHistoryOpen) {
-                fetchRecentOrders();
-            }
-            if (lastOrder && lastOrder.id === orderId) {
-                setLastOrder({ ...lastOrder, status: 'Cancelado' });
-                setIsSuccessOpen(false); // Close the success modal if cancelling from there
-            }
-            
-        } catch (error) {
-            console.error('Erro ao cancelar venda:', error);
-            toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível cancelar a venda.' });
-        }
-    };
 
     const handlePrint = (orderToPrint?: any) => {
         const order = orderToPrint || lastOrder;
@@ -625,21 +556,21 @@ export default function POSPage() {
                         </div>
                     </div>
                 </CardHeader>
-                <CardContent className="p-2 sm:p-4 flex-1 overflow-y-auto">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-4">
+                <CardContent className="p-4 flex-1 overflow-y-auto">
+                    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-4">
                         {filteredProducts.map(product => (
                             <div
                                 key={product.id}
                                 onClick={() => addToCart(product)}
-                                className="group relative flex flex-row sm:flex-col items-center sm:items-stretch border rounded-xl p-2 sm:p-3 cursor-pointer hover:border-primary transition-all hover:bg-primary/5 active:scale-95 shadow-sm bg-card"
+                                className="group relative flex flex-col border rounded-lg p-2 sm:p-3 cursor-pointer hover:border-primary transition-all hover:bg-primary/5 active:scale-95"
                             >
-                                <div className="relative h-16 w-16 sm:h-auto sm:w-full sm:aspect-square shrink-0 rounded-lg overflow-hidden bg-muted">
+                                <div className="relative aspect-square w-full mb-2 sm:mb-3 rounded-md overflow-hidden bg-muted">
                                     {product.imageUrls?.[0] ? (
                                         <Image
                                             src={product.imageUrls[0]}
                                             alt={product.name}
                                             fill
-                                            className={`object-cover group-hover:scale-110 transition-transform ${product.stockControlEnabled && product.blockIfOutOfStock !== false && (Number(product.stock) || 0) <= 0 ? 'grayscale opacity-30' : ''}`}
+                                            className={`object-cover group-hover:scale-110 transition-transform \${product.stockControlEnabled && product.blockIfOutOfStock !== false && (Number(product.stock) || 0) <= 0 ? 'grayscale opacity-30' : ''}`}
                                             unoptimized
                                         />
                                     ) : (
@@ -648,18 +579,18 @@ export default function POSPage() {
                                         </div>
                                     )}
                                     {product.stockControlEnabled && product.blockIfOutOfStock !== false && (Number(product.stock) || 0) <= 0 && (
-                                        <div className="absolute inset-0 flex items-center justify-center bg-black/70 z-10">
-                                            <span className="text-white font-black text-[8px] sm:text-xs uppercase tracking-widest -rotate-12 border border-white px-1">ESGOTADO</span>
+                                        <div className="absolute inset-0 flex items-center justify-center bg-black/70 z-10 border-4 border-destructive animate-pulse">
+                                            <span className="text-white font-black text-xs sm:text-base uppercase tracking-widest -rotate-12 border-2 border-white px-2 py-1">ESGOTADO</span>
                                         </div>
                                     )}
                                 </div>
-                                <div className="flex flex-col flex-1 ml-3 sm:ml-0 sm:mt-3 min-w-0">
-                                    <h3 className="font-bold text-sm sm:text-xs md:text-sm line-clamp-2 leading-tight sm:leading-normal text-foreground">{product.name}</h3>
-                                    <div className="flex items-center justify-between mt-1 sm:mt-2">
-                                        <span className="text-primary font-black text-base sm:text-sm">R$ {product.price.toFixed(2)}</span>
+                                <div className="flex flex-col h-full">
+                                    <h3 className="font-semibold text-[10px] sm:text-xs md:text-sm line-clamp-2 mb-1 leading-tight sm:leading-normal">{product.name}</h3>
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between mt-auto gap-1">
+                                        <span className="text-primary font-bold text-xs sm:text-sm">R$ {product.price.toFixed(2)}</span>
                                         {product.stockControlEnabled && (
-                                            <Badge variant={product.stock > 0 ? 'secondary' : 'destructive'} className="text-[9px] sm:text-[10px] px-1.5 py-0 h-4">
-                                                {product.stock} un
+                                            <Badge variant={product.stock > 0 ? 'secondary' : 'destructive'} className="text-[8px] sm:text-[10px] w-fit px-1">
+                                                Estoque: {product.stock}
                                             </Badge>
                                         )}
                                     </div>
@@ -783,13 +714,13 @@ export default function POSPage() {
 
     return (
         <div className="flex flex-col h-[calc(100vh-140px)] gap-4 pb-16 sm:pb-0">
-            <div className="flex items-center justify-between px-1">
+            <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-lg sm:text-2xl font-bold tracking-tight">PDV</h2>
-                    <p className="text-muted-foreground text-[10px] sm:text-sm hidden sm:block">Vendas rápidas presencialmente.</p>
+                    <h2 className="text-xl sm:text-2xl font-bold tracking-tight">Venda de Balcão (PDV)</h2>
+                    <p className="text-muted-foreground text-xs sm:text-sm">Realize vendas rápidas presencialmente.</p>
                 </div>
-                <Button variant="outline" size="sm" className="h-8 gap-2 shadow-sm border-primary/20 hover:bg-primary/5 text-xs" onClick={() => setIsHistoryOpen(true)}>
-                    <Printer className="h-3 w-3 text-primary" /> Reimprimir
+                <Button variant="outline" size="sm" className="gap-2 shadow-sm border-primary/20 hover:bg-primary/5" onClick={() => setIsHistoryOpen(true)}>
+                    <Printer className="h-4 w-4 text-primary" /> Reimprimir Cupom
                 </Button>
             </div>
 
@@ -809,11 +740,11 @@ export default function POSPage() {
                     </TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="products" className="flex-1 flex flex-col overflow-hidden m-0">
+                <TabsContent value="products" className="data-[state=active]:flex-1 data-[state=active]:flex flex-col overflow-hidden m-0">
                     {renderProductSection()}
                 </TabsContent>
 
-                <TabsContent value="cart" className="flex-1 flex flex-col overflow-hidden m-0">
+                <TabsContent value="cart" className="data-[state=active]:flex-1 data-[state=active]:flex flex-col overflow-hidden m-0">
                     {renderCartSection()}
                 </TabsContent>
             </Tabs>
@@ -1120,9 +1051,6 @@ export default function POSPage() {
                         <Button variant="outline" onClick={() => setIsSuccessOpen(false)} className="w-full">
                             Nova Venda
                         </Button>
-                        <Button variant="ghost" onClick={() => { if(window.confirm('Deseja realmente cancelar esta venda?')) handleCancelSale(lastOrder?.id); }} className="w-full text-destructive hover:text-destructive hover:bg-destructive/10 mt-2">
-                            Cancelar Venda
-                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
@@ -1186,25 +1114,16 @@ export default function POSPage() {
                                         <div className="flex-1">
                                             <div className="flex items-center gap-2">
                                                 <span className="font-bold text-sm">#{order.id.substring(0, 8).toUpperCase()}</span>
-                                                <Badge variant={order.status === 'Cancelado' ? 'destructive' : 'outline'} className="text-[10px]">
-                                                    {order.status === 'Cancelado' ? 'Cancelado' : (order.orderDate?.toDate ? order.orderDate.toDate().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'Sem data')}
-                                                </Badge>
+                                                <Badge variant="outline" className="text-[10px]">{order.orderDate?.toDate ? order.orderDate.toDate().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'Sem data'}</Badge>
                                             </div>
                                             <p className="text-xs text-muted-foreground mt-1">
                                                 <span className="font-medium text-foreground">{order.customerName}</span> • 
                                                 R$ {order.totalAmount.toFixed(2)} • {order.paymentMethod?.split('|')[0] || order.paymentMethod}
                                             </p>
                                         </div>
-                                        <div className="flex gap-1">
-                                            {order.status !== 'Cancelado' && (
-                                                <Button variant="ghost" size="icon" onClick={() => { if(window.confirm('Deseja realmente cancelar esta venda?')) handleCancelSale(order.id); }} className="h-9 w-9 text-destructive hover:bg-destructive/10" title="Cancelar Venda">
-                                                    <XCircle className="h-4 w-4" />
-                                                </Button>
-                                            )}
-                                            <Button variant="outline" size="icon" onClick={() => handlePrint(order)} className="h-9 w-9" title="Imprimir Cupom" disabled={order.status === 'Cancelado'}>
-                                                <Printer className="h-4 w-4" />
-                                            </Button>
-                                        </div>
+                                        <Button variant="outline" size="icon" onClick={() => handlePrint(order)} className="h-9 w-9" title="Imprimir Cupom">
+                                            <Printer className="h-4 w-4" />
+                                        </Button>
                                     </div>
                                 ))}
                             </div>
