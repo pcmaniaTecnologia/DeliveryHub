@@ -196,10 +196,13 @@ export default function ComandasPage() {
     const [tableCustomerName, setTableCustomerName] = useState('');
 
     useEffect(() => {
-        if (selectedTable && companyData?.tableMetadata?.[selectedTable.tableNumber]) {
-            const meta = companyData.tableMetadata[selectedTable.tableNumber];
-            setTableOccupants(meta.occupants || 1);
-            setTableCustomerName(meta.customerName || '');
+        if (selectedTable) {
+            const meta = companyData?.tableMetadata?.[selectedTable.tableNumber];
+            const customersArray = Array.from(selectedTable.customerNames || []).filter(Boolean);
+            const fallbackName = customersArray.length > 0 ? String(customersArray[0]) : '';
+            
+            setTableOccupants(meta?.occupants || 1);
+            setTableCustomerName(meta?.customerName || fallbackName);
         } else {
             setTableOccupants(1);
             setTableCustomerName('');
