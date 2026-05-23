@@ -108,6 +108,7 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const firestore = useFirestore();
   const { isImpersonating, impersonatedCompanyId, impersonatedCompanyName, stopImpersonation } = useImpersonation();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // When admin impersonates a company, use their ID instead of the logged-in admin's UID
   const effectiveCompanyId = isImpersonating ? impersonatedCompanyId : user?.uid;
@@ -231,7 +232,7 @@ export default function DashboardLayout({
         </div>
         <div className="flex flex-col">
           <header className="flex h-14 items-center gap-4 border-b bg-background px-4 lg:h-[60px] lg:px-6">
-            <Sheet>
+            <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
               <SheetTrigger asChild>
                 <Button
                   variant="outline"
@@ -249,7 +250,7 @@ export default function DashboardLayout({
                   </Link>
                 </div>
                 <div className="mt-5 flex-1 overflow-y-auto">
-                  <DashboardNav newOrdersCount={newOrdersCount} isAdmin={!!adminData} comandasEnabled={companyData?.comandasEnabled ?? true} />
+                  <DashboardNav newOrdersCount={newOrdersCount} isAdmin={!!adminData} comandasEnabled={companyData?.comandasEnabled ?? true} onNavItemClick={() => setIsMobileMenuOpen(false)} />
                 </div>
               </SheetContent>
             </Sheet>

@@ -626,14 +626,14 @@ export default function POSPage() {
                     </div>
                 </CardHeader>
                 <CardContent className="p-2 sm:p-4 flex-1 overflow-y-auto">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 md:gap-4">
                         {filteredProducts.map(product => (
                             <div
                                 key={product.id}
                                 onClick={() => addToCart(product)}
-                                className="group relative flex flex-row sm:flex-col items-center sm:items-stretch border rounded-xl p-2 sm:p-3 cursor-pointer hover:border-primary transition-all hover:bg-primary/5 active:scale-95 shadow-sm bg-card"
+                                className="group relative flex flex-row md:flex-col items-center md:items-stretch border rounded-xl p-2 md:p-3 cursor-pointer hover:border-primary transition-all hover:bg-primary/5 active:scale-95 shadow-sm bg-card"
                             >
-                                <div className="relative h-16 w-16 sm:h-auto sm:w-full sm:aspect-square shrink-0 rounded-lg overflow-hidden bg-muted">
+                                <div className="relative h-20 w-20 md:h-auto md:w-full md:aspect-square shrink-0 rounded-lg overflow-hidden bg-muted">
                                     {product.imageUrls?.[0] ? (
                                         <Image
                                             src={product.imageUrls[0]}
@@ -653,12 +653,12 @@ export default function POSPage() {
                                         </div>
                                     )}
                                 </div>
-                                <div className="flex flex-col flex-1 ml-3 sm:ml-0 sm:mt-3 min-w-0">
-                                    <h3 className="font-bold text-sm sm:text-xs md:text-sm line-clamp-2 leading-tight sm:leading-normal text-foreground">{product.name}</h3>
-                                    <div className="flex items-center justify-between mt-1 sm:mt-2">
-                                        <span className="text-primary font-black text-base sm:text-sm">R$ {product.price.toFixed(2)}</span>
+                                <div className="flex flex-col flex-1 ml-3 md:ml-0 md:mt-3 min-w-0">
+                                    <h3 className="font-bold text-sm md:text-sm line-clamp-2 leading-tight md:leading-normal text-foreground">{product.name}</h3>
+                                    <div className="flex items-center justify-between mt-1 md:mt-2">
+                                        <span className="text-primary font-black text-base md:text-sm">R$ {product.price.toFixed(2)}</span>
                                         {product.stockControlEnabled && (
-                                            <Badge variant={product.stock > 0 ? 'secondary' : 'destructive'} className="text-[9px] sm:text-[10px] px-1.5 py-0 h-4">
+                                            <Badge variant={product.stock > 0 ? 'secondary' : 'destructive'} className="text-[10px] px-1.5 py-0 h-4">
                                                 {product.stock} un
                                             </Badge>
                                         )}

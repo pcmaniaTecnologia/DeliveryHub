@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from './ui/separator';
 
-export function DashboardNav({ newOrdersCount = 0, isAdmin = false, comandasEnabled = true }: { newOrdersCount?: number, isAdmin?: boolean, comandasEnabled?: boolean }) {
+export function DashboardNav({ newOrdersCount = 0, isAdmin = false, comandasEnabled = true, onNavItemClick }: { newOrdersCount?: number, isAdmin?: boolean, comandasEnabled?: boolean, onNavItemClick?: () => void }) {
   const pathname = usePathname();
 
   const navItems = [
@@ -32,6 +32,7 @@ export function DashboardNav({ newOrdersCount = 0, isAdmin = false, comandasEnab
             'flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary',
             { 'bg-muted text-primary': pathname === item.href }
           )}
+          onClick={onNavItemClick}
         >
           <item.icon className="h-4 w-4" />
           {item.label}
@@ -47,6 +48,7 @@ export function DashboardNav({ newOrdersCount = 0, isAdmin = false, comandasEnab
                     'flex items-center gap-3 rounded-lg px-3 py-2 text-destructive transition-all hover:bg-destructive/10',
                      pathname.startsWith(adminNavItem.href) && 'bg-destructive/10'
                 )}
+                onClick={onNavItemClick}
             >
                 <adminNavItem.icon className="h-4 w-4" />
                 {adminNavItem.label}
