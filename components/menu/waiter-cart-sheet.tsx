@@ -174,12 +174,7 @@ export default function WaiterCartSheet({ companyId }: { companyId: string}) {
 
   return (
     <>
-      <div className="fixed top-4 right-4 z-40 flex items-center gap-3">
-          <Badge className={`px-3 py-1 shadow-md text-background ${isAdminSession ? 'bg-primary' : 'bg-foreground'}`}>
-            {isAdminSession && <ShieldCheck className="w-3 h-3 mr-1 inline" />}
-            {isAdminSession ? 'Modo Admin' : `Garçom: ${waiterSession?.name || '...'}`}
-          </Badge>
-      </div>
+
 
       <Sheet onOpenChange={(open) => !open && setIsCheckoutOpen(false)}>
         <SheetTrigger asChild>
