@@ -51,6 +51,7 @@ type Company = {
 type Order = {
     id: string;
     companyId: string;
+    customerId?: string;
     status: 'Novo' | 'Aguardando pagamento' | 'Em preparo' | 'Pronto para retirada' | 'Saiu para entrega' | 'Entregue' | 'Cancelado';
     totalAmount: number;
     orderDate?: Timestamp | Date | any;

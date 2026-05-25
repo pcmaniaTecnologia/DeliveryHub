@@ -51,6 +51,7 @@ type Order = {
   totalAmount: number;
   paymentMethod: string;
   customerName?: string;
+  deliveryType?: string;
   orderItems?: {
     productId: string;
     productName: string;
@@ -301,7 +302,7 @@ export default function DashboardPage() {
   // ── Data Calculations ───────────────────────────────────────────────────
 
   const {
-    totalSales, totalOrders, avgTicket, pendingOrders,
+    totalSales, totalOrders, avgTicket, pendingOrders, deliveryCustomers,
     salesChartData, recentOrdersWithDetails, salesByPaymentMethod,
     topProducts, lowStockProducts
   } = useMemo(() => {

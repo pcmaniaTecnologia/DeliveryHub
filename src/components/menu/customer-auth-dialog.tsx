@@ -81,7 +81,7 @@ export function CustomerAuthDialog({ companyId }: { companyId?: string }) {
       const q = query(collection(firestore, 'companies', companyId, 'orders'), where('customerId', '==', user.uid));
       
       unsubscribe = onSnapshot(q, (snapshot) => {
-        const ordersList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const ordersList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
         
         // Separar ativos
         const ativos = ordersList.filter(o => {
