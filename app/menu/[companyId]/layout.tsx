@@ -9,6 +9,7 @@ import { Package2 } from 'lucide-react';
 import Link from 'next/link';
 import { CartProvider } from '@/context/cart-context';
 import CartSheet from '@/components/menu/cart-sheet';
+import { CustomerAuthDialog } from '@/components/menu/customer-auth-dialog';
 import { useParams, useSearchParams } from 'next/navigation';
 
 
@@ -89,6 +90,7 @@ export default function MenuLayout({
                 <Package2 className="h-6 w-6 text-primary" />
                 <span className="sr-only">Menu</span>
             </Link>
+            <CustomerAuthDialog companyId={companyId} />
             </nav>
         </header>
         <main>{children}</main>

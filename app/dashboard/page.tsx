@@ -307,6 +307,7 @@ export default function DashboardPage() {
   } = useMemo(() => {
     const empty = {
       totalSales: 0, totalOrders: 0, avgTicket: 0, pendingOrders: 0,
+      deliveryCustomers: 0,
       salesChartData: [], recentOrdersWithDetails: [],
       salesByPaymentMethod: { cash: 0, pix: 0, credit: 0, debit: 0 },
       topProducts: [], lowStockProducts: []
@@ -327,6 +328,12 @@ export default function DashboardPage() {
     const pendingOrders = orders.filter(o =>
       ['Novo', 'Aguardando pagamento', 'Em preparo'].includes(o.status)
     ).length;
+    
+    const deliveryCustomers = new Set(
+        filteredOrders
+            .filter(o => o.deliveryType === 'Delivery' && o.customerId && o.customerId !== 'anonymous')
+            .map(o => o.customerId)
+    ).size;
 
     const salesByPaymentMethod = parseSalesByPaymentMethod(successfulOrders);
 
@@ -369,7 +376,7 @@ export default function DashboardPage() {
         }))
         .slice(0, 5);
 
-    return { totalSales, totalOrders, avgTicket, pendingOrders, salesChartData, recentOrdersWithDetails, salesByPaymentMethod, topProducts, lowStockProducts };
+    return { totalSales, totalOrders, avgTicket, pendingOrders, deliveryCustomers, salesChartData, recentOrdersWithDetails, salesByPaymentMethod, topProducts, lowStockProducts };
   }, [orders, products, categories, dateRange]);
 
   const isLoading = isUserLoading || isLoadingOrders || isLoadingAdmin || isLoadingProducts;
@@ -681,7 +688,7 @@ export default function DashboardPage() {
         </div>
 
         {/* KPI Cards */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mt-4">
+        <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-5 mt-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total de Vendas {dateRangeLabel}</CardTitle>
@@ -713,6 +720,16 @@ export default function DashboardPage() {
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent><div className="text-2xl font-bold">{pendingOrders}</div></CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Clientes Cadastrados</CardTitle>
+              <ShieldCheck className="h-4 w-4 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-primary">+{deliveryCustomers}</div>
+              <p className="text-[10px] text-muted-foreground mt-1">no delivery (período)</p>
+            </CardContent>
           </Card>
         </div>
       </div>

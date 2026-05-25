@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Sheet,
   SheetContent,
@@ -23,7 +23,7 @@ import {
   useCollection,
   useUser,
 } from '@/firebase';
-import { collection, doc, serverTimestamp, getDocs, query, where } from 'firebase/firestore';
+import { collection, doc, serverTimestamp, getDocs, query, where, setDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -133,6 +133,22 @@ export default function CartSheet({ companyId }: { companyId: string}) {
     if (deliveryType !== 'Delivery' || !addressNeighborhood) return null;
     return deliveryZones?.find(z => z.neighborhood === addressNeighborhood);
   }, [deliveryType, addressNeighborhood, deliveryZones]);
+
+  const userProfileRef = useMemoFirebase(() => {
+    if (!firestore || !user || user.isAnonymous) return null;
+    return doc(firestore, 'users', user.uid);
+  }, [firestore, user]);
+  const { data: userProfile } = useDoc<any>(userProfileRef);
+
+  useEffect(() => {
+    if (userProfile && !customerName) { // Evita subscrever se o usuário já digitou algo, mas carrega na primeira vez
+      if (userProfile.name) setCustomerName(userProfile.name);
+      if (userProfile.phone) setCustomerPhone(userProfile.phone);
+      if (userProfile.addressStreet) setAddressStreet(userProfile.addressStreet);
+      if (userProfile.addressNumber) setAddressNumber(userProfile.addressNumber);
+      if (userProfile.addressNeighborhood) setAddressNeighborhood(userProfile.addressNeighborhood);
+    }
+  }, [userProfile]);
 
   const deliveryFee = selectedZone?.deliveryFee || 0;
   const finalTotal = totalPrice + deliveryFee;
@@ -264,6 +280,18 @@ export default function CartSheet({ companyId }: { companyId: string}) {
             });
         }
         // ─────────────────────────────────────────────────────────────────
+
+        // Atualiza perfil do usuário se estiver logado
+        if (user && !user.isAnonymous) {
+            await setDoc(doc(firestore, 'users', user.uid), {
+                name: customerName,
+                phone: customerPhone,
+                addressStreet: addressStreet,
+                addressNumber: addressNumber,
+                addressNeighborhood: addressNeighborhood,
+                updatedAt: serverTimestamp()
+            }, { merge: true });
+        }
 
         const rawCompanyPhone = companyData.phone?.replace(/\D/g, '') || '';
         const zapNumber = rawCompanyPhone.startsWith('55') ? rawCompanyPhone : (rawCompanyPhone ? `55${rawCompanyPhone}` : '');
@@ -411,6 +439,11 @@ export default function CartSheet({ companyId }: { companyId: string}) {
                         <Button className="w-full h-12 text-lg" onClick={handlePlaceOrder} disabled={isSubmitting}>
                             {isSubmitting ? 'Processando...' : 'Enviar Pedido'}
                         </Button>
+                        {(!user || user.isAnonymous) && (
+                            <p className="text-xs text-center text-muted-foreground mt-2">
+                                Dica: Faça login para salvar seus dados e pedir mais rápido!
+                            </p>
+                        )}
                     </SheetFooter>
                 </>
             ) : (

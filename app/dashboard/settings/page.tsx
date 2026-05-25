@@ -23,7 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { BellRing, Clock, DollarSign, PlusCircle, Trash2, Copy, Printer, Crown, AlertTriangle, CheckCircle, Send, MoreHorizontal } from 'lucide-react';
+import { BellRing, Clock, DollarSign, PlusCircle, Trash2, Copy, Printer, Crown, AlertTriangle, CheckCircle, Send, MoreHorizontal, Edit } from 'lucide-react';
 import { useFirestore, useDoc, setDocument, useMemoFirebase, useUser, useCollection, addDocument, deleteDocument, updateDocument, useAuth, deleteAuthUser } from '@/firebase';
 import { doc, collection, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -438,6 +438,7 @@ export default function SettingsPage() {
   const [newNeighborhood, setNewNeighborhood] = useState('');
   const [newFee, setNewFee] = useState('');
   const [newTime, setNewTime] = useState('');
+  const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
 
   const [isWaiterDialogOpen, setIsWaiterDialogOpen] = useState(false);
   const [editingWaiter, setEditingWaiter] = useState<Waiter | null>(null);
@@ -723,8 +724,16 @@ export default function SettingsPage() {
     });
   };
 
+  const handleEditZone = (zone: DeliveryZone) => {
+    setEditingZoneId(zone.id);
+    setNewNeighborhood(zone.neighborhood);
+    setNewFee(zone.deliveryFee.toString());
+    setNewTime(zone.deliveryTime.toString());
+    setIsZoneDialogOpen(true);
+  };
+
   const handleAddZone = () => {
-    if (!deliveryZonesRef || !newNeighborhood || !newFee || !newTime) {
+    if (!deliveryZonesRef || !newNeighborhood || !newFee || !newTime || !user) {
       toast({
         variant: 'destructive',
         title: 'Erro',
@@ -733,24 +742,40 @@ export default function SettingsPage() {
       return;
     }
 
-    const newZone = {
-      neighborhood: newNeighborhood,
-      deliveryFee: parseFloat(newFee),
-      deliveryTime: parseInt(newTime, 10),
-      isActive: true,
-      companyId: user?.uid,
-    };
-
-    addDocument(deliveryZonesRef, newZone).then(() => {
-        toast({
-            title: 'Sucesso!',
-            description: `Bairro ${newNeighborhood} adicionado.`,
-        });
+    if (editingZoneId) {
+      const zoneRef = doc(firestore, 'companies', user.uid, 'deliveryZones', editingZoneId);
+      updateDocument(zoneRef, {
+        neighborhood: newNeighborhood,
+        deliveryFee: parseFloat(newFee),
+        deliveryTime: parseInt(newTime, 10),
+      }).then(() => {
+        toast({ title: 'Sucesso!', description: `Bairro atualizado.` });
         setNewNeighborhood('');
         setNewFee('');
         setNewTime('');
+        setEditingZoneId(null);
         setIsZoneDialogOpen(false);
-    });
+      });
+    } else {
+      const newZone = {
+        neighborhood: newNeighborhood,
+        deliveryFee: parseFloat(newFee),
+        deliveryTime: parseInt(newTime, 10),
+        isActive: true,
+        companyId: user.uid,
+      };
+
+      addDocument(deliveryZonesRef, newZone).then(() => {
+          toast({
+              title: 'Sucesso!',
+              description: `Bairro ${newNeighborhood} adicionado.`,
+          });
+          setNewNeighborhood('');
+          setNewFee('');
+          setNewTime('');
+          setIsZoneDialogOpen(false);
+      });
+    }
   };
   
   const handleDeleteZone = (zoneId: string) => {
@@ -1048,13 +1073,13 @@ export default function SettingsPage() {
         </TabsContent>
 
         <TabsContent value="delivery">
-          <Dialog open={isZoneDialogOpen} onOpenChange={setIsZoneDialogOpen}>
+          <Dialog open={isZoneDialogOpen} onOpenChange={(open) => { setIsZoneDialogOpen(open); if(!open) { setEditingZoneId(null); setNewNeighborhood(''); setNewFee(''); setNewTime(''); } }}>
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle>Áreas de Entrega</CardTitle>
                   <DialogTrigger asChild>
-                    <Button size="sm" className="gap-1" disabled={isLoading}><PlusCircle className="h-4 w-4" /> Adicionar Bairro</Button>
+                    <Button size="sm" className="gap-1" disabled={isLoadingCompany} onClick={() => { setEditingZoneId(null); setNewNeighborhood(''); setNewFee(''); setNewTime(''); }}><PlusCircle className="h-4 w-4" /> Adicionar Bairro</Button>
                   </DialogTrigger>
                 </div>
               </CardHeader>
@@ -1077,7 +1102,8 @@ export default function SettingsPage() {
                         <TableCell>R${zone.deliveryFee.toFixed(2)}</TableCell>
                         <TableCell>{zone.deliveryTime} min</TableCell>
                         <TableCell><Switch checked={zone.isActive} onCheckedChange={(checked) => handleZoneIsActiveChange(zone, checked)} /></TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right whitespace-nowrap">
+                          <Button variant="ghost" size="icon" onClick={() => handleEditZone(zone)}><Edit className="h-4 w-4 text-primary" /></Button>
                           <Button variant="ghost" size="icon" onClick={() => handleDeleteZone(zone.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                         </TableCell>
                       </TableRow>
@@ -1088,7 +1114,7 @@ export default function SettingsPage() {
             </CardContent>
             </Card>
             <DialogContent>
-              <DialogHeader><DialogTitle>Adicionar Bairro</DialogTitle></DialogHeader>
+              <DialogHeader><DialogTitle>{editingZoneId ? 'Editar Bairro' : 'Adicionar Bairro'}</DialogTitle></DialogHeader>
               <div className="grid gap-4 py-4">
                 <Input placeholder="Bairro" value={newNeighborhood} onChange={(e) => setNewNeighborhood(e.target.value)} />
                 <Input placeholder="Taxa (R$)" type="number" value={newFee} onChange={(e) => setNewFee(e.target.value)} />

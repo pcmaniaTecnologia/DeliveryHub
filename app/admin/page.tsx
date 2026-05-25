@@ -186,6 +186,20 @@ export default function AdminDashboardPage() {
         const activeCompanies = rawCompanies.filter(c => !!c.isActive);
         const inactiveCount = rawCompanies.length - activeCompanies.length;
 
+        let fixedPlanCount = 0;
+        let variablePlanCount = 0;
+
+        activeCompanies.forEach(company => {
+            const plan = rawPlans[company.planId!];
+            if (plan) {
+                if (plan.billingType === 'monthly') {
+                    fixedPlanCount++;
+                } else if (plan.billingType === 'per_order') {
+                    variablePlanCount++;
+                }
+            }
+        });
+
         // 2. Then calculate earnings (Fixed vs Variable)
         let fixedRevenue = 0;
         let variableRevenue = 0;
@@ -219,11 +233,12 @@ export default function AdminDashboardPage() {
         // 3. Orders by company for table
         const ordersByCompany = activeCompanies.map(company => {
              const companyOrders = filteredOrders.filter(o => o.companyId === company.id);
+             const uniqueCustomers = new Set(companyOrders.map(o => o.customerId).filter(id => id && id !== 'anonymous')).size;
              return {
                  id: company.id,
                  name: company.name,
                  quantidadePedidos: companyOrders.length,
-                 totalVendido: companyOrders.reduce((sum, o) => sum + Number(o.totalAmount), 0),
+                 clientesCadastrados: uniqueCustomers,
                  isActive: company.isActive !== false
              };
         }).sort((a,b) => b.quantidadePedidos - a.quantidadePedidos);
@@ -234,6 +249,8 @@ export default function AdminDashboardPage() {
             totalCompanies: rawCompanies.length,
             activeCount: activeCompanies.length,
             inactiveCount,
+            fixedPlanCount,
+            variablePlanCount,
             totalOrdersInPeriod: filteredOrders.length,
             salesByCompany,
             ordersByCompany
@@ -319,12 +336,20 @@ export default function AdminDashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats?.totalCompanies}</div>
-            <div className="flex items-center gap-2 mt-1">
+            <div className="flex flex-wrap items-center gap-2 mt-2">
                 <Badge variant="outline" className="text-green-600 bg-green-50 border-green-200">
                      {stats?.activeCount} Ativas
                 </Badge>
                 <Badge variant="outline" className="text-red-600 bg-red-50 border-red-200">
                      {stats?.inactiveCount} Inativas
+                </Badge>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 mt-2">
+                <Badge variant="outline" className="text-blue-600 bg-blue-50 border-blue-200">
+                     {stats?.fixedPlanCount} Fixo
+                </Badge>
+                <Badge variant="outline" className="text-purple-600 bg-purple-50 border-purple-200">
+                     {stats?.variablePlanCount} Variável
                 </Badge>
             </div>
           </CardContent>
@@ -391,7 +416,7 @@ export default function AdminDashboardPage() {
                        <TableHead>Loja</TableHead>
                        <TableHead>Status</TableHead>
                        <TableHead className="text-right">Pedidos</TableHead>
-                       <TableHead className="text-right">Volume Vendido</TableHead>
+                       <TableHead className="text-right">Clientes Cadastrados</TableHead>
                    </TableRow>
                </TableHeader>
                <TableBody>
@@ -408,7 +433,7 @@ export default function AdminDashboardPage() {
                                )}
                            </TableCell>
                            <TableCell className="text-right font-bold">{store.quantidadePedidos}</TableCell>
-                           <TableCell className="text-right text-muted-foreground">R$ {store.totalVendido.toFixed(2)}</TableCell>
+                           <TableCell className="text-right text-muted-foreground font-bold">{store.clientesCadastrados}</TableCell>
                        </TableRow>
                    ))}
                </TableBody>

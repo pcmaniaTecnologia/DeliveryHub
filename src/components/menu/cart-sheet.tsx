@@ -15,7 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useCart, type CartItem } from '@/context/cart-context';
-import { ShoppingCart, Minus, Plus, Trash2, CreditCard, DollarSign, Landmark } from 'lucide-react';
+import { ShoppingCart, Minus, Plus, Trash2, CreditCard, DollarSign, Landmark, MapPin, User } from 'lucide-react';
 import {
   useFirestore,
   addDocument,
@@ -24,7 +24,7 @@ import {
   useCollection,
   useUser,
 } from '@/firebase';
-import { collection, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -41,6 +41,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { isStoreOpen } from '@/lib/utils';
+import { CustomerAuthDialog } from '@/components/menu/customer-auth-dialog';
 
 
 type PaymentMethods = {
@@ -169,6 +170,24 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
     return deliveryZones?.find(z => z.neighborhood === addressNeighborhood);
   }, [deliveryType, addressNeighborhood, deliveryZones]);
 
+  const userProfileRef = useMemoFirebase(() => {
+    if (!firestore || !user || user.isAnonymous) return null;
+    return doc(firestore, 'users', user.uid);
+  }, [firestore, user]);
+  
+  const { data: userProfile } = useDoc<any>(userProfileRef);
+
+  useEffect(() => {
+    if (userProfile && !customerName) {
+      if (userProfile.name) setCustomerName(userProfile.name);
+      if (userProfile.phone) setCustomerPhone(userProfile.phone);
+      if (userProfile.addressStreet) setAddressStreet(userProfile.addressStreet);
+      if (userProfile.addressNumber) setAddressNumber(userProfile.addressNumber);
+      if (userProfile.addressNeighborhood) setAddressNeighborhood(userProfile.addressNeighborhood);
+      if (userProfile.addressComplement) setAddressComplement(userProfile.addressComplement);
+    }
+  }, [userProfile]);
+
   const deliveryFee = selectedZone?.deliveryFee || 0;
   const finalTotal = totalPrice + deliveryFee;
 
@@ -217,6 +236,11 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
           toast({ variant: 'destructive', title: 'Selecione a forma de pagamento' });
           return;
         }
+    }
+
+    if (deliveryType === 'Delivery' && (!user || user.isAnonymous)) {
+        toast({ variant: 'destructive', title: 'Login Obrigatório', description: 'Por favor, faça login ou cadastre-se para pedir por delivery.' });
+        return;
     }
 
     if (deliveryType === 'Delivery' && (!addressStreet || !addressNumber || !addressNeighborhood)) {
@@ -306,6 +330,19 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ companyId, items: stockItems }),
             }).catch(err => console.error("Erro ao baixar estoque:", err));
+        }
+
+        // Atualiza perfil do usuário se estiver logado
+        if (user && !user.isAnonymous) {
+            setDoc(doc(firestore, 'users', user.uid), {
+                name: customerName,
+                phone: customerPhone,
+                addressStreet: addressStreet,
+                addressNumber: addressNumber,
+                addressNeighborhood: addressNeighborhood,
+                addressComplement: addressComplement,
+                updatedAt: serverTimestamp()
+            }, { merge: true }).catch(err => console.error("Erro ao salvar perfil:", err));
         }
         
         if (companyData.phone) {
@@ -435,14 +472,18 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
                     <SheetHeader><SheetTitle>Finalizar Pedido</SheetTitle></SheetHeader>
                     <ScrollArea className="flex-grow pr-4">
                         <div className="space-y-4 py-4">
-                            <div className="grid gap-2">
-                                <Label>Nome Completo <span className="text-destructive">*</span></Label>
-                                <Input placeholder="Seu nome" value={customerName} onChange={e => setCustomerName(e.target.value)} />
-                            </div>
-                            <div className="grid gap-2">
-                                <Label>WhatsApp <span className="text-destructive">*</span></Label>
-                                <Input placeholder="(99) 99999-9999" value={customerPhone} onChange={handlePhoneChange} maxLength={15} />
-                            </div>
+                            {deliveryType !== 'Delivery' && (
+                                <>
+                                    <div className="grid gap-2">
+                                        <Label>Nome Completo <span className="text-destructive">*</span></Label>
+                                        <Input placeholder="Seu nome" value={customerName} onChange={e => setCustomerName(e.target.value)} />
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label>WhatsApp <span className="text-destructive">*</span></Label>
+                                        <Input placeholder="(99) 99999-9999" value={customerPhone} onChange={handlePhoneChange} maxLength={15} />
+                                    </div>
+                                </>
+                            )}
                             {!tableParam && (
                             <>
                             <Separator />
@@ -462,32 +503,47 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
 
                             {deliveryType === 'Delivery' && (
                                 <div className="space-y-3 mt-2">
-                                    <div className="grid grid-cols-3 gap-2">
-                                        <div className="col-span-2">
-                                            <Input placeholder="Rua" value={addressStreet} onChange={e => setAddressStreet(e.target.value)} />
+                                    {(!user || user.isAnonymous) ? (
+                                        <div className="bg-primary/5 border border-primary/20 rounded-xl p-6 flex flex-col items-center justify-center text-center space-y-4">
+                                            <div className="bg-background p-3 rounded-full shadow-sm"><MapPin className="h-6 w-6 text-primary" /></div>
+                                            <div>
+                                                <h3 className="font-bold text-lg text-primary">Login Obrigatório para Delivery</h3>
+                                                <p className="text-sm text-muted-foreground mt-1">Para garantir a segurança da entrega e salvar seu endereço, você precisa se identificar.</p>
+                                            </div>
+                                            <div className="w-full flex justify-center pt-2">
+                                                <CustomerAuthDialog companyId={companyId} />
+                                            </div>
                                         </div>
-                                        <Input placeholder="Nº" value={addressNumber} onChange={e => setAddressNumber(e.target.value)} />
-                                    </div>
-                                    <div className="grid gap-1.5">
-                                        <Label className="text-xs">Selecione o Bairro <span className="text-destructive">*</span></Label>
-                                        <Select value={addressNeighborhood} onValueChange={setAddressNeighborhood}>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Escolha um bairro" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {isLoadingZones ? (
-                                                    <SelectItem value="loading" disabled>Carregando...</SelectItem>
-                                                ) : activeDeliveryZones.length > 0 ? (
-                                                    activeDeliveryZones.map(zone => (
-                                                        <SelectItem key={zone.id} value={zone.neighborhood}>{zone.neighborhood} (R$ {zone.deliveryFee.toFixed(2)})</SelectItem>
-                                                    ))
-                                                ) : (
-                                                    <SelectItem value="none" disabled>Nenhum bairro cadastrado</SelectItem>
-                                                )}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <Input placeholder="Complemento (Opcional)" value={addressComplement} onChange={e => setAddressComplement(e.target.value)} />
+                                    ) : (
+                                        <>
+                                            <div className="grid grid-cols-3 gap-2">
+                                                <div className="col-span-2">
+                                                    <Input placeholder="Rua" value={addressStreet} onChange={e => setAddressStreet(e.target.value)} />
+                                                </div>
+                                                <Input placeholder="Nº" value={addressNumber} onChange={e => setAddressNumber(e.target.value)} />
+                                            </div>
+                                            <div className="grid gap-1.5">
+                                                <Label className="text-xs">Selecione o Bairro <span className="text-destructive">*</span></Label>
+                                                <Select value={addressNeighborhood} onValueChange={setAddressNeighborhood}>
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="Escolha um bairro" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {isLoadingZones ? (
+                                                            <SelectItem value="loading" disabled>Carregando...</SelectItem>
+                                                        ) : activeDeliveryZones.length > 0 ? (
+                                                            activeDeliveryZones.map(zone => (
+                                                                <SelectItem key={zone.id} value={zone.neighborhood}>{zone.neighborhood} (R$ {zone.deliveryFee.toFixed(2)})</SelectItem>
+                                                            ))
+                                                        ) : (
+                                                            <SelectItem value="none" disabled>Nenhum bairro cadastrado</SelectItem>
+                                                        )}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                            <Input placeholder="Complemento (Opcional)" value={addressComplement} onChange={e => setAddressComplement(e.target.value)} />
+                                        </>
+                                    )}
                                 </div>
                             )}
                             {!tableParam && (
@@ -531,9 +587,14 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
                             {deliveryFee > 0 && <div className="flex justify-between text-muted-foreground"><span>Entrega</span><span>R$ {deliveryFee.toFixed(2)}</span></div>}
                             <div className="flex justify-between font-bold text-lg pt-1 border-t"><span>Total</span><span className="text-primary">R$ {finalTotal.toFixed(2)}</span></div>
                         </div>
-                        <Button className="w-full h-12 text-lg shadow-md" onClick={handlePlaceOrder} disabled={isSubmitting || isLoadingCompany}>
-                            {isSubmitting ? 'Processando...' : isLoadingCompany ? 'Carregando...' : 'Confirmar e Enviar'}
+                        <Button className="w-full h-12 text-lg shadow-md" onClick={handlePlaceOrder} disabled={isSubmitting || isLoadingCompany || (deliveryType === 'Delivery' && (!user || user.isAnonymous))}>
+                            {isSubmitting ? 'Processando...' : isLoadingCompany ? 'Carregando...' : (deliveryType === 'Delivery' && (!user || user.isAnonymous)) ? 'Faça login para continuar' : 'Confirmar e Enviar'}
                         </Button>
+                        {(!user || user.isAnonymous) && (
+                            <p className="text-xs text-center text-muted-foreground mt-2">
+                                Dica: Faça login no menu superior para salvar seus dados e pedir mais rápido!
+                            </p>
+                        )}
                     </SheetFooter>
                 </>
             ) : (
