@@ -472,6 +472,17 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
                     <SheetHeader><SheetTitle>Finalizar Pedido</SheetTitle></SheetHeader>
                     <ScrollArea className="flex-grow pr-4">
                         <div className="space-y-4 py-4">
+                            {(!user || user.isAnonymous) && deliveryType !== 'Delivery' && (
+                                <div className="bg-muted/30 p-4 rounded-xl border flex flex-col gap-3">
+                                    <div className="text-sm">
+                                        <p className="font-semibold text-primary">Já tem uma conta?</p>
+                                        <p className="text-xs text-muted-foreground mt-0.5">Faça login para acompanhar o pedido e salvar seus dados.</p>
+                                    </div>
+                                    <div className="w-full flex justify-start">
+                                        <CustomerAuthDialog companyId={companyId} />
+                                    </div>
+                                </div>
+                            )}
                             {deliveryType !== 'Delivery' && (
                                 <>
                                     <div className="grid gap-2">
@@ -592,7 +603,7 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
                         </Button>
                         {(!user || user.isAnonymous) && (
                             <p className="text-xs text-center text-muted-foreground mt-2">
-                                Dica: Faça login no menu superior para salvar seus dados e pedir mais rápido!
+                                Dica: Faça login ou crie uma conta para salvar seus dados e histórico de pedidos!
                             </p>
                         )}
                     </SheetFooter>
