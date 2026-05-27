@@ -374,7 +374,7 @@ const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order; co
                                 <div key={idx} className="text-sm">
                                     <div className="flex justify-between font-medium">
                                         <span>{item.quantity}x {item.productName}</span>
-                                        <span>R${(item.finalPrice || item.unitPrice).toFixed(2)}</span>
+                                        <span>R${((item.finalPrice || item.unitPrice) * item.quantity).toFixed(2)}</span>
                                     </div>
                                     {Object.entries(groupedVariants).map(([group, items], vIdx) => (
                                         <p key={vIdx} className="text-xs text-muted-foreground ml-2">
