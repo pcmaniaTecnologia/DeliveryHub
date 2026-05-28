@@ -607,7 +607,7 @@ export default function ComandasPage() {
                             productName: item.productName || 'Produto',
                             quantity: item.quantity || 1,
                             unitPrice: item.unitPrice || 0,
-                            finalPrice: i.finalPrice || i.unitPrice,
+                            finalPrice: item.finalPrice || item.unitPrice,
                             notes: item.notes || '',
                             selectedVariants: item.selectedVariants || [],
                         })),
