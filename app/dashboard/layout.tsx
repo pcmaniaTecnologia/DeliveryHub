@@ -256,7 +256,7 @@ export default function DashboardLayout({
             </Sheet>
             <div className="w-full flex-1 flex flex-col items-center justify-center text-[10px] sm:text-xs">
               <div className="flex items-center gap-3 text-muted-foreground">
-                <span className="font-bold text-foreground tracking-tight">Suporte Tecnico</span>
+                <span className="font-bold text-foreground tracking-tight">Suporte Técnico</span>
                 <a href="https://wa.me/5533987507606" target="_blank" rel="noopener noreferrer" className="hover:text-primary hover:underline transition-colors font-medium">
                   (33) 9.8750-7606
                 </a>
