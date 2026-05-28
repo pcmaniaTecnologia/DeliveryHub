@@ -409,7 +409,7 @@ export default function ComandasPage() {
         return tableItems
             .filter(item => selectedItemsKeys.has(item.uniqueKey))
             .reduce((sum, item) => {
-                const base = item.finalPrice || (item.unitPrice * item.quantity);
+                const base = (item.finalPrice || item.unitPrice) * item.quantity;
                 const discount = itemDiscounts[item.uniqueKey] || 0;
                 return sum + Math.max(0, base - discount);
             }, 0);
@@ -450,7 +450,7 @@ export default function ComandasPage() {
                         ${tableItems.map((item: any) => `
                             <div class="item">
                                 <span>${item.quantity}x ${item.productName}</span>
-                                <span>R$ ${(item.finalPrice || (item.unitPrice * item.quantity)).toFixed(2)}</span>
+                                <span>R$ {((item.finalPrice || item.unitPrice) * item.quantity).toFixed(2)}</span>
                             </div>
                         `).join('')}
                     </div>
@@ -495,7 +495,7 @@ export default function ComandasPage() {
             // Não pode abater mais do que o preço do item
             const item = tableItems.find(i => i.uniqueKey === key);
             if (item) {
-                const max = item.finalPrice || (item.unitPrice * item.quantity);
+                const max = (item.finalPrice || item.unitPrice) * item.quantity;
                 setItemDiscounts(prev => ({ ...prev, [key]: Math.min(val, max) }));
             }
         }
@@ -583,7 +583,7 @@ export default function ComandasPage() {
                         paymentMethod: paymentSummary,
                         payments: payments,
                         totalAmount: itemsSelectedInThisOrder.reduce((sum, i) => {
-                            const base = i.finalPrice || (i.unitPrice * i.quantity);
+                            const base = (i.finalPrice || i.unitPrice) * i.quantity;
                             const disc = itemDiscounts[i.uniqueKey] || 0;
                             return sum + Math.max(0, base - disc);
                         }, 0),
@@ -607,12 +607,12 @@ export default function ComandasPage() {
                             productName: item.productName || 'Produto',
                             quantity: item.quantity || 1,
                             unitPrice: item.unitPrice || 0,
-                            finalPrice: item.finalPrice || (item.unitPrice * item.quantity),
+                            finalPrice: i.finalPrice || i.unitPrice,
                             notes: item.notes || '',
                             selectedVariants: item.selectedVariants || [],
                         })),
                         totalAmount: itemsSelectedInThisOrder.reduce((sum, i) => {
-                            const base = i.finalPrice || (i.unitPrice * i.quantity);
+                            const base = (i.finalPrice || i.unitPrice) * i.quantity;
                             const disc = itemDiscounts[i.uniqueKey] || 0;
                             return sum + Math.max(0, base - disc);
                         }, 0),
@@ -624,7 +624,7 @@ export default function ComandasPage() {
                         status: 'Entregue'
                     });
 
-                    const newTotal = itemsRemainingInThisOrder.reduce((sum: number, item: any) => sum + (item.finalPrice || (item.unitPrice * item.quantity)), 0);
+                    const newTotal = itemsRemainingInThisOrder.reduce((sum: number, item: any) => sum + ((item.finalPrice || item.unitPrice) * item.quantity), 0);
                     await updateDocument(orderRef, {
                         orderItems: itemsRemainingInThisOrder,
                         totalAmount: newTotal
@@ -1053,7 +1053,7 @@ export default function ComandasPage() {
                                         </div>
                                         <div className="space-y-2">
                                             {tableItems.map((item) => {
-                                                const basePrice = item.finalPrice || (item.unitPrice * item.quantity);
+                                                const basePrice = (item.finalPrice || item.unitPrice) * item.quantity;
                                                 const discount = itemDiscounts[item.uniqueKey] || 0;
                                                 const finalPrice = Math.max(0, basePrice - discount);
                                                 const isSelected = selectedItemsKeys.has(item.uniqueKey);
@@ -1270,7 +1270,7 @@ export default function ComandasPage() {
                                                         {item.notes && <p className="text-[10px] italic text-muted-foreground">Obs: {item.notes}</p>}
                                                         <p className="text-[9px] text-muted-foreground/60 uppercase mt-1">Lançado às {item.originalOrder.orderDate?.toDate().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} por {item.originalOrder.waiterName || 'Sistema'}</p>
                                                     </div>
-                                                    <span className="font-bold">R$ {(item.finalPrice || (item.unitPrice * item.quantity)).toFixed(2)}</span>
+                                                    <span className="font-bold">R$ {((item.finalPrice || item.unitPrice) * item.quantity).toFixed(2)}</span>
                                                 </div>
                                             ))}
                                             {tableItems.length === 0 && (
