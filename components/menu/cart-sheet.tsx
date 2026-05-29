@@ -197,9 +197,15 @@ export default function CartSheet({ companyId, tableNumber: propTableNumber }: {
       return;
     }
 
-    if (!isTableMode && deliveryType === 'Delivery' && (!addressStreet || !addressNumber || !addressNeighborhood)) {
-        toast({ variant: 'destructive', title: 'Endereço Incompleto', description: 'Por favor, preencha rua, número e bairro.' });
-        return;
+    if (deliveryType === 'Delivery') {
+        if (!addressStreet || !addressNumber || !addressNeighborhood) {
+            toast({ variant: 'destructive', title: 'Endereço Incompleto', description: 'Por favor, preencha rua, número e bairro.' });
+            return;
+        }
+        if (!selectedZone) {
+            toast({ variant: 'destructive', title: 'Bairro Inválido', description: 'Por favor, selecione um bairro válido para entrega listado nas opções.' });
+            return;
+        }
     }
     
     setIsSubmitting(true);
