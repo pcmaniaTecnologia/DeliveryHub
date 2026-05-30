@@ -5,11 +5,11 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
 import Image from 'next/image';
-import { useCollection, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, doc } from 'firebase/firestore';
+import { useCollection, useDoc, useFirestore, useMemoFirebase, useUser } from '@/firebase';
+import { collection, doc, writeBatch, increment, deleteField } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus, Minus, Pizza, Ham, GlassWater, Cake, Sandwich, LeafyGreen, IceCream, UtensilsCrossed, type LucideIcon, Search, X, Clock } from 'lucide-react';
+import { Plus, Minus, Pizza, Ham, GlassWater, Cake, Sandwich, LeafyGreen, IceCream, UtensilsCrossed, type LucideIcon, Search, X, Clock, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import { useCart, type SelectedVariant } from '@/context/cart-context';
@@ -68,6 +68,8 @@ export type Product = {
     blockIfOutOfStock?: boolean;
     stock?: number;
     isSoldByWeight?: boolean;
+    upvotes?: number;
+    downvotes?: number;
 };
 
 type Category = {
@@ -351,7 +353,47 @@ const ProductDetailDialog = ({
 };
 
 
-const ProductCard = ({ product }: { product: Product }) => {
+const ProductVotingBar = ({ 
+    upvotes = 0, 
+    downvotes = 0, 
+    userVote, 
+    onVote 
+}: { 
+    upvotes?: number;
+    downvotes?: number;
+    userVote?: 'up' | 'down' | null;
+    onVote: (type: 'up' | 'down') => void;
+}) => {
+    const total = upvotes + downvotes;
+    const upPercentage = total === 0 ? 50 : (upvotes / total) * 100;
+    
+    return (
+        <div className="flex items-center gap-2 mt-3 w-full max-w-[200px]" onClick={(e) => e.stopPropagation()}>
+            <button 
+                className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-semibold transition-colors ${userVote === 'up' ? 'bg-green-500/10 text-green-600' : 'text-muted-foreground hover:bg-muted'}`}
+                onClick={(e) => { e.stopPropagation(); onVote('up'); }}
+            >
+                <ThumbsUp className="h-3.5 w-3.5" />
+                <span>{upvotes}</span>
+            </button>
+            
+            <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden flex">
+                <div className="bg-green-500 h-full transition-all" style={{ width: `${upPercentage}%` }} />
+                <div className="bg-red-500 h-full transition-all" style={{ width: `${100 - upPercentage}%` }} />
+            </div>
+
+            <button 
+                className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-semibold transition-colors ${userVote === 'down' ? 'bg-destructive/10 text-destructive' : 'text-muted-foreground hover:bg-muted'}`}
+                onClick={(e) => { e.stopPropagation(); onVote('down'); }}
+            >
+                <span>{downvotes}</span>
+                <ThumbsDown className="h-3.5 w-3.5" />
+            </button>
+        </div>
+    );
+};
+
+const ProductCard = ({ product, userVote, onVote }: { product: Product, userVote?: 'up' | 'down' | null, onVote?: (type: 'up' | 'down') => void }) => {
     const { addToCart } = useCart();
     const [isDetailOpen, setIsDetailOpen] = useState(false);
 
@@ -374,13 +416,23 @@ const ProductCard = ({ product }: { product: Product }) => {
                         <h3 className="text-base font-bold leading-tight text-foreground">{product.name}</h3>
                         <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{product.description}</p>
                     </div>
-                    <div className="mt-4 flex items-center gap-2">
-                        <span className="font-semibold text-primary">R$ {product.price.toFixed(2)}</span>
-                        {product.isSoldByWeight && (
-                            <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-primary/30 text-primary/70">por Kg</Badge>
-                        )}
-                        {product.stockControlEnabled && product.blockIfOutOfStock !== false && (Number(product.stock) || 0) <= 0 && (
-                            <Badge variant="destructive" className="text-xs font-bold px-2 py-1 animate-pulse">ESGOTADO</Badge>
+                    <div>
+                        <div className="mt-4 flex items-center gap-2">
+                            <span className="font-semibold text-primary">R$ {product.price.toFixed(2)}</span>
+                            {product.isSoldByWeight && (
+                                <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-primary/30 text-primary/70">por Kg</Badge>
+                            )}
+                            {product.stockControlEnabled && product.blockIfOutOfStock !== false && (Number(product.stock) || 0) <= 0 && (
+                                <Badge variant="destructive" className="text-xs font-bold px-2 py-1 animate-pulse">ESGOTADO</Badge>
+                            )}
+                        </div>
+                        {onVote && (
+                            <ProductVotingBar 
+                                upvotes={product.upvotes} 
+                                downvotes={product.downvotes} 
+                                userVote={userVote} 
+                                onVote={onVote} 
+                            />
                         )}
                     </div>
                 </div>
@@ -428,6 +480,8 @@ export default function MenuPage() {
   const params = useParams();
   const companyId = params?.companyId as string;
   const firestore = useFirestore();
+  const { user } = useUser();
+  const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
 
   // Fetch company data
@@ -450,6 +504,61 @@ export default function MenuPage() {
     return collection(firestore, 'companies', companyId, 'categories');
   }, [firestore, companyId]);
   const { data: categories, isLoading: isLoadingCategories } = useCollection<Category>(categoriesRef);
+
+  // Fetch user votes
+  const userVotesRef = useMemoFirebase(() => {
+    if (!firestore || !companyId || !user) return null;
+    return doc(firestore, 'companies', companyId, 'userVotes', user.uid);
+  }, [firestore, companyId, user]);
+  const { data: userVotesDoc } = useDoc<{ votes: Record<string, 'up' | 'down'> }>(userVotesRef);
+  const userVotes = userVotesDoc?.votes || {};
+
+  const handleVote = async (productId: string, currentVote: 'up' | 'down' | null, newVote: 'up' | 'down') => {
+    if (!firestore) return;
+
+    if (!user || user.isAnonymous) {
+        toast({
+            title: 'Acesso Restrito',
+            description: 'Por favor, faça login ou cadastre-se para avaliar este lanche.',
+            variant: 'destructive',
+        });
+        alert('Acesso Restrito: Por favor, faça login na sua conta para avaliar os lanches.');
+        return;
+    }
+    
+    const batch = writeBatch(firestore);
+    const productRef = doc(firestore, 'companies', companyId, 'products', productId);
+    const userVotesDocRef = doc(firestore, 'companies', companyId, 'userVotes', user.uid);
+    
+    const productUpdates: any = {};
+    const userVotesUpdates: any = {};
+
+    if (currentVote === newVote) {
+        // Remove vote
+        if (newVote === 'up') productUpdates.upvotes = increment(-1);
+        if (newVote === 'down') productUpdates.downvotes = increment(-1);
+        userVotesUpdates[`votes.${productId}`] = deleteField();
+    } else {
+        // Change or add vote
+        if (newVote === 'up') {
+            productUpdates.upvotes = increment(1);
+            if (currentVote === 'down') productUpdates.downvotes = increment(-1);
+        } else {
+            productUpdates.downvotes = increment(1);
+            if (currentVote === 'up') productUpdates.upvotes = increment(-1);
+        }
+        userVotesUpdates[`votes.${productId}`] = newVote;
+    }
+    
+    batch.update(productRef, productUpdates);
+    batch.set(userVotesDocRef, userVotesUpdates, { merge: true });
+    
+    try {
+        await batch.commit();
+    } catch (error) {
+        console.error("Error committing vote:", error);
+    }
+  };
 
   const productsByCategory = useMemo(() => {
     if (!products || !categories) return {};
@@ -627,9 +736,17 @@ export default function MenuPage() {
                         <h2 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">{category}</h2>
                     </div>
                     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
-                        {productList.map((product, pIdx) => (
-                        <ProductCard key={product.id} product={product} />
-                        ))}
+                        {productList.map((product, pIdx) => {
+                            const currentVote = userVotes[product.id] || null;
+                            return (
+                                <ProductCard 
+                                    key={product.id} 
+                                    product={product} 
+                                    userVote={currentVote}
+                                    onVote={(type) => handleVote(product.id, currentVote, type)}
+                                />
+                            );
+                        })}
                     </div>
                 </section>
             )

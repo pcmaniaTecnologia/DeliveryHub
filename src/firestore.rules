@@ -24,6 +24,10 @@ service cloud.firestore {
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
+
+    function isLoggedUser() {
+      return isSignedIn() && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
     
     function isCompanyMember(companyId) {
       return isSignedIn() && exists(/databases/$(database)/documents/companies/$(companyId)/users/$(request.auth.uid));
@@ -82,7 +86,15 @@ service cloud.firestore {
       allow update: if resource != null
                     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock'])
                     && request.resource.data.stock < resource.data.stock;
+      // Permite que usuários logados votem
+      allow update: if isLoggedUser() 
+                    && resource != null
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['upvotes', 'downvotes']);
       allow delete: if (isCompanyMember(companyId) || isSuperAdmin()) && resource != null;
+    }
+
+    match /companies/{companyId}/userVotes/{userId} {
+      allow read, write: if isLoggedUser() && request.auth.uid == userId;
     }
 
     match /companies/{companyId}/categories/{categoryId} {
