@@ -273,7 +273,7 @@ export default function POSPage() {
                     unitPrice: item.product.price,
                     finalPrice: item.finalPrice,
                     notes: '',
-                    isSoldByWeight: item.product.isSoldByWeight,
+                    isSoldByWeight: item.product.isSoldByWeight ?? false,
                 })),
                 totalAmount: totalWithDiscount,
                 subtotal: total,

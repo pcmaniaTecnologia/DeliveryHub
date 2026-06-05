@@ -181,7 +181,25 @@ export function CustomerAuthDialog({ companyId }: { companyId?: string }) {
       resetForm();
     } catch (error: any) {
       console.error(error);
-      toast({ variant: 'destructive', title: 'Erro ao cadastrar', description: error.message || 'Verifique os dados e tente novamente.' });
+      if (error.code === 'auth/email-already-in-use') {
+        toast({ 
+            variant: 'destructive', 
+            title: 'E-mail já cadastrado', 
+            description: 'Este e-mail já possui uma conta no sistema. Por favor, vá na aba "Entrar" para fazer o login ou recupere sua senha.' 
+        });
+      } else if (error.code === 'auth/weak-password') {
+        toast({ 
+            variant: 'destructive', 
+            title: 'Senha fraca', 
+            description: 'A senha deve ter pelo menos 6 caracteres.' 
+        });
+      } else {
+        toast({ 
+            variant: 'destructive', 
+            title: 'Erro ao cadastrar', 
+            description: 'Verifique os dados e tente novamente.' 
+        });
+      }
     } finally {
       setIsLoading(false);
     }
