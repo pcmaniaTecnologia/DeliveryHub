@@ -470,17 +470,12 @@ export default function CartSheet({ companyId }: { companyId: string}) {
                 <AlertDialogTitle>Pedido Salvo! 🎉</AlertDialogTitle>
                 <AlertDialogDescription>Seu pedido já está no sistema, mas falta um último passo! Envie a mensagem para o restaurante clicando no botão abaixo para confirmar seu pedido.</AlertDialogDescription>
             </AlertDialogHeader>
-            <div className="flex flex-col gap-3 mt-4">
-                {whatsappLink && (
-                    <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="w-full">
-                        <Button className="w-full h-12 text-lg bg-green-600 hover:bg-green-700 text-white">
-                            Enviar Confirmação no WhatsApp
-                        </Button>
-                    </a>
-                )}
-                <Button variant="outline" onClick={() => setIsOrderFinished(false)}>
-                    Fechar Relatório
-                </Button>
+            <div className="flex flex-col gap-3 mt-2">
+                <a href={whatsappLink || '#'} target={whatsappLink ? "_blank" : undefined} rel="noopener noreferrer" className="w-full" onClick={() => setIsOrderFinished(false)}>
+                    <button className="w-full h-12 text-lg rounded-md bg-green-600 hover:bg-green-700 text-white font-semibold transition-colors">
+                        📲 Enviar pelo WhatsApp
+                    </button>
+                </a>
             </div>
         </AlertDialogContent>
       </AlertDialog>

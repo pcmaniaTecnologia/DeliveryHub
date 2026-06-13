@@ -492,14 +492,11 @@ export default function CartSheet({ companyId, tableNumber: propTableNumber }: {
                 <AlertDialogDescription>{isTableMode ? `Seu pedido da Mesa ${tableNumber} foi enviado para a cozinha com sucesso! Aguarde no local.` : 'Seu pedido já está no sistema. Clique no botão abaixo para enviar a confirmação ao restaurante pelo WhatsApp.'}</AlertDialogDescription>
             </AlertDialogHeader>
             <div className="flex flex-col gap-3 mt-2">
-                {whatsappLink && (
-                    <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="w-full" onClick={() => setIsOrderFinished(false)}>
-                        <button className="w-full h-12 text-lg rounded-md bg-green-600 hover:bg-green-700 text-white font-semibold transition-colors">
-                            📲 Enviar pelo WhatsApp
-                        </button>
-                    </a>
-                )}
-                <AlertDialogAction onClick={() => setIsOrderFinished(false)} className="w-full">Fechar</AlertDialogAction>
+                <a href={whatsappLink || '#'} target={whatsappLink ? "_blank" : undefined} rel="noopener noreferrer" className="w-full" onClick={() => setIsOrderFinished(false)}>
+                    <button className="w-full h-12 text-lg rounded-md bg-green-600 hover:bg-green-700 text-white font-semibold transition-colors">
+                        📲 Enviar pelo WhatsApp
+                    </button>
+                </a>
             </div>
         </AlertDialogContent>
       </AlertDialog>
