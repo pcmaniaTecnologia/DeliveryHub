@@ -339,12 +339,12 @@ export default function CartSheet({ companyId, tableNumber: propTableNumber }: {
   };
 
   const enabledPaymentMethods = useMemo(() => {
-    if (!companyData?.paymentMethods) return [];
+    const pm = companyData?.paymentMethods || { cash: true, pix: true, credit: true, debit: false };
     const methods = [];
-    if (companyData.paymentMethods.cash) methods.push({ id: 'Dinheiro', label: 'Dinheiro', icon: DollarSign });
-    if (companyData.paymentMethods.pix) methods.push({ id: 'PIX', label: 'PIX', icon: Landmark });
-    if (companyData.paymentMethods.credit) methods.push({ id: 'Cartão de Crédito', label: 'Cartão de Crédito', icon: CreditCard });
-    if (companyData.paymentMethods.debit) methods.push({ id: 'Cartão de Débito', label: 'Cartão de Débito', icon: CreditCard });
+    if (pm.cash) methods.push({ id: 'Dinheiro', label: 'Dinheiro', icon: DollarSign });
+    if (pm.pix) methods.push({ id: 'PIX', label: 'PIX', icon: Landmark });
+    if (pm.credit) methods.push({ id: 'Cartão de Crédito', label: 'Cartão de Crédito', icon: CreditCard });
+    if (pm.debit) methods.push({ id: 'Cartão de Débito', label: 'Cartão de Débito', icon: CreditCard });
     return methods;
   }, [companyData]);
 
