@@ -111,6 +111,7 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
   const { toast } = useToast();
   const [isOrderFinished, setIsOrderFinished] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [whatsappLink, setWhatsappLink] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -465,7 +466,7 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
 
   return (
     <>
-      <Sheet onOpenChange={(open) => !open && setIsCheckoutOpen(false)}>
+      <Sheet open={isSheetOpen} onOpenChange={(open) => { setIsSheetOpen(open); if(!open) setIsCheckoutOpen(false); }}>
         <SheetTrigger asChild>
           <Button className="fixed bottom-6 right-6 z-20 h-16 w-16 rounded-full shadow-lg">
             <ShoppingCart className="h-8 w-8" />
@@ -638,6 +639,9 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
                         📲 Enviar pelo WhatsApp
                     </button>
                 </a>
+                <Button variant="outline" onClick={() => { setIsOrderFinished(false); setIsSheetOpen(false); }} className="w-full h-12 text-lg">
+                    Voltar ao Cardápio
+                </Button>
                 <AlertDialogAction onClick={() => setIsOrderFinished(false)} className="w-full">Fechar</AlertDialogAction>
             </div>
         </AlertDialogContent>
