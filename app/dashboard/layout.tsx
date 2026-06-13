@@ -161,8 +161,10 @@ export default function DashboardLayout({
 
 
   useEffect(() => {
-    if (!isUserLoading && !user) {
-      router.push('/');
+    if (!isUserLoading) {
+      if (!user || user.isAnonymous) {
+        router.push('/');
+      }
     }
   }, [user, isUserLoading, router]);
 

@@ -24,9 +24,13 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!isUserLoading && user) {
-      router.push('/dashboard');
+      if (user.isAnonymous) {
+        auth?.signOut();
+      } else {
+        router.push('/dashboard');
+      }
     }
-  }, [user, isUserLoading, router]);
+  }, [user, isUserLoading, router, auth]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

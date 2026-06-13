@@ -66,8 +66,10 @@ export default function AdminLayout({
   const { data: adminData, isLoading: isLoadingAdmin } = useDoc(adminRef);
 
   useEffect(() => {
-    if (!isUserLoading && !isLoadingAdmin && !user) {
-      router.replace('/');
+    if (!isUserLoading && !isLoadingAdmin) {
+      if (!user || user.isAnonymous) {
+        router.replace('/');
+      }
     }
   }, [user, isUserLoading, isLoadingAdmin, router]);
 
