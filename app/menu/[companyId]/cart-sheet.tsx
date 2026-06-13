@@ -476,6 +476,7 @@ export default function CartSheet({ companyId }: { companyId: string}) {
                         📲 Enviar pelo WhatsApp
                     </button>
                 </a>
+                <AlertDialogAction onClick={() => setIsOrderFinished(false)} className="w-full">Fechar</AlertDialogAction>
             </div>
         </AlertDialogContent>
       </AlertDialog>
