@@ -502,7 +502,7 @@ export default function SettingsPage() {
     cash: true,
     pix: true,
     credit: true,
-    debit: false,
+    debit: true,
     cashAskForChange: false,
   });
   const [isSaving, setIsSaving] = useState(false);

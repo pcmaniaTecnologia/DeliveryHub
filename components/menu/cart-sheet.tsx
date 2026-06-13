@@ -339,7 +339,7 @@ export default function CartSheet({ companyId, tableNumber: propTableNumber }: {
   };
 
   const enabledPaymentMethods = useMemo(() => {
-    const pm = companyData?.paymentMethods || { cash: true, pix: true, credit: true, debit: false };
+    const pm = companyData?.paymentMethods || { cash: true, pix: true, credit: true, debit: true };
     const methods = [];
     if (pm.cash) methods.push({ id: 'Dinheiro', label: 'Dinheiro', icon: DollarSign });
     if (pm.pix) methods.push({ id: 'PIX', label: 'PIX', icon: Landmark });
