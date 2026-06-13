@@ -44,14 +44,19 @@ ${entrega > 0 ? `*Entrega:* R$${entrega.toFixed(2)}` : ''}
     const zapiInstance = process.env.ZAPI_INSTANCE;
     const zapiToken = process.env.ZAPI_TOKEN;
 
-    if (zapiInstance && zapiToken) {
+    if (zapiInstance && zapiToken && telefoneEmpresa) {
+      let cleanPhone = String(telefoneEmpresa).replace(/\D/g, '');
+      if (!cleanPhone.startsWith('55')) {
+          cleanPhone = `55${cleanPhone}`;
+      }
+
       await fetch(`https://api.z-api.io/instances/${zapiInstance}/token/${zapiToken}/send-text`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          phone: telefoneEmpresa,
+          phone: cleanPhone,
           message: mensagem
         })
       }).catch(err => console.error("Erro ao enviar para Z-API:", err));
