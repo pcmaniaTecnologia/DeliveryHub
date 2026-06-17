@@ -11,8 +11,8 @@ export const metadata: Metadata = {
   title: 'DeliveryHub',
   description: 'A solução SaaS completa para o seu negócio de delivery.',
   icons: {
-    icon: '/logo.png',
-    apple: '/logo.png',
+    icon: '/logo.png?v=2',
+    apple: '/logo.png?v=2',
   },
   manifest: '/manifest.json',
   appleWebApp: {
