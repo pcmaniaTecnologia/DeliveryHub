@@ -8,6 +8,8 @@ import {
   Package2,
   VolumeX,
   AlertTriangle,
+  Download,
+  RefreshCw,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useCollection, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
@@ -109,6 +111,48 @@ export default function DashboardLayout({
   const firestore = useFirestore();
   const { isImpersonating, impersonatedCompanyId, impersonatedCompanyName, stopImpersonation } = useImpersonation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setDeferredPrompt(null);
+      }
+    } else {
+      toast({
+        title: "Instalação manual necessária",
+        description: "O aplicativo já está instalado ou seu navegador não suporta a instalação automática. Use a opção 'Adicionar à Tela Inicial' no menu do seu navegador.",
+      });
+    }
+  };
+
+  const handleClearCache = async () => {
+    if ('caches' in window) {
+      try {
+        const cacheNames = await caches.keys();
+        await Promise.all(cacheNames.map(name => caches.delete(name)));
+      } catch (err) {
+        console.error("Erro ao limpar cache", err);
+      }
+    }
+    window.location.reload();
+  };
 
   // When admin impersonates a company, use their ID instead of the logged-in admin's UID
   const effectiveCompanyId = isImpersonating ? impersonatedCompanyId : user?.uid;
@@ -256,17 +300,39 @@ export default function DashboardLayout({
                 </div>
               </SheetContent>
             </Sheet>
+            <div className="hidden sm:flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={handleInstallClick} className="h-8 gap-1 bg-primary text-primary-foreground hover:bg-primary/90 border-0">
+                <Download className="h-3.5 w-3.5" />
+                Baixar App
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleClearCache} className="h-8 gap-1 text-muted-foreground hover:text-foreground">
+                <RefreshCw className="h-3.5 w-3.5" />
+                Atualizar
+              </Button>
+            </div>
+            
             <div className="w-full flex-1 flex flex-col items-center justify-center text-[10px] sm:text-xs">
               <div className="flex items-center gap-3 text-muted-foreground">
-                <span className="font-bold text-foreground tracking-tight">Suporte Técnico</span>
+                <span className="font-bold text-foreground tracking-tight hidden lg:inline">Suporte Técnico</span>
                 <a href="https://wa.me/5533987507606" target="_blank" rel="noopener noreferrer" className="hover:text-primary hover:underline transition-colors font-medium">
                   (33) 9.8750-7606
                 </a>
-                <span className="hidden sm:inline">|</span>
-                <a href="https://www.pcmania.net" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">www.pcmania.net</a>
+                <span className="hidden md:inline">|</span>
+                <a href="https://www.pcmania.net" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium hidden md:inline">www.pcmania.net</a>
               </div>
             </div>
-            <UserNav isAdmin={!!adminData} />
+            
+            <div className="flex items-center gap-2">
+              <div className="flex sm:hidden items-center gap-2 mr-1">
+                <Button variant="outline" size="icon" onClick={handleInstallClick} className="h-8 w-8 bg-primary text-primary-foreground hover:bg-primary/90 border-0" title="Baixar App">
+                  <Download className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="icon" onClick={handleClearCache} className="h-8 w-8 text-muted-foreground" title="Atualizar (Limpar Cache)">
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+              </div>
+              <UserNav isAdmin={!!adminData} />
+            </div>
           </header>
           <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-8 lg:p-8 bg-muted/20">
 
