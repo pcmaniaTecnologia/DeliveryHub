@@ -3,7 +3,7 @@
 
 import { useState, useMemo } from 'react';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, type Timestamp } from 'firebase/firestore';
+import { collection, type Timestamp, query, where } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -64,8 +64,16 @@ export default function ReportsPage() {
 
     const ordersRef = useMemoFirebase(() => {
         if (!firestore || !user?.uid) return null;
-        return collection(firestore, `companies/${user.uid}/orders`);
-    }, [firestore, user?.uid]);
+        try {
+            const start = parseISO(startDate);
+            return query(
+                collection(firestore, `companies/${user.uid}/orders`),
+                where('orderDate', '>=', start)
+            );
+        } catch {
+            return collection(firestore, `companies/${user.uid}/orders`);
+        }
+    }, [firestore, user?.uid, startDate]);
 
     const { data: orders, isLoading } = useCollection<Order>(ordersRef);
 

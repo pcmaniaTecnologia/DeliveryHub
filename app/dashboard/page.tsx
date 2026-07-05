@@ -138,7 +138,11 @@ export default function DashboardPage() {
   // ── Orders ──────────────────────────────────────────────────────────────
   const ordersRef = useMemoFirebase(() => {
     if (!firestore || !user?.uid) return null;
-    return collection(firestore, `companies/${user.uid}/orders`);
+    const thirtyDaysAgo = subDays(new Date(), 30);
+    return query(
+        collection(firestore, `companies/${user.uid}/orders`),
+        where('orderDate', '>=', Timestamp.fromDate(thirtyDaysAgo))
+    );
   }, [firestore, user?.uid]);
   const { data: orders, isLoading: isLoadingOrders } = useCollection<Order>(ordersRef);
 

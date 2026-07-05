@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc, updateDocument, errorEmitter, FirestorePermissionError } from '@/firebase';
-import { collection, doc, type Timestamp } from 'firebase/firestore';
+import { collection, doc, type Timestamp, query, limit, orderBy } from 'firebase/firestore';
 import {
   Card,
   CardContent,
@@ -103,7 +103,11 @@ export default function OrdersPage() {
 
     const ordersRef = useMemoFirebase(() => {
         if (!firestore || !user?.uid) return null;
-        return collection(firestore, `companies/${user.uid}/orders`);
+        return query(
+            collection(firestore, `companies/${user.uid}/orders`),
+            orderBy('orderDate', 'desc'),
+            limit(300)
+        );
     }, [firestore, user?.uid]);
 
     const { data: orders, isLoading: isLoadingOrders } = useCollection<Order>(ordersRef);

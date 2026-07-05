@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useCollection, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, doc, type Timestamp } from 'firebase/firestore';
+import { collection, doc, type Timestamp, query, where } from 'firebase/firestore';
 import { useImpersonation } from '@/context/impersonation-context';
 
 import { Button } from '@/components/ui/button';
@@ -143,6 +143,7 @@ export default function DashboardLayout({
   };
 
   const handleClearCache = async () => {
+    // Clear Service Worker Cache Storage
     if ('caches' in window) {
       try {
         const cacheNames = await caches.keys();
@@ -151,7 +152,21 @@ export default function DashboardLayout({
         console.error("Erro ao limpar cache", err);
       }
     }
-    window.location.reload();
+    
+    // Unregister Service Workers
+    if ('serviceWorker' in navigator) {
+      try {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (const registration of registrations) {
+          await registration.unregister();
+        }
+      } catch (err) {
+        console.error("Erro ao desregistrar service workers", err);
+      }
+    }
+
+    // Force hard reload bypassing cache if possible
+    window.location.href = window.location.pathname + '?t=' + new Date().getTime();
   };
 
   // When admin impersonates a company, use their ID instead of the logged-in admin's UID
@@ -173,7 +188,10 @@ export default function DashboardLayout({
 
   const allOrdersRef = useMemoFirebase(() => {
     if (!firestore || !effectiveCompanyId) return null;
-    return collection(firestore, `companies/${effectiveCompanyId}/orders`);
+    return query(
+      collection(firestore, `companies/${effectiveCompanyId}/orders`),
+      where('status', 'in', ['Novo', 'Aguardando pagamento'])
+    );
   }, [firestore, effectiveCompanyId]);
 
   const { data: allOrders, isLoading: isLoadingAllOrders } = useCollection<Order>(allOrdersRef);

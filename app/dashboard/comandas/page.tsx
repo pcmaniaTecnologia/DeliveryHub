@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { useFirestore, useCollection, useUser, useDoc, updateDocument, addDocument, deleteDocument, setDocument, errorEmitter, FirestorePermissionError, useMemoFirebase } from '@/firebase';
-import { collection, doc, query, where, limit, type Timestamp, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, query, where, limit, orderBy, type Timestamp, serverTimestamp } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -94,7 +94,10 @@ export default function ComandasPage() {
 
     const ordersRef = useMemoFirebase(() => {
         if (!firestore || !effectiveCompanyId) return null;
-        return collection(firestore, `companies/${effectiveCompanyId}/orders`);
+        return query(
+            collection(firestore, `companies/${effectiveCompanyId}/orders`),
+            where('deliveryType', '==', 'Mesa')
+        );
     }, [firestore, effectiveCompanyId]);
 
     const { data: allOrders, isLoading: isLoadingOrders } = useCollection<Order>(ordersRef);

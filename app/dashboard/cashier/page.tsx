@@ -193,7 +193,11 @@ export default function CashierPage() {
   // Fetch Orders for the Current Session period
   const ordersRef = useMemoFirebase(() => {
     if (!firestore || !effectiveCompanyId) return null;
-    return collection(firestore, `companies/${effectiveCompanyId}/orders`);
+    return query(
+        collection(firestore, `companies/${effectiveCompanyId}/orders`),
+        orderBy('orderDate', 'desc'),
+        limit(500)
+    );
   }, [firestore, effectiveCompanyId]);
 
   const { data: rawOrders } = useCollection<any>(ordersRef);
