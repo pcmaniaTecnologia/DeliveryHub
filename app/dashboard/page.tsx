@@ -141,7 +141,7 @@ export default function DashboardPage() {
     const thirtyDaysAgo = subDays(new Date(), 30);
     return query(
         collection(firestore, `companies/${user.uid}/orders`),
-        where('orderDate', '>=', Timestamp.fromDate(thirtyDaysAgo))
+        where('orderDate', '>=', thirtyDaysAgo)
     );
   }, [firestore, user?.uid]);
   const { data: orders, isLoading: isLoadingOrders } = useCollection<Order>(ordersRef);
