@@ -201,7 +201,7 @@ export default function OrdersPage() {
           />
         </div>
         <Tabs defaultValue="Todos">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="flex flex-wrap w-full justify-start h-auto mb-4 md:mb-0">
             {Object.keys(statusMap).map(status => (
               <TabsTrigger key={status} value={status}>{status}</TabsTrigger>
             ))}

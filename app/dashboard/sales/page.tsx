@@ -728,7 +728,7 @@ export default function POSPage() {
             {/* We define them once for clean code, or use them conditionally */}
 
             <Tabs defaultValue="products" className="flex-1 flex flex-col overflow-hidden xl:hidden">
-                <TabsList className="grid w-full grid-cols-2 mb-2">
+                <TabsList className="flex flex-wrap w-full justify-start h-auto mb-2">
                     <TabsTrigger value="products">Produtos</TabsTrigger>
                     <TabsTrigger value="cart" className="relative">
                         Carrinho
