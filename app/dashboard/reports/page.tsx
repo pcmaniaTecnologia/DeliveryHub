@@ -11,7 +11,7 @@ import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
     PieChart, Pie, Cell, Legend, AreaChart, Area 
 } from 'recharts';
-import { DollarSign, Truck, Store, ClipboardList, Wallet, TrendingUp, Calendar, AlertCircle, Package, BarChart3, PieChart as PieChartIcon, Activity } from 'lucide-react';
+import { DollarSign, Truck, Store, ClipboardList, Wallet, TrendingUp, Calendar, AlertCircle, Package, BarChart3, PieChart as PieChartIcon, Activity, Bike } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format, startOfDay, endOfDay, isWithinInterval, subDays, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
