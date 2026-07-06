@@ -31,7 +31,9 @@ export default function CourierLoginPage({ params }: { params: Promise<{ company
   }, [companyId, router]);
 
   // Fetch company data to show name
-  const companyRef = firestore ? doc(firestore, 'companies', companyId) : null;
+  const companyRef = React.useMemo(() => {
+    return firestore ? doc(firestore, 'companies', companyId) : null;
+  }, [firestore, companyId]);
   const { data: company, isLoading: isLoadingCompany } = useDoc<any>(companyRef);
 
   const handleLogin = async (e: React.FormEvent) => {
