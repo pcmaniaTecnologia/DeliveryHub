@@ -22,7 +22,8 @@ type Order = {
   orderDate: Timestamp;
 };
 
-export default function CourierDashboard({ params }: { params: { companyId: string } }) {
+export default function CourierDashboard({ params }: { params: Promise<{ companyId: string }> }) {
+  const { companyId } = React.use(params);
   const router = useRouter();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -37,13 +38,13 @@ export default function CourierDashboard({ params }: { params: { companyId: stri
 
   // Authentication check
   useEffect(() => {
-    const saved = localStorage.getItem(`courier_${params.companyId}`);
+    const saved = localStorage.getItem(`courier_${companyId}`);
     if (saved) {
       setCourier(JSON.parse(saved));
     } else {
-      router.push(`/entregador/${params.companyId}`);
+      router.push(`/entregador/${companyId}`);
     }
-  }, [params.companyId, router]);
+  }, [companyId, router]);
 
   // Audio initialization
   useEffect(() => {
@@ -56,7 +57,7 @@ export default function CourierDashboard({ params }: { params: { companyId: stri
 
     // Listen for Pending Orders
     const pendingQuery = query(
-      collection(firestore, `companies/${params.companyId}/orders`),
+      collection(firestore, `companies/${companyId}/orders`),
       where('courierStatus', '==', 'pending')
     );
 
@@ -74,7 +75,7 @@ export default function CourierDashboard({ params }: { params: { companyId: stri
 
     // Listen for My Active Orders
     const myActiveQuery = query(
-      collection(firestore, `companies/${params.companyId}/orders`),
+      collection(firestore, `companies/${companyId}/orders`),
       where('courierId', '==', courier.id),
       where('courierStatus', 'in', ['accepted', 'picked_up'])
     );
@@ -89,7 +90,7 @@ export default function CourierDashboard({ params }: { params: { companyId: stri
       unsubscribePending();
       unsubscribeActive();
     };
-  }, [firestore, courier?.id, params.companyId]);
+  }, [firestore, courier?.id, companyId]);
 
   // Fetch today's completed deliveries
   useEffect(() => {
@@ -100,7 +101,7 @@ export default function CourierDashboard({ params }: { params: { companyId: stri
       today.setHours(0, 0, 0, 0);
       
       const q = query(
-        collection(firestore, `companies/${params.companyId}/orders`),
+        collection(firestore, `companies/${companyId}/orders`),
         where('courierId', '==', courier.id),
         where('courierStatus', '==', 'delivered'),
         where('orderDate', '>=', Timestamp.fromDate(today))
@@ -118,17 +119,17 @@ export default function CourierDashboard({ params }: { params: { companyId: stri
 
     fetchTodayStats();
     // Re-fetch every 5 mins or rely on state update after delivery
-  }, [firestore, courier?.id, params.companyId, myOrders.length]);
+  }, [firestore, courier?.id, companyId, myOrders.length]);
 
   const handleLogout = () => {
-    localStorage.removeItem(`courier_${params.companyId}`);
-    router.push(`/entregador/${params.companyId}`);
+    localStorage.removeItem(`courier_${companyId}`);
+    router.push(`/entregador/${companyId}`);
   };
 
   const handleAcceptOrder = async (orderId: string) => {
     if (!firestore || !courier) return;
     try {
-      const orderRef = doc(firestore, `companies/${params.companyId}/orders`, orderId);
+      const orderRef = doc(firestore, `companies/${companyId}/orders`, orderId);
       await updateDocument(orderRef, {
         courierId: courier.id,
         courierName: courier.name,
@@ -144,7 +145,7 @@ export default function CourierDashboard({ params }: { params: { companyId: stri
   const handleCompleteOrder = async (orderId: string) => {
     if (!firestore) return;
     try {
-      const orderRef = doc(firestore, `companies/${params.companyId}/orders`, orderId);
+      const orderRef = doc(firestore, `companies/${companyId}/orders`, orderId);
       await updateDocument(orderRef, {
         courierStatus: 'delivered',
         status: 'Entregue', // Muda o status real do pedido para Entregue também

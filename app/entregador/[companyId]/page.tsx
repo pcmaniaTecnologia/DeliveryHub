@@ -12,7 +12,8 @@ import { Bike, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { LoadingScreen } from '@/components/LoadingScreen';
 
-export default function CourierLoginPage({ params }: { params: { companyId: string } }) {
+export default function CourierLoginPage({ params }: { params: Promise<{ companyId: string }> }) {
+  const { companyId } = React.use(params);
   const router = useRouter();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -23,14 +24,14 @@ export default function CourierLoginPage({ params }: { params: { companyId: stri
 
   // Check if already logged in
   useEffect(() => {
-    const savedCourier = localStorage.getItem(`courier_${params.companyId}`);
+    const savedCourier = localStorage.getItem(`courier_${companyId}`);
     if (savedCourier) {
-      router.push(`/entregador/${params.companyId}/dashboard`);
+      router.push(`/entregador/${companyId}/dashboard`);
     }
-  }, [params.companyId, router]);
+  }, [companyId, router]);
 
   // Fetch company data to show name
-  const companyRef = firestore ? doc(firestore, 'companies', params.companyId) : null;
+  const companyRef = firestore ? doc(firestore, 'companies', companyId) : null;
   const { data: company, isLoading: isLoadingCompany } = useDoc<any>(companyRef);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -44,7 +45,7 @@ export default function CourierLoginPage({ params }: { params: { companyId: stri
     setIsLoading(true);
 
     try {
-      const couriersRef = collection(firestore, `companies/${params.companyId}/couriers`);
+      const couriersRef = collection(firestore, `companies/${companyId}/couriers`);
       const q = query(couriersRef, where('phone', '==', phone), where('pinCode', '==', pin), where('active', '==', true));
       const querySnapshot = await getDocs(q);
 
@@ -54,9 +55,9 @@ export default function CourierLoginPage({ params }: { params: { companyId: stri
         const courierDoc = querySnapshot.docs[0];
         const courierData = { id: courierDoc.id, ...courierDoc.data() };
         
-        localStorage.setItem(`courier_${params.companyId}`, JSON.stringify(courierData));
+        localStorage.setItem(`courier_${companyId}`, JSON.stringify(courierData));
         toast({ title: 'Login com sucesso!' });
-        router.push(`/entregador/${params.companyId}/dashboard`);
+        router.push(`/entregador/${companyId}/dashboard`);
       }
     } catch (error) {
       toast({ title: 'Erro de conexão', description: 'Não foi possível fazer o login.', variant: 'destructive' });
