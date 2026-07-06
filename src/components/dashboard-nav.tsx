@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, ShoppingCart, Package, Ticket, Settings as SettingsIcon, ShieldCheck, ClipboardList, Store, BarChart3 } from 'lucide-react';
+import { Home, ShoppingCart, Package, Ticket, Settings as SettingsIcon, ShieldCheck, ClipboardList, Store, BarChart3, Bike } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from './ui/separator';
@@ -17,6 +17,7 @@ export function DashboardNav({ newOrdersCount = 0, isAdmin = false, comandasEnab
     ...(comandasEnabled ? [{ href: '/dashboard/comandas', label: 'Comandas', icon: ClipboardList }] : []),
     { href: '/dashboard/products', label: 'Produtos', icon: Package },
     { href: '/dashboard/coupons', label: 'Cupons', icon: Ticket },
+    { href: '/dashboard/couriers', label: 'Entregadores', icon: Bike },
     { href: '/dashboard/settings', label: 'Configurações', icon: SettingsIcon },
   ];
 

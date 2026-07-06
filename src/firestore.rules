@@ -119,9 +119,10 @@ service cloud.firestore {
     }
 
     match /companies/{companyId}/orders/{orderId} {
-      allow get, list: if isCompanyMember(companyId) || isSuperAdmin() || isSignedIn();
+      allow get, list: if true;
       allow create: if request.resource.data.companyId == companyId;
-      allow update: if (isCompanyMember(companyId) || isSuperAdmin()) && resource != null;
+      allow update: if (isCompanyMember(companyId) || isSuperAdmin()) && resource != null
+                    || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['courierStatus', 'courierId', 'courierName', 'courierAcceptedAt', 'courierDeliveredAt', 'status']));
       allow delete: if false;
     }
 
@@ -134,6 +135,13 @@ service cloud.firestore {
     
     match /companies/{companyId}/deliveryZones/{deliveryZoneId} {
       allow get, list: if true;
+      allow create: if isOwner(companyId) || isCompanyMember(companyId) || isSuperAdmin();
+      allow update: if (isOwner(companyId) || isCompanyMember(companyId) || isSuperAdmin()) && resource != null;
+      allow delete: if (isOwner(companyId) || isCompanyMember(companyId) || isSuperAdmin()) && resource != null;
+    }
+
+    match /companies/{companyId}/couriers/{courierId} {
+      allow read: if true;
       allow create: if isOwner(companyId) || isCompanyMember(companyId) || isSuperAdmin();
       allow update: if (isOwner(companyId) || isCompanyMember(companyId) || isSuperAdmin()) && resource != null;
       allow delete: if (isOwner(companyId) || isCompanyMember(companyId) || isSuperAdmin()) && resource != null;

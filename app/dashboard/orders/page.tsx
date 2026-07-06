@@ -76,6 +76,12 @@ export type Order = {
   notes?: string;
   customerName?: string;
   customerPhone?: string;
+  // Integração Entregadores (Motoboy)
+  courierId?: string;
+  courierStatus?: 'pending' | 'accepted' | 'picked_up' | 'delivered';
+  courierName?: string;
+  courierAcceptedAt?: Timestamp;
+  courierDeliveredAt?: Timestamp;
 };
 
 
@@ -407,9 +413,46 @@ const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order; co
                             <span>R$ {order.totalAmount.toFixed(2)}</span>
                         </div>
                     </div>
-                </div>
-                 <DialogFooter>
-                    <Button variant="outline" className="w-full" onClick={handlePrint}><Printer className="mr-2 h-4 w-4" /> Imprimir e Começar Preparo</Button>
+                 </div>
+                 <DialogFooter className="flex-col gap-2">
+                    {order.deliveryType === 'Delivery' && (
+                        <div className="w-full flex flex-col gap-2 p-3 bg-muted/50 rounded-lg border">
+                            <div className="text-sm font-semibold mb-1">Logística de Entrega</div>
+                            {!order.courierStatus && (
+                                <Button 
+                                    className="w-full" 
+                                    onClick={() => {
+                                        const orderRef = doc(firestore, `companies/${user?.uid}/orders`, order.id);
+                                        updateDocument(orderRef, { courierStatus: 'pending' }).catch(() => {});
+                                    }}
+                                >
+                                    Chamar Entregador
+                                </Button>
+                            )}
+                            {order.courierStatus === 'pending' && (
+                                <div className="flex items-center justify-between w-full">
+                                    <Badge variant="secondary" className="animate-pulse">Aguardando Entregador aceitar...</Badge>
+                                    <Button 
+                                        variant="ghost" 
+                                        size="sm"
+                                        onClick={() => {
+                                            const orderRef = doc(firestore, `companies/${user?.uid}/orders`, order.id);
+                                            updateDocument(orderRef, { courierStatus: null }).catch(() => {});
+                                        }}
+                                    >
+                                        Cancelar
+                                    </Button>
+                                </div>
+                            )}
+                            {order.courierStatus === 'accepted' && (
+                                <Badge className="bg-blue-500 w-full text-center py-2 flex justify-center">Entregador a Caminho: {order.courierName || 'Motoboy'}</Badge>
+                            )}
+                            {order.courierStatus === 'delivered' && (
+                                <Badge className="bg-green-500 w-full text-center py-2 flex justify-center">Entregue por: {order.courierName || 'Motoboy'}</Badge>
+                            )}
+                        </div>
+                    )}
+                    <Button variant="outline" className="w-full mt-2" onClick={handlePrint}><Printer className="mr-2 h-4 w-4" /> Imprimir e Começar Preparo</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
