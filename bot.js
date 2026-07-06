@@ -1,14 +1,5 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
-const admin = require('firebase-admin');
-
-// Inicializa o Firebase Admin para ler as configurações
-if (!admin.apps.length) {
-    admin.initializeApp({
-        projectId: 'studio-516051115-a8e0e',
-    });
-}
-const db = admin.firestore();
 
 // Cria o cliente do WhatsApp com autenticação local (salva a sessão)
 const client = new Client({
@@ -34,39 +25,49 @@ client.on('ready', () => {
 // key: número do cliente, value: timestamp do último envio
 const answeredUsers = new Map();
 
+async function getBotConfig() {
+    try {
+        // Tenta buscar da API local caso esteja rodando o npm run dev
+        let res = await fetch('http://localhost:8080/api/bot-config').catch(() => null);
+        
+        // Se a API local falhar, tenta buscar da API em produção
+        if (!res || !res.ok) {
+            res = await fetch('https://www.deliveryhub.online/api/bot-config').catch(() => null);
+        }
+
+        if (res && res.ok) {
+            const data = await res.json();
+            if (data.success && data.config) {
+                return data.config;
+            }
+        }
+    } catch (e) {
+        console.error('Erro ao buscar configuração:', e);
+    }
+    return null;
+}
+
 client.on('message', async (msg) => {
     // Ignora mensagens enviadas pelo próprio robô, status ou de grupos
     if (msg.fromMe || msg.isStatus || msg.id.participant) return;
 
-    // Tempo de espera para mandar o link de novo (ex: 30 minutos = 30 * 60 * 1000)
-    // Isso evita que o robô mande o link de novo se o cliente mandar 3 áudios seguidos.
     const cooldownTime = 30 * 60 * 1000; 
     const now = Date.now();
     const lastAnswered = answeredUsers.get(msg.from);
 
     if (lastAnswered && (now - lastAnswered) < cooldownTime) {
-        return; // Está no período de "silêncio", não envia nada de novo
+        return; 
     }
 
     try {
-        // Busca a primeira empresa que tiver o bot ativado nas configurações
-        const companiesSnapshot = await db.collection('companies')
-            .where('whatsappBotEnabled', '==', true)
-            .limit(1)
-            .get();
+        const config = await getBotConfig();
 
-        if (companiesSnapshot.empty) {
-            // Nenhuma empresa ativou o robô nas configurações do painel
+        if (!config) {
+            // Se não encontrou configuração ativada, ignora
             return; 
         }
 
-        const companyDoc = companiesSnapshot.docs[0];
-        const config = companyDoc.data();
-
-        const botLink = config.whatsappBotLink || `https://deliveryhub.com.br/menu/${companyDoc.id}`;
-        const botMessage = config.whatsappBotMessage || 'Olá! Para fazer o seu pedido, acesse nosso cardápio digital clicando no link abaixo:';
-
-        const replyText = `${botMessage}\n\n👉 ${botLink}`;
+        const replyText = `${config.whatsappBotMessage}\n\n👉 ${config.whatsappBotLink}`;
 
         // Envia a resposta automática
         await client.sendMessage(msg.from, replyText);
