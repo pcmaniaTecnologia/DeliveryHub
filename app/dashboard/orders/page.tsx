@@ -29,7 +29,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, Printer } from 'lucide-react';
+import { MoreHorizontal, Printer, Bike } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
@@ -294,7 +294,21 @@ export default function OrdersPage() {
                                       <DropdownMenuItem onClick={() => handleUpdateStatus(order, 'Entregue à mesa')}>Entregue à Mesa</DropdownMenuItem>
                                   )}
                                   {order.deliveryType === 'Delivery' ? (
-                                      <DropdownMenuItem onClick={() => handleUpdateStatus(order, 'Saiu para entrega')}>Saiu para Entrega</DropdownMenuItem>
+                                      <>
+                                        <DropdownMenuItem onClick={() => handleUpdateStatus(order, 'Saiu para entrega')}>Saiu para Entrega</DropdownMenuItem>
+                                        <DropdownMenuItem 
+                                            className="font-medium text-blue-600"
+                                            onClick={() => {
+                                                if (!firestore || !user) return;
+                                                const orderDocRef = doc(firestore, `companies/${user.uid}/orders`, order.id);
+                                                updateDocument(orderDocRef, { courierStatus: 'pending' }).then(() => {
+                                                    toast({ title: 'Motoboy acionado!', description: 'Pedido enviado para o radar dos entregadores.' });
+                                                });
+                                            }}
+                                        >
+                                            <Bike className="mr-2 h-4 w-4" /> Chamar Motoboy (Radar)
+                                        </DropdownMenuItem>
+                                      </>
                                   ) : order.deliveryType === 'Retirada' ? (
                                       <DropdownMenuItem onClick={() => handleUpdateStatus(order, 'Pronto para retirada')}>Pronto para Retirada</DropdownMenuItem>
                                   ) : null}

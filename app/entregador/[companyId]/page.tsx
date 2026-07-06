@@ -48,7 +48,7 @@ export default function CourierLoginPage({ params }: { params: Promise<{ company
 
     try {
       const couriersRef = collection(firestore, `companies/${companyId}/couriers`);
-      const q = query(couriersRef, where('phone', '==', phone), where('pinCode', '==', pin), where('active', '==', true));
+      const q = query(couriersRef, where('phone', '==', phone.trim()), where('pinCode', '==', pin.trim()), where('active', '==', true));
       const querySnapshot = await getDocs(q);
 
       if (querySnapshot.empty) {
