@@ -103,18 +103,25 @@ export default function CourierDashboard({ params }: { params: Promise<{ company
       const q = query(
         collection(firestore, `companies/${companyId}/orders`),
         where('courierId', '==', courier.id),
-        where('courierStatus', '==', 'delivered'),
-        where('orderDate', '>=', Timestamp.fromDate(today))
+        where('courierStatus', '==', 'delivered')
       );
       
-      const snapshot = await getDocs(q);
-      setTodayCount(snapshot.size);
-      let total = 0;
-      snapshot.forEach(doc => {
-          const data = doc.data() as Order;
-          total += (data.deliveryFee || 0);
-      });
-      setTodayEarnings(total);
+      try {
+        const snapshot = await getDocs(q);
+        let count = 0;
+        let total = 0;
+        snapshot.forEach(doc => {
+            const data = doc.data() as Order;
+            if (data.orderDate && data.orderDate.toDate() >= today) {
+                count++;
+                total += (data.deliveryFee || 0);
+            }
+        });
+        setTodayCount(count);
+        setTodayEarnings(total);
+      } catch (error) {
+        console.error("Erro ao buscar ganhos:", error);
+      }
     };
 
     fetchTodayStats();
