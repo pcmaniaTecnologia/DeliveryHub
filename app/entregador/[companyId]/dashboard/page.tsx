@@ -7,7 +7,7 @@ import { collection, query, where, onSnapshot, doc, Timestamp, orderBy, getDocs 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Bike, LogOut, MapPin, CheckCircle2, Navigation, AlertCircle, HandCoins } from 'lucide-react';
+import { Bike, LogOut, MapPin, CheckCircle2, Navigation, AlertCircle, HandCoins, Download } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { format, parseISO, startOfDay, endOfDay } from 'date-fns';
@@ -36,6 +36,9 @@ export default function CourierDashboard({ params }: { params: Promise<{ company
   const [todayEarnings, setTodayEarnings] = useState(0);
   const [todayCount, setTodayCount] = useState(0);
   const [filterDate, setFilterDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isIOS, setIsIOS] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -48,6 +51,24 @@ export default function CourierDashboard({ params }: { params: Promise<{ company
       router.push(`/entregador/${companyId}`);
     }
   }, [companyId, router]);
+
+  // Install PWA check
+  useEffect(() => {
+    const userAgent = window.navigator.userAgent.toLowerCase();
+    setIsIOS(/iphone|ipad|ipod/.test(userAgent));
+
+    if (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone) {
+      setIsStandalone(true);
+    }
+
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+  }, []);
 
   // Audio initialization
   useEffect(() => {
@@ -181,6 +202,28 @@ export default function CourierDashboard({ params }: { params: Promise<{ company
     window.open(`https://www.google.com/maps/search/?api=1&query=${encoded}`, '_blank');
   };
 
+  const handleInstallClick = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setDeferredPrompt(null);
+      }
+    } else if (isIOS) {
+      toast({
+        title: 'Como Instalar no iPhone',
+        description: 'Toque no ícone "Compartilhar" (quadrado com seta para cima) na barra do Safari e depois em "Adicionar à Tela de Início".',
+        duration: 8000,
+      });
+    } else {
+        toast({
+            title: 'Como Instalar',
+            description: 'Abra as opções do seu navegador (três pontinhos) e clique em "Adicionar à tela inicial" ou "Instalar aplicativo".',
+            duration: 8000,
+        });
+    }
+  };
+
   if (!courier) return null;
 
   return (
@@ -196,9 +239,16 @@ export default function CourierDashboard({ params }: { params: Promise<{ company
               <p className="text-xs text-primary-foreground/80">Entregador</p>
             </div>
           </div>
-          <Button variant="ghost" size="icon" onClick={handleLogout} className="text-primary-foreground hover:bg-white/20">
-            <LogOut className="w-5 h-5" />
-          </Button>
+          <div className="flex items-center gap-1">
+            {!isStandalone && (
+                <Button variant="ghost" size="icon" onClick={handleInstallClick} className="text-primary-foreground hover:bg-white/20" title="Instalar Aplicativo">
+                    <Download className="w-5 h-5 animate-pulse" />
+                </Button>
+            )}
+            <Button variant="ghost" size="icon" onClick={handleLogout} className="text-primary-foreground hover:bg-white/20">
+                <LogOut className="w-5 h-5" />
+            </Button>
+          </div>
         </div>
       </header>
 
