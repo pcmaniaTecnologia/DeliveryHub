@@ -9,6 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Bike, LogOut, MapPin, CheckCircle2, Navigation, AlertCircle, HandCoins } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { Input } from '@/components/ui/input';
+import { format, parseISO, startOfDay, endOfDay } from 'date-fns';
 
 type Order = {
   id: string;
@@ -33,6 +35,7 @@ export default function CourierDashboard({ params }: { params: Promise<{ company
   const [myOrders, setMyOrders] = useState<Order[]>([]);
   const [todayEarnings, setTodayEarnings] = useState(0);
   const [todayCount, setTodayCount] = useState(0);
+  const [filterDate, setFilterDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -96,9 +99,15 @@ export default function CourierDashboard({ params }: { params: Promise<{ company
   useEffect(() => {
     if (!firestore || !courier?.id) return;
     
-    const fetchTodayStats = async () => {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+    const fetchStats = async () => {
+      let targetDate;
+      try {
+          targetDate = parseISO(filterDate);
+      } catch {
+          targetDate = new Date();
+      }
+      const start = startOfDay(targetDate);
+      const end = endOfDay(targetDate);
       
       const q = query(
         collection(firestore, `companies/${companyId}/orders`),
@@ -112,9 +121,12 @@ export default function CourierDashboard({ params }: { params: Promise<{ company
         let total = 0;
         snapshot.forEach(doc => {
             const data = doc.data() as Order;
-            if (data.orderDate && data.orderDate.toDate() >= today) {
-                count++;
-                total += (data.deliveryFee || 0);
+            if (data.orderDate) {
+                const d = data.orderDate.toDate();
+                if (d >= start && d <= end) {
+                    count++;
+                    total += (data.deliveryFee || 0);
+                }
             }
         });
         setTodayCount(count);
@@ -124,9 +136,9 @@ export default function CourierDashboard({ params }: { params: Promise<{ company
       }
     };
 
-    fetchTodayStats();
-    // Re-fetch every 5 mins or rely on state update after delivery
-  }, [firestore, courier?.id, companyId, myOrders.length]);
+    fetchStats();
+    // Re-fetch when orders change or filter date changes
+  }, [firestore, courier?.id, companyId, myOrders.length, filterDate]);
 
   const handleLogout = () => {
     localStorage.removeItem(`courier_${companyId}`);
@@ -193,18 +205,27 @@ export default function CourierDashboard({ params }: { params: Promise<{ company
       <main className="p-4 max-w-md mx-auto space-y-6">
         
         {/* Painel de Ganhos Rápidos */}
+        <div className="flex items-center justify-between mb-2">
+            <h2 className="font-semibold text-lg">Resumo de Ganhos</h2>
+            <Input 
+                type="date" 
+                value={filterDate} 
+                onChange={(e) => setFilterDate(e.target.value)}
+                className="w-[140px] h-8 text-xs"
+            />
+        </div>
         <div className="grid grid-cols-2 gap-4">
             <Card className="bg-green-50 border-green-200">
                 <CardContent className="p-4 flex flex-col items-center justify-center text-center">
                     <HandCoins className="w-6 h-6 text-green-600 mb-1" />
-                    <p className="text-xs text-green-800 font-medium">Ganhos Hoje</p>
+                    <p className="text-xs text-green-800 font-medium">Ganhos no Dia</p>
                     <p className="text-xl font-bold text-green-700">R$ {todayEarnings.toFixed(2)}</p>
                 </CardContent>
             </Card>
             <Card className="bg-blue-50 border-blue-200">
                 <CardContent className="p-4 flex flex-col items-center justify-center text-center">
                     <CheckCircle2 className="w-6 h-6 text-blue-600 mb-1" />
-                    <p className="text-xs text-blue-800 font-medium">Entregas Hoje</p>
+                    <p className="text-xs text-blue-800 font-medium">Entregas no Dia</p>
                     <p className="text-xl font-bold text-blue-700">{todayCount}</p>
                 </CardContent>
             </Card>

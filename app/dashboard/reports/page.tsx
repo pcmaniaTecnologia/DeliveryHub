@@ -31,6 +31,9 @@ type Order = {
         quantity: number;
         unitPrice: number;
     }[];
+    courierId?: string;
+    courierName?: string;
+    deliveryFee?: number;
 }
 
 type Product = {
@@ -211,6 +214,19 @@ export default function ReportsPage() {
                 categoryName: categories?.find(c => c.id === p.categoryId)?.name || 'Sem Categoria'
             }));
 
+        // Courier Stats
+        const courierStats: { [key: string]: { name: string, deliveries: number, totalFee: number } } = {};
+        filtered.forEach(order => {
+            if (order.courierId && order.status === 'Entregue') {
+                if (!courierStats[order.courierId]) {
+                    courierStats[order.courierId] = { name: order.courierName || 'Entregador', deliveries: 0, totalFee: 0 };
+                }
+                courierStats[order.courierId].deliveries += 1;
+                courierStats[order.courierId].totalFee += (order.deliveryFee || 0);
+            }
+        });
+        const courierData = Object.values(courierStats).sort((a, b) => b.totalFee - a.totalFee);
+
         return {
             totalFaturamento,
             byType,
@@ -220,7 +236,8 @@ export default function ReportsPage() {
             orderCount: filtered.length,
             recentOrders: filtered.sort((a,b) => b.orderDate.toMillis() - a.orderDate.toMillis()).slice(0, 10),
             topProducts,
-            lowStockProducts
+            lowStockProducts,
+            courierData
         };
     }, [orders, products, categories, startDate, endDate]);
 
@@ -317,6 +334,59 @@ export default function ReportsPage() {
 
             {/* Inventory and Performance Section */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Courier Stats */}
+                <Card className="shadow-sm border-t-4 border-t-blue-500">
+                    <CardHeader className="flex flex-row items-center justify-between">
+                        <div>
+                            <CardTitle className="text-lg flex items-center gap-2">
+                                <Truck className="h-5 w-5 text-blue-500" />
+                                Desempenho dos Entregadores
+                            </CardTitle>
+                            <CardDescription>Entregas e taxas por motoboy no período.</CardDescription>
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                        {reportData?.courierData.length === 0 ? (
+                             <div className="text-center py-8 text-muted-foreground flex flex-col items-center">
+                                <Bike className="h-10 w-10 mb-2 opacity-20" />
+                                Nenhuma entrega registrada por motoboys neste período.
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow className="hover:bg-transparent">
+                                            <TableHead className="text-xs uppercase">Entregador</TableHead>
+                                            <TableHead className="text-xs uppercase text-center">Qtd</TableHead>
+                                            <TableHead className="text-xs uppercase text-right">Taxas</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {reportData?.courierData.map((courier, idx) => (
+                                            <TableRow key={idx}>
+                                                <TableCell className="font-medium text-xs flex items-center gap-2">
+                                                    <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-[10px]">
+                                                        {courier.name.substring(0, 2).toUpperCase()}
+                                                    </div>
+                                                    {courier.name}
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    <span className="bg-muted text-muted-foreground py-0.5 px-2 rounded-full text-[10px] font-bold">
+                                                        {courier.deliveries}
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell className="text-right font-bold text-green-600 text-xs">
+                                                    R$ {courier.totalFee.toFixed(2)}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+
                 {/* Most Sold Products */}
                 <Card className="shadow-sm border-t-4 border-t-primary">
                     <CardHeader className="flex flex-row items-center justify-between">
