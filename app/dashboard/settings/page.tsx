@@ -129,6 +129,9 @@ type CompanySettingsData = {
     pixKey?: any;
     businessHours?: any;
     whatsappTemplates?: any;
+    whatsappBotEnabled?: boolean;
+    whatsappBotLink?: string;
+    whatsappBotMessage?: string;
 };
 
 type PlatformSettings = {
@@ -522,6 +525,10 @@ export default function SettingsPage() {
       ready: 'Ei, {cliente}! Seu pedido nº {pedido_id} está prontinho te esperando para retirada. 😊',
   });
 
+  const [whatsappBotEnabled, setWhatsappBotEnabled] = useState(false);
+  const [whatsappBotLink, setWhatsappBotLink] = useState('');
+  const [whatsappBotMessage, setWhatsappBotMessage] = useState('Olá! Para fazer o seu pedido, acesse nosso cardápio digital clicando no link abaixo:');
+
   useEffect(() => {
     if (companyData) {
       setStoreName(companyData.name || '');
@@ -568,6 +575,15 @@ export default function SettingsPage() {
                console.error("Error parsing whatsapp templates", e);
           }
       }
+        if (companyData.whatsappBotEnabled !== undefined) {
+          setWhatsappBotEnabled(companyData.whatsappBotEnabled);
+        }
+        if (companyData.whatsappBotLink) {
+          setWhatsappBotLink(companyData.whatsappBotLink);
+        }
+        if (companyData.whatsappBotMessage) {
+          setWhatsappBotMessage(companyData.whatsappBotMessage);
+        }
     }
   }, [companyData]);
 
@@ -801,6 +817,24 @@ export default function SettingsPage() {
     });
   };
 
+  const handleSaveBot = () => {
+    if (!firestore || !user) return;
+    setIsSaving(true);
+    const companyRef = doc(firestore, 'companies', user.uid);
+    setDocument(companyRef, { 
+      whatsappBotEnabled, 
+      whatsappBotLink, 
+      whatsappBotMessage, 
+      ownerId: user.uid 
+    }, { merge: true }).then(() => {
+        toast({
+            title: 'Configurações Salvas',
+            description: 'As configurações do robô foram atualizadas.',
+        });
+        setIsSaving(false);
+    }).catch(() => setIsSaving(false));
+  };
+
   const handleOpenWaiterDialog = (waiter: Waiter | null = null) => {
     setEditingWaiter(waiter);
     if (waiter) {
@@ -921,6 +955,7 @@ export default function SettingsPage() {
           <TabsTrigger value="payments">Pagamentos</TabsTrigger>
 
           <TabsTrigger value="notifications">Mensagens</TabsTrigger>
+          <TabsTrigger value="bot">Robô (Bot)</TabsTrigger>
           <TabsTrigger value="subscription">Assinatura</TabsTrigger>
         </TabsList>
 
@@ -1190,6 +1225,56 @@ export default function SettingsPage() {
             </CardContent>
             <CardFooter>
               <Button onClick={handleSaveMessages} disabled={isLoading}>Salvar Modelos</Button>
+            </CardFooter>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="bot">
+          <Card>
+            <CardHeader>
+              <CardTitle>Robô de WhatsApp (Autoatendimento)</CardTitle>
+              <CardDescription>Configure o robô gratuito para responder automaticamente aos seus clientes enviando o link do cardápio.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex flex-row items-center justify-between rounded-lg border p-4">
+                <div className="space-y-0.5">
+                  <Label className="text-base">Ativar Robô</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Quando ativado, o script <code className="bg-muted px-1">bot.js</code> passará a responder mensagens usando estas configurações.
+                  </p>
+                </div>
+                <Switch
+                  checked={whatsappBotEnabled}
+                  onCheckedChange={setWhatsappBotEnabled}
+                  disabled={isSaving}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="bot-link">Link do Cardápio</Label>
+                <Input 
+                  id="bot-link" 
+                  placeholder="Ex: https://deliveryhub.com.br/menu/SUA_LOJA" 
+                  value={whatsappBotLink} 
+                  onChange={(e) => setWhatsappBotLink(e.target.value)} 
+                  disabled={isSaving} 
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="bot-message">Mensagem do Robô</Label>
+                <Textarea 
+                  id="bot-message" 
+                  placeholder="Digite a mensagem que acompanha o link..." 
+                  value={whatsappBotMessage} 
+                  onChange={(e) => setWhatsappBotMessage(e.target.value)} 
+                  disabled={isSaving} 
+                  rows={4}
+                />
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Button onClick={handleSaveBot} disabled={isSaving}>
+                {isSaving ? 'Salvando...' : 'Salvar Configurações do Robô'}
+              </Button>
             </CardFooter>
           </Card>
         </TabsContent>
