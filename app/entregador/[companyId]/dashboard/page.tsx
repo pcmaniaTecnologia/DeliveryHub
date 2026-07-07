@@ -22,6 +22,7 @@ type Order = {
   courierId?: string;
   courierStatus?: 'pending' | 'accepted' | 'picked_up' | 'delivered';
   orderDate: Timestamp;
+  courierEarnedFee?: number;
 };
 
 export default function CourierDashboard({ params }: { params: Promise<{ companyId: string }> }) {
