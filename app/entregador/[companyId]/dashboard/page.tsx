@@ -146,7 +146,7 @@ export default function CourierDashboard({ params }: { params: Promise<{ company
                 const d = data.orderDate.toDate();
                 if (d >= start && d <= end) {
                     count++;
-                    total += (data.deliveryFee || 0);
+                    total += (data.courierEarnedFee !== undefined ? data.courierEarnedFee : (data.deliveryFee || 0));
                 }
             }
         });
@@ -174,7 +174,8 @@ export default function CourierDashboard({ params }: { params: Promise<{ company
         courierId: courier.id,
         courierName: courier.name,
         courierStatus: 'accepted',
-        courierAcceptedAt: Timestamp.now()
+        courierAcceptedAt: Timestamp.now(),
+        courierEarnedFee: courier.deliveryRate || 0
       });
       toast({ title: 'Corrida Aceita!', description: 'Vá até o restaurante buscar o pedido.' });
     } catch (e) {
@@ -189,7 +190,8 @@ export default function CourierDashboard({ params }: { params: Promise<{ company
       await updateDocument(orderRef, {
         courierStatus: 'delivered',
         status: 'Entregue', // Muda o status real do pedido para Entregue também
-        courierDeliveredAt: Timestamp.now()
+        courierDeliveredAt: Timestamp.now(),
+        courierEarnedFee: courier.deliveryRate || 0
       });
       toast({ title: 'Entrega Finalizada!', description: 'Bom trabalho.' });
     } catch (e) {
@@ -318,7 +320,7 @@ export default function CourierDashboard({ params }: { params: Promise<{ company
                         <CardDescription className="font-medium text-foreground">{order.customerName}</CardDescription>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm font-bold text-green-600">Taxa: R$ {order.deliveryFee?.toFixed(2) || '0.00'}</p>
+                        <p className="text-sm font-bold text-green-600">Ganhos: R$ {(courier.deliveryRate || 0).toFixed(2)}</p>
                         <p className="text-xs text-muted-foreground">Pagamento: {order.paymentMethod}</p>
                       </div>
                     </div>
@@ -364,7 +366,7 @@ export default function CourierDashboard({ params }: { params: Promise<{ company
                         <CardDescription>Bairro: {order.deliveryAddress.split(',')[1] || 'Endereço completo abaixo'}</CardDescription>
                       </div>
                       <div className="text-right bg-green-100 px-3 py-1 rounded-full">
-                        <p className="text-sm font-bold text-green-700">R$ {order.deliveryFee?.toFixed(2) || '0.00'}</p>
+                        <p className="text-sm font-bold text-green-700">R$ {(courier.deliveryRate || 0).toFixed(2)}</p>
                       </div>
                     </div>
                   </CardHeader>

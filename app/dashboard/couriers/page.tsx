@@ -33,6 +33,7 @@ type Courier = {
   phone: string;
   pinCode: string;
   active: boolean;
+  deliveryRate?: number;
 };
 
 export default function CouriersPage() {
@@ -48,6 +49,7 @@ export default function CouriersPage() {
   const [phone, setPhone] = useState('');
   const [pinCode, setPinCode] = useState('');
   const [active, setActive] = useState(true);
+  const [deliveryRate, setDeliveryRate] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
   const couriersRef = useMemoFirebase(() => {
@@ -64,12 +66,14 @@ export default function CouriersPage() {
       setPhone(courier.phone);
       setPinCode(courier.pinCode);
       setActive(courier.active ?? true);
+      setDeliveryRate(courier.deliveryRate?.toString() || '');
     } else {
       setEditingCourier(null);
       setName('');
       setPhone('');
       setPinCode(Math.floor(1000 + Math.random() * 9000).toString()); // Gera PIN de 4 dígitos
       setActive(true);
+      setDeliveryRate('');
     }
     setIsDialogOpen(true);
   };
@@ -88,6 +92,7 @@ export default function CouriersPage() {
         phone,
         pinCode,
         active,
+        deliveryRate: parseFloat(deliveryRate) || 0,
       };
 
       if (editingCourier) {
@@ -170,6 +175,7 @@ export default function CouriersPage() {
                 <TableHead>Nome</TableHead>
                 <TableHead>WhatsApp</TableHead>
                 <TableHead>PIN de Acesso</TableHead>
+                <TableHead>Valor/Entrega</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
@@ -187,6 +193,7 @@ export default function CouriersPage() {
                     <TableCell className="font-medium">{courier.name}</TableCell>
                     <TableCell>{courier.phone}</TableCell>
                     <TableCell><code className="bg-muted px-2 py-1 rounded">{courier.pinCode}</code></TableCell>
+                    <TableCell>R$ {courier.deliveryRate?.toFixed(2) || '0.00'}</TableCell>
                     <TableCell>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${courier.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                             {courier.active ? 'Ativo' : 'Inativo'}
@@ -226,6 +233,10 @@ export default function CouriersPage() {
               <Label htmlFor="pin">PIN (Senha de Acesso)</Label>
               <Input id="pin" placeholder="Ex: 1234" value={pinCode} onChange={(e) => setPinCode(e.target.value)} disabled={isSaving} />
               <p className="text-xs text-muted-foreground">O entregador usará o telefone e este PIN para entrar no painel dele.</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="deliveryRate">Valor Fixo por Entrega (R$)</Label>
+              <Input id="deliveryRate" type="number" step="0.01" placeholder="Ex: 5.00" value={deliveryRate} onChange={(e) => setDeliveryRate(e.target.value)} disabled={isSaving} />
             </div>
             <div className="flex items-center justify-between rounded-lg border p-3">
               <Label htmlFor="active" className="cursor-pointer">Entregador Ativo</Label>

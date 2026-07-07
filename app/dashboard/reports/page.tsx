@@ -34,6 +34,7 @@ type Order = {
     courierId?: string;
     courierName?: string;
     deliveryFee?: number;
+    courierEarnedFee?: number;
 }
 
 type Product = {
@@ -222,7 +223,7 @@ export default function ReportsPage() {
                     courierStats[order.courierId] = { name: order.courierName || 'Entregador', deliveries: 0, totalFee: 0 };
                 }
                 courierStats[order.courierId].deliveries += 1;
-                courierStats[order.courierId].totalFee += (order.deliveryFee || 0);
+                courierStats[order.courierId].totalFee += (order.courierEarnedFee !== undefined ? order.courierEarnedFee : (order.deliveryFee || 0));
             }
         });
         const courierData = Object.values(courierStats).sort((a, b) => b.totalFee - a.totalFee);
@@ -358,7 +359,7 @@ export default function ReportsPage() {
                                         <TableRow className="hover:bg-transparent">
                                             <TableHead className="text-xs uppercase">Entregador</TableHead>
                                             <TableHead className="text-xs uppercase text-center">Qtd</TableHead>
-                                            <TableHead className="text-xs uppercase text-right">Taxas</TableHead>
+                                            <TableHead className="text-xs uppercase text-right">Ganhos</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
