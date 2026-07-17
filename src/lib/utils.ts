@@ -54,20 +54,46 @@ export function isStoreOpen(businessHoursStr?: string): { isOpen: boolean; messa
     }
 
     const currentTime = now.getHours() * 60 + now.getMinutes();
-    const [openH, openM] = config.openTime.split(':').map(Number);
-    const [closeH, closeM] = config.closeTime.split(':').map(Number);
 
-    const openMinutes = openH * 60 + openM;
-    const closeMinutes = closeH * 60 + closeM;
+    const checkSlot = (open?: string, close?: string) => {
+        if (!open || !close) return false;
+        
+        const openParts = open.split(':');
+        const closeParts = close.split(':');
+        if (openParts.length !== 2 || closeParts.length !== 2) return false;
 
-    if (closeMinutes < openMinutes) {
-        if (currentTime >= openMinutes || currentTime < closeMinutes) {
+        const openH = parseInt(openParts[0], 10);
+        const openM = parseInt(openParts[1], 10);
+        const closeH = parseInt(closeParts[0], 10);
+        const closeM = parseInt(closeParts[1], 10);
+
+        if (isNaN(openH) || isNaN(openM) || isNaN(closeH) || isNaN(closeM)) return false;
+
+        const openMinutes = openH * 60 + openM;
+        const closeMinutes = closeH * 60 + closeM;
+
+        if (closeMinutes < openMinutes) {
+            // Horário passa da meia-noite
+            return currentTime >= openMinutes || currentTime < closeMinutes;
+        } else {
+            return currentTime >= openMinutes && currentTime < closeMinutes;
+        }
+    };
+
+    if (config.slots && config.slots.length > 0) {
+        // Nova estrutura com múltiplos horários
+        for (const slot of config.slots) {
+            if (checkSlot(slot.openTime, slot.closeTime)) {
+                return { isOpen: true };
+            }
+        }
+        return { isOpen: false };
+    } else if (config.openTime && config.closeTime) {
+        // Estrutura legada de horário único
+        if (checkSlot(config.openTime, config.closeTime)) {
             return { isOpen: true };
         }
-    } else {
-        if (currentTime >= openMinutes && currentTime < closeMinutes) {
-            return { isOpen: true };
-        }
+        return { isOpen: false };
     }
 
     return { isOpen: false };
