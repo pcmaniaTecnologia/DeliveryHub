@@ -404,27 +404,31 @@ const ProductCard = ({ product, userVote, onVote }: { product: Product, userVote
     return (
         <>
             <div
-                className="group relative flex cursor-pointer overflow-hidden rounded-2xl border bg-card p-4 shadow-sm transition-all duration-300 hover:border-primary/40 hover:shadow-md"
+                className="group relative flex cursor-pointer overflow-hidden rounded-[2rem] border-2 border-transparent bg-card p-3 shadow-md transition-all duration-500 hover:border-primary/30 hover:shadow-2xl hover:-translate-y-1"
                 onClick={() => setIsDetailOpen(true)}
             >
                 {product.stockControlEnabled && product.blockIfOutOfStock !== false && (Number(product.stock) || 0) <= 0 && (
-                    <div className="absolute inset-0 z-20 border-4 border-destructive rounded-2xl pointer-events-none" />
+                    <div className="absolute inset-0 z-20 border-4 border-destructive/50 bg-background/50 backdrop-blur-[2px] rounded-[2rem] flex items-center justify-center">
+                         <div className="bg-destructive text-destructive-foreground px-6 py-2 rounded-full font-black text-lg shadow-xl rotate-12 uppercase tracking-widest">Esgotado</div>
+                    </div>
                 )}
                 
-                <div className="flex flex-1 flex-col justify-between pr-4">
+                <div className="flex flex-1 flex-col justify-between p-3 pr-4">
                     <div>
-                        <h3 className="text-base font-bold leading-tight text-foreground">{product.name}</h3>
-                        <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{product.description}</p>
+                        <h3 className="text-lg font-black leading-tight text-foreground group-hover:text-primary transition-colors">{product.name}</h3>
+                        <p className="mt-2 line-clamp-2 text-sm text-muted-foreground font-medium">{product.description}</p>
                     </div>
-                    <div>
-                        <div className="mt-4 flex items-center gap-2">
-                            <span className="font-semibold text-primary">R$ {product.price.toFixed(2)}</span>
-                            {product.isSoldByWeight && (
-                                <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-primary/30 text-primary/70">por Kg</Badge>
-                            )}
-                            {product.stockControlEnabled && product.blockIfOutOfStock !== false && (Number(product.stock) || 0) <= 0 && (
-                                <Badge variant="destructive" className="text-xs font-bold px-2 py-1 animate-pulse">ESGOTADO</Badge>
-                            )}
+                    <div className="pt-4">
+                        <div className="flex items-center justify-between">
+                            <div className="flex flex-col">
+                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">A partir de</span>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-2xl font-black text-primary">R$ {product.price.toFixed(2)}</span>
+                                    {product.isSoldByWeight && (
+                                        <Badge variant="outline" className="text-[10px] py-0 px-2 rounded-full border-primary/30 text-primary bg-primary/5">por Kg</Badge>
+                                    )}
+                                </div>
+                            </div>
                         </div>
                         {onVote && (
                             <ProductVotingBar 
@@ -438,7 +442,11 @@ const ProductCard = ({ product, userVote, onVote }: { product: Product, userVote
                 </div>
 
                 {imageUrl ? (
-                    <div className="relative h-28 w-28 shrink-0 overflow-hidden rounded-xl bg-muted/20">
+                    <div className="relative h-36 w-36 shrink-0 overflow-hidden rounded-3xl bg-muted/20 shadow-inner group-hover:shadow-primary/20 transition-all duration-500">
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent z-10" />
+                        <div className="absolute bottom-2 right-2 z-20 bg-background/90 backdrop-blur-md rounded-full p-1.5 text-primary shadow-sm group-hover:scale-110 group-hover:bg-primary group-hover:text-white transition-all">
+                            <Plus className="h-5 w-5" strokeWidth={3} />
+                        </div>
                         <Image
                             src={imageUrl}
                             alt={product.name}
@@ -637,24 +645,31 @@ export default function MenuPage() {
              <Skeleton className="h-5 w-1/3 mx-auto" />
         </header>
       ) : company ? (
-        <header className="mb-8 pt-6 text-center relative">
-            <div className="absolute inset-0 -top-8 -z-10 h-64 w-full bg-gradient-to-b from-primary/10 to-background opacity-60 pointer-events-none" />
+        <header className="mb-10 text-center relative overflow-hidden rounded-[3rem] bg-gradient-to-br from-primary/10 via-background to-primary/5 p-8 shadow-sm border border-primary/10 mx-auto max-w-4xl mt-4">
+            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03] mix-blend-overlay pointer-events-none" />
+            <div className="absolute -top-24 -right-24 w-64 h-64 bg-primary/20 rounded-full blur-[80px] pointer-events-none" />
+            <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-secondary/20 rounded-full blur-[80px] pointer-events-none" />
             
             {company.logoUrl && (
-                <div className="mx-auto mb-5 h-24 w-24 overflow-hidden rounded-full border-4 border-background shadow-lg">
-                    <Image src={company.logoUrl} alt={`${company.name} logo`} width={96} height={96} className="h-full w-full object-cover" unoptimized />
+                <div className="relative mx-auto mb-6 h-32 w-32">
+                    <div className="absolute inset-0 bg-primary/20 rounded-full blur-xl animate-pulse" />
+                    <div className="relative h-full w-full overflow-hidden rounded-full border-[6px] border-background shadow-2xl">
+                        <Image src={company.logoUrl} alt={`${company.name} logo`} fill className="object-cover" unoptimized />
+                    </div>
                 </div>
             )}
-          <h1 className="text-4xl font-extrabold tracking-tight text-foreground sm:text-5xl bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70 pb-1">{company.name}</h1>
-          <p className="mt-2 text-base font-medium text-muted-foreground">{company.address}</p>
+          <h1 className="relative text-5xl font-black tracking-tighter text-foreground sm:text-6xl bg-clip-text text-transparent bg-gradient-to-r from-primary via-foreground to-primary/80 pb-2 drop-shadow-sm">{company.name}</h1>
+          <p className="relative mt-2 text-lg font-medium text-muted-foreground max-w-xl mx-auto">{company.address}</p>
           
           {company.averagePrepTime && (
-            <div className="mt-5 inline-flex flex-col items-center gap-1 rounded-2xl bg-card px-5 py-2.5 shadow-sm border">
-                <div className="flex items-center gap-2 text-sm font-semibold text-primary">
-                    <Clock className="h-4 w-4"/>
-                    <span>Tempo de Preparo</span>
+            <div className="relative mt-6 inline-flex items-center gap-3 rounded-full bg-background/80 backdrop-blur-md px-6 py-3 shadow-sm border border-primary/20">
+                <div className="flex items-center justify-center bg-primary/10 rounded-full p-2 text-primary">
+                    <Clock className="h-5 w-5"/>
                 </div>
-                <span className="text-xs font-medium text-muted-foreground">~{company.averagePrepTime} minutos</span>
+                <div className="flex flex-col items-start">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground leading-none">Tempo Médio</span>
+                    <span className="text-sm font-black text-foreground">~{company.averagePrepTime} min</span>
+                </div>
             </div>
           )}
         </header>
@@ -668,21 +683,21 @@ export default function MenuPage() {
       <div className="space-y-12 pb-24">
         {/* Search Bar */}
         {!isLoading && (
-            <div className="max-w-2xl mx-auto mb-8 sticky top-20 z-10 md:static">
+            <div className="max-w-2xl mx-auto mb-8 sticky top-20 z-10 md:static px-2">
                 <div className="relative group">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                    <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-6 w-6 text-muted-foreground group-focus-within:text-primary transition-colors" />
                     <Input 
                         placeholder="Buscar pratos ou bebidas..." 
-                        className="pl-12 pr-10 h-14 text-lg rounded-2xl border-2 bg-background/50 backdrop-blur-md shadow-sm transition-all focus:border-primary focus:ring-0" 
+                        className="pl-14 pr-12 h-16 text-lg rounded-[2rem] border-2 border-primary/10 bg-white/80 dark:bg-black/60 backdrop-blur-xl shadow-lg transition-all focus:border-primary focus:shadow-primary/20 focus:ring-4 focus:ring-primary/10" 
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                     />
                     {searchQuery && (
                         <button 
                             onClick={() => setSearchQuery('')}
-                            className="absolute right-4 top-1/2 -translate-y-1/2 h-6 w-6 flex items-center justify-center rounded-full bg-muted hover:bg-muted-foreground/20 transition-colors"
+                            className="absolute right-5 top-1/2 -translate-y-1/2 h-8 w-8 flex items-center justify-center rounded-full bg-muted hover:bg-muted-foreground/20 transition-colors"
                         >
-                            <X className="h-4 w-4" />
+                            <X className="h-5 w-5 text-foreground" />
                         </button>
                     )}
                 </div>
@@ -691,13 +706,13 @@ export default function MenuPage() {
 
         {/* Sticky Category Navbar */}
         {!isLoading && Object.keys(productsByCategory).length > 0 && (
-            <div className="sticky top-0 z-20 -mx-4 mb-8 overflow-x-auto bg-background/80 px-4 py-3 backdrop-blur-xl border-b shadow-sm sm:mx-0 sm:rounded-b-2xl sm:px-6">
-                <div className="flex gap-2 pb-1">
+            <div className="sticky top-0 z-20 -mx-4 mb-10 overflow-x-auto bg-background/60 px-4 py-4 backdrop-blur-2xl border-b border-primary/10 shadow-sm sm:mx-0 sm:rounded-b-[2rem] sm:px-6 scrollbar-hide">
+                <div className="flex gap-3 pb-1">
                     {Object.keys(productsByCategory).map(cat => (
                         <a 
                             key={cat} 
                             href={`#cat-${cat.replace(/\s+/g, '-')}`} 
-                            className="whitespace-nowrap rounded-full bg-muted/60 px-5 py-2 text-sm font-semibold text-muted-foreground transition-all hover:bg-primary hover:text-primary-foreground hover:shadow-md active:scale-95"
+                            className="whitespace-nowrap rounded-full bg-card border border-primary/10 px-6 py-2.5 text-sm font-bold text-foreground transition-all hover:bg-primary hover:text-primary-foreground hover:shadow-lg hover:-translate-y-0.5 hover:border-primary active:scale-95"
                         >
                            {cat}
                         </a>

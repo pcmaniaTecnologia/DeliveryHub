@@ -1,8 +1,7 @@
-
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { Search, Plus, Minus, Trash2, ShoppingCart, User, Smartphone, CreditCard, DollarSign, Landmark, CheckCircle2, Printer, X, Package, Loader2 } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, ShoppingCart, User, Smartphone, CreditCard, DollarSign, Landmark, CheckCircle2, Printer, X, Package, Loader2, Scale } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from '@/components/ui/card';
@@ -92,6 +91,103 @@ export default function POSPage() {
     const [isWeightDialogOpen, setIsWeightDialogOpen] = useState(false);
     const [currentWeight, setCurrentWeight] = useState('1.000');
     const [selectedProductForWeight, setSelectedProductForWeight] = useState<Product | null>(null);
+
+    // Scale State (Web Serial API)
+    const [isScaleConnected, setIsScaleConnected] = useState(false);
+    const scalePortRef = useRef<any>(null);
+    const scaleReaderRef = useRef<any>(null);
+    const keepReadingRef = useRef<boolean>(true);
+
+    const disconnectScale = async () => {
+        keepReadingRef.current = false;
+        try {
+            if (scaleReaderRef.current) {
+                await scaleReaderRef.current.cancel();
+                scaleReaderRef.current = null;
+            }
+            if (scalePortRef.current) {
+                await scalePortRef.current.close();
+                scalePortRef.current = null;
+            }
+        } catch (e) {
+            console.error(e);
+        }
+        setIsScaleConnected(false);
+    };
+
+    const readFromPort = async (port: any) => {
+        try {
+            await port.open({ baudRate: 9600 });
+            scalePortRef.current = port;
+            setIsScaleConnected(true);
+            keepReadingRef.current = true;
+            
+            while (port.readable && keepReadingRef.current) {
+                const reader = port.readable.getReader();
+                scaleReaderRef.current = reader;
+                try {
+                    let buffer = '';
+                    while (true) {
+                        const { value, done } = await reader.read();
+                        if (done) break;
+                        
+                        buffer += new TextDecoder().decode(value);
+                        // Filtra apenas números e pontuações válidas
+                        const match = buffer.match(/\d+[.,]\d{3}/);
+                        if (match) {
+                            setCurrentWeight(match[0].replace(',', '.'));
+                            buffer = ''; // Limpa o buffer após achar um peso
+                        }
+                        if (buffer.length > 50) buffer = buffer.substring(buffer.length - 20); // Impede o buffer de crescer infinitamente
+                    }
+                } catch (error) {
+                    console.error("Erro na leitura serial:", error);
+                } finally {
+                    reader.releaseLock();
+                }
+            }
+        } catch (err) {
+            console.error("Erro ao conectar/ler da porta serial:", err);
+        }
+    };
+
+    const autoConnectScale = async () => {
+        if (!('serial' in navigator)) return;
+        try {
+            // getPorts() retorna as portas que o usuário JÁ deu permissão no passado.
+            // Não exibe popup e pode rodar no carregamento da página.
+            const ports = await (navigator as any).serial.getPorts();
+            if (ports && ports.length > 0) {
+                // Tenta conectar automaticamente na primeira porta salva (a da balança)
+                readFromPort(ports[0]);
+            }
+        } catch (err) {
+            console.error("Erro no auto-connect da balança:", err);
+        }
+    };
+
+    const connectScale = async () => {
+        if (!('serial' in navigator)) {
+            toast({ variant: 'destructive', title: 'Navegador não suportado', description: 'A leitura direta da balança não é suportada no seu navegador. Use Chrome ou Edge no computador.' });
+            return;
+        }
+        try {
+            // requestPort() DEVE ser chamado por um clique do usuário (popup de permissão)
+            const port = await (navigator as any).serial.requestPort();
+            toast({ title: 'Balança Conectada e Salva!' });
+            readFromPort(port);
+        } catch (err) {
+            console.error("Erro ao solicitar porta serial:", err);
+        }
+    };
+
+    useEffect(() => {
+        autoConnectScale();
+        return () => {
+            disconnectScale();
+        };
+    }, []);
+
     const [discount, setDiscount] = useState('0.00');
     const [amountReceived, setAmountReceived] = useState('');
 
@@ -1069,13 +1165,29 @@ export default function POSPage() {
                             <h3 className="text-lg font-bold">{selectedProductForWeight?.name}</h3>
                             <p className="text-primary font-semibold">R$ {selectedProductForWeight?.price.toFixed(2)} / kg</p>
                         </div>
+                        
+                        {!isScaleConnected ? (
+                            <Button 
+                                variant="outline" 
+                                className="w-full max-w-[200px] border-dashed border-primary/50 text-primary hover:bg-primary/5"
+                                onClick={connectScale}
+                            >
+                                🔌 Conectar Balança
+                            </Button>
+                        ) : (
+                            <div className="w-full max-w-[200px] flex items-center justify-center gap-2 bg-emerald-500/10 text-emerald-600 px-4 py-2 rounded-lg font-semibold animate-pulse border border-emerald-500/20">
+                                <span className="h-2 w-2 rounded-full bg-emerald-500"></span> Lendo Balança...
+                            </div>
+                        )}
+
                         <div className="w-full max-w-[200px] relative">
                             <Input
                                 type="text"
-                                className="text-4xl h-20 text-center font-black pr-12"
+                                className={`text-4xl h-20 text-center font-black pr-12 transition-all ${isScaleConnected ? 'bg-emerald-50 border-emerald-200 focus-visible:ring-emerald-500' : ''}`}
                                 value={currentWeight}
                                 onChange={e => setCurrentWeight(e.target.value)}
-                                autoFocus
+                                autoFocus={!isScaleConnected}
+                                readOnly={isScaleConnected}
                                 onKeyPress={e => e.key === 'Enter' && handleWeightConfirm()}
                             />
                             <span className="absolute right-4 top-1/2 -translate-y-1/2 font-bold text-muted-foreground">Kg</span>

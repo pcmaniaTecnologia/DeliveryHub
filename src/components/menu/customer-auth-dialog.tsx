@@ -48,6 +48,7 @@ export function CustomerAuthDialog({ companyId }: { companyId?: string }) {
   const [isLoadingOrders, setIsLoadingOrders] = useState(false);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [hasPopulated, setHasPopulated] = useState(false);
+  const [activeTab, setActiveTab] = useState('dados');
 
   // Load user profile if logged in
   const userProfileRef = useMemoFirebase(() => {
@@ -86,7 +87,7 @@ export function CustomerAuthDialog({ companyId }: { companyId?: string }) {
         // Separar ativos
         const ativos = ordersList.filter(o => {
             const s = String(o.status || '').toLowerCase();
-            return s !== 'concluído' && s !== 'cancelado';
+            return s !== 'concluído' && s !== 'cancelado' && s !== 'entregue';
         });
         
         // Ordenar todos para o histórico
@@ -251,7 +252,8 @@ export function CustomerAuthDialog({ companyId }: { companyId?: string }) {
       case 'preparando': return <Badge variant="secondary" className="bg-yellow-500 text-white">Preparando</Badge>;
       case 'pronto': return <Badge variant="secondary" className="bg-green-500 text-white">Pronto</Badge>;
       case 'saiu para entrega': return <Badge variant="secondary" className="bg-purple-500 text-white">Em Rota</Badge>;
-      case 'concluído': return <Badge variant="secondary" className="bg-emerald-600 text-white">Concluído</Badge>;
+      case 'concluído':
+      case 'entregue': return <Badge variant="secondary" className="bg-emerald-600 text-white">{status}</Badge>;
       case 'cancelado': return <Badge variant="destructive">Cancelado</Badge>;
       default: return <Badge variant="outline">{status}</Badge>;
     }
@@ -314,28 +316,48 @@ export function CustomerAuthDialog({ companyId }: { companyId?: string }) {
 
   if (user && !user.isAnonymous) {
     return (
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogTrigger asChild>
-          <Button variant="outline" size="sm" className="gap-2 rounded-full border-primary/20 text-primary hover:bg-primary hover:text-primary-foreground transition-colors">
-            <User className="h-4 w-4" />
-            Minha Conta
-          </Button>
-        </DialogTrigger>
-        <DialogContent className="sm:max-w-xl h-[85vh] sm:h-auto sm:max-h-[85vh] flex flex-col p-0 overflow-hidden">
-          <DialogHeader className="px-6 py-4 border-b shrink-0">
-            <div className="flex justify-between items-center pr-6">
-                <div>
-                    <DialogTitle className="text-xl">Painel do Cliente</DialogTitle>
-                    <DialogDescription>
-                    Gerencie seus dados e acompanhe seus pedidos.
-                    </DialogDescription>
-                </div>
-            </div>
-          </DialogHeader>
-          
-          <Tabs defaultValue="dados" className="flex-grow flex flex-col min-h-0">
-            <div className="px-6 pt-2 shrink-0">
-                <TabsList className="grid w-full grid-cols-3">
+      <div className="flex items-center gap-2">
+        <Button 
+            variant="default" 
+            size="sm" 
+            className={`gap-1.5 rounded-full font-bold shadow-md transition-all border-0 ${activeOrders.length > 0 ? 'bg-emerald-500 hover:bg-emerald-600 text-white animate-pulse' : 'bg-primary hover:bg-primary/90 text-primary-foreground'}`}
+            onClick={() => {
+                setActiveTab('acompanhar');
+                setIsOpen(true);
+            }}
+        >
+            <Package className="h-4 w-4" />
+            <span className="hidden sm:inline">Acompanhar Pedido</span>
+            <span className="sm:hidden">Acompanhar</span>
+            {activeOrders.length > 0 && (
+                <span className="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-white text-emerald-600 text-[10px] font-black">
+                    {activeOrders.length}
+                </span>
+            )}
+        </Button>
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+          <DialogTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-2 rounded-full border-primary/20 text-primary hover:bg-primary hover:text-primary-foreground transition-colors" onClick={() => setActiveTab('dados')}>
+              <User className="h-4 w-4" />
+              <span className="hidden sm:inline">Minha Conta</span>
+              <span className="sm:hidden">Conta</span>
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-xl h-[85vh] sm:h-auto sm:max-h-[85vh] flex flex-col p-0 overflow-hidden">
+            <DialogHeader className="px-6 py-4 border-b shrink-0">
+              <div className="flex justify-between items-center pr-6">
+                  <div>
+                      <DialogTitle className="text-xl">Painel do Cliente</DialogTitle>
+                      <DialogDescription>
+                      Gerencie seus dados e acompanhe seus pedidos.
+                      </DialogDescription>
+                  </div>
+              </div>
+            </DialogHeader>
+            
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-grow flex flex-col min-h-0">
+              <div className="px-6 pt-2 shrink-0">
+                  <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="dados" className="gap-2 text-xs sm:text-sm"><User className="h-3.5 w-3.5 hidden sm:block" /> Perfil</TabsTrigger>
                 <TabsTrigger value="acompanhar" className="gap-2 text-xs sm:text-sm relative">
                   <Clock className="h-3.5 w-3.5 hidden sm:block" /> Acompanhar
@@ -345,7 +367,7 @@ export function CustomerAuthDialog({ companyId }: { companyId?: string }) {
                 </TabsList>
             </div>
             
-            <ScrollArea className="flex-grow">
+            <div className="flex-grow overflow-y-auto min-h-0">
                 <div className="p-6 pt-4">
                     <TabsContent value="dados" className="mt-0 space-y-4">
                         <form onSubmit={handleUpdateProfile} className="space-y-4">
@@ -502,7 +524,7 @@ export function CustomerAuthDialog({ companyId }: { companyId?: string }) {
                         )}
                     </TabsContent>
                 </div>
-            </ScrollArea>
+            </div>
           </Tabs>
 
           <div className="px-6 py-4 border-t bg-muted/20 shrink-0 flex items-center justify-between">
@@ -513,6 +535,7 @@ export function CustomerAuthDialog({ companyId }: { companyId?: string }) {
           </div>
         </DialogContent>
       </Dialog>
+      </div>
     );
   }
 

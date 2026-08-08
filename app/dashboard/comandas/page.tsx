@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { useImpersonation } from '@/context/impersonation-context';
-import { Loader2, Users, User, Receipt, Clock, CheckCircle2, PlusCircle, Trash2, Plus, Minus, X, Calculator, ShoppingBag, Search, Tag, Wallet, HandCoins, ArrowDownCircle, Banknote, Lock, Printer } from 'lucide-react';
+import { Loader2, Users, User, Receipt, Clock, CheckCircle2, PlusCircle, Trash2, Plus, Minus, X, Calculator, ShoppingBag, Search, Tag, Wallet, HandCoins, ArrowDownCircle, Banknote, Lock, Printer, UtensilsCrossed } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
@@ -803,77 +803,48 @@ export default function ComandasPage() {
                                 <Card 
                                     key={`free-${table.tableNumber}`} 
                                     className={cn(
-                                        "group overflow-hidden transition-all duration-300 border-none shadow-md hover:shadow-xl hover:-translate-y-1 rounded-2xl",
-                                        table.isReserved 
-                                            ? "ring-1 ring-opacity-30" 
-                                            : "bg-gradient-to-br from-emerald-50/50 to-emerald-100/20 ring-1 ring-emerald-100"
+                                        "group relative overflow-hidden transition-all duration-500 border border-slate-200/60 shadow-sm hover:shadow-2xl hover:-translate-y-2 rounded-[2rem] bg-white/80 backdrop-blur-xl",
+                                        table.isReserved ? "ring-2 ring-opacity-50" : ""
                                     )}
-                                    style={table.isReserved ? { 
-                                        backgroundColor: `${themeColors.accent}08`, 
-                                        boxShadow: `0 0 0 1px ${themeColors.accent}33` 
-                                    } : {}}
+                                    style={table.isReserved ? { ringColor: themeColors.accent } : {}}
                                 >
-                                    <div 
-                                        className={cn(
-                                            "px-5 py-4 flex justify-between items-center transition-all duration-500 text-white"
-                                        )}
-                                        style={table.isReserved 
-                                            ? { background: `linear-gradient(to right, ${themeColors.accent}, ${themeColors.accent}ee)` } 
-                                            : { background: `linear-gradient(to right, #10b981, #14b8a6)` }
-                                        }
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <div className="bg-white/20 p-1.5 rounded-lg backdrop-blur-md text-white">
-                                                <Users className="h-5 w-5" />
+                                    <div className="absolute inset-0 bg-gradient-to-b from-white/90 to-white/30 z-0 pointer-events-none" />
+                                    <div className="absolute -right-12 -top-12 w-40 h-40 bg-emerald-400/10 rounded-full blur-3xl group-hover:bg-emerald-400/20 transition-all duration-700" />
+                                    
+                                    <div className="p-6 relative z-10 flex flex-col h-full justify-between">
+                                        <div className="flex justify-between items-start mb-6">
+                                            <div className="flex flex-col">
+                                                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Mesa</span>
+                                                <span className="text-5xl font-black text-slate-800 tracking-tighter drop-shadow-sm">{table.tableNumber}</span>
                                             </div>
-                                            <span className="font-bold text-lg tracking-tight">Mesa {table.tableNumber}</span>
+                                            <div className="h-14 w-14 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-500 shadow-sm ring-1 ring-emerald-100 group-hover:scale-110 group-hover:bg-emerald-500 group-hover:text-white transition-all duration-300">
+                                                <UtensilsCrossed className="h-7 w-7" strokeWidth={2.5} />
+                                            </div>
                                         </div>
-                                        <Badge className={cn(
-                                            "border-none font-bold text-[10px] px-2.5 py-0.5 rounded-full backdrop-blur-md shadow-inner",
-                                            table.isReserved 
-                                                ? "bg-white animate-pulse" 
-                                                : "bg-white/20 text-white"
-                                        )} style={table.isReserved ? { color: themeColors.accent } : {}}>
-                                            {table.isReserved ? 'RESERVADA' : 'LIVRE'}
-                                        </Badge>
-                                    </div>
-                                    <CardContent className="p-6 flex flex-col items-center justify-center min-h-[140px] space-y-4">
-                                         {table.isReserved ? (
-                                             <div className="text-center w-full space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                                                 <div className="space-y-1">
-                                                     <p className="text-[10px] uppercase font-black tracking-[0.2em]" style={{ color: `${themeColors.accent}bb` }}>Cliente</p>
-                                                     <p className="text-lg font-black leading-tight truncate px-2" style={{ color: themeColors.accent }}>{table.reservationName}</p>
-                                                 </div>
-                                                 <Button 
-                                                    variant="ghost" 
-                                                    size="sm" 
-                                                    className="text-destructive hover:text-destructive hover:bg-destructive/10 text-xs font-bold h-8 px-4 rounded-full" 
-                                                    onClick={() => handleCancelReservation(table.tableNumber)}
-                                                 >
-                                                     Liberar Mesa
-                                                 </Button>
-                                             </div>
-                                         ) : (
-                                            <div className="bg-emerald-500/5 p-4 rounded-2xl border border-emerald-500/10 w-full flex flex-col items-center group-hover:bg-emerald-500/10 transition-colors">
-                                                <div className="h-12 w-12 rounded-full bg-emerald-100 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform duration-300">
-                                                    <CheckCircle2 className="h-6 w-6 text-emerald-500" />
+
+                                        <div className="flex-grow flex flex-col items-center justify-center py-4">
+                                            {table.isReserved ? (
+                                                <div className="text-center w-full space-y-2">
+                                                    <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-none px-3 py-1 mb-2 animate-pulse">RESERVADA</Badge>
+                                                    <p className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Cliente</p>
+                                                    <p className="text-lg font-black text-slate-700 truncate">{table.reservationName}</p>
+                                                    <Button variant="ghost" size="sm" className="mt-2 text-destructive hover:bg-destructive/10 rounded-full h-8 px-4 text-xs font-bold" onClick={() => handleCancelReservation(table.tableNumber)}>Liberar</Button>
                                                 </div>
-                                                <p className="text-xs font-semibold text-emerald-600 uppercase tracking-widest">Pronta para uso</p>
-                                            </div>
-                                         )}
-                                         <Button 
-                                            className={cn(
-                                                "w-full h-11 rounded-xl font-bold gap-2 transition-all duration-300 shadow-sm group-hover:shadow-md text-white"
+                                            ) : (
+                                                <div className="flex flex-col items-center opacity-60 group-hover:opacity-100 transition-opacity duration-300">
+                                                    <CheckCircle2 className="h-8 w-8 text-emerald-400 mb-2" strokeWidth={2} />
+                                                    <span className="text-xs font-bold text-emerald-600 tracking-widest uppercase">Livre / Pronta</span>
+                                                </div>
                                             )}
-                                            style={table.isReserved 
-                                                ? { backgroundColor: themeColors.accent } 
-                                                : { backgroundColor: '#10b981' }
-                                            }
+                                        </div>
+
+                                        <Button 
+                                            className="w-full h-12 rounded-2xl font-bold gap-2 bg-slate-900 text-white hover:bg-emerald-500 hover:text-white transition-all duration-300 shadow-md group-hover:shadow-lg mt-4"
                                             onClick={() => router.push(`/waiter/${effectiveCompanyId}/dashboard/menu?table=${table.tableNumber}&admin=true`)}
-                                         >
-                                             <PlusCircle className="h-5 w-5" /> Abrir Comanda
-                                         </Button>
-                                    </CardContent>
+                                        >
+                                            <PlusCircle className="h-5 w-5" /> Abrir Comanda
+                                        </Button>
+                                    </div>
                                 </Card>
                             );
                         }
@@ -886,75 +857,71 @@ export default function ComandasPage() {
                         return (
                             <Card 
                                 key={table.tableNumber} 
-                                className="group overflow-hidden transition-all duration-300 border-none shadow-md hover:shadow-xl hover:-translate-y-1 rounded-2xl cursor-pointer" 
-                                style={{ 
-                                    backgroundColor: `${themeColors.primary}08`, 
-                                    boxShadow: `0 0 0 1px ${themeColors.primary}33` 
-                                }}
+                                className="group relative overflow-hidden transition-all duration-500 border-none shadow-lg hover:shadow-2xl hover:-translate-y-2 rounded-[2rem] cursor-pointer"
                                 onClick={() => setSelectedTable(table)}
                             >
-                                <div 
-                                    className="px-5 py-4 flex justify-between items-center text-white relative overflow-hidden"
-                                    style={{ background: `linear-gradient(to right, ${themeColors.primary}, ${themeColors.primary}ee)` }}
-                                >
-                                    {/* Glass reflection effect */}
-                                    <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out" />
-                                    
-                                    <div className="flex items-center gap-3 relative z-10">
-                                        <div className="bg-white/20 p-1.5 rounded-lg backdrop-blur-md">
-                                            <Users className="h-5 w-5" />
+                                <div className="absolute inset-0 z-0 opacity-95 transition-opacity duration-500 group-hover:opacity-100" style={{ background: `linear-gradient(145deg, ${themeColors.primary}, ${themeColors.primary}cc)` }} />
+                                {/* Abstract glowing shapes for modern depth */}
+                                <div className="absolute -right-12 -top-12 w-48 h-48 bg-white/10 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-1000 ease-out" />
+                                <div className="absolute -left-12 -bottom-12 w-40 h-40 bg-black/20 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-1000 ease-out" />
+                                
+                                <div className="p-6 relative z-10 flex flex-col h-full text-white justify-between">
+                                    <div className="flex justify-between items-start mb-6">
+                                        <div className="flex flex-col">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className="text-xs font-bold text-white/70 uppercase tracking-widest">Mesa</span>
+                                                {table.occupants > 1 && (
+                                                    <span className="text-[10px] font-bold bg-white/20 px-2 py-0.5 rounded-full flex items-center gap-1 backdrop-blur-md shadow-sm">
+                                                        <Users className="w-3 h-3" /> {table.occupants}
+                                                    </span>
+                                                )}
+                                                {table.isReserved && (
+                                                    <span className="text-[10px] font-bold bg-white text-indigo-950 px-2 py-0.5 rounded-full animate-pulse shadow-md">RESERVADA</span>
+                                                )}
+                                            </div>
+                                            <span className="text-5xl font-black tracking-tighter drop-shadow-md">{table.tableNumber}</span>
                                         </div>
-                                        <h3 className="text-xl font-black tracking-tight flex items-center gap-2">
-                                            Mesa {table.tableNumber}
-                                            {table.occupants > 1 && (
-                                                <span className="text-[10px] font-medium bg-white/20 px-1.5 py-0.5 rounded-full flex items-center gap-1">
-                                                    <Users className="w-2.5 h-2.5" /> {table.occupants}
-                                                </span>
-                                            )}
-                                        </h3>
+                                        <div className="h-14 w-14 rounded-2xl bg-white/20 flex items-center justify-center text-white backdrop-blur-md shadow-sm ring-1 ring-white/30 group-hover:rotate-12 group-hover:scale-110 transition-transform duration-500">
+                                            <UtensilsCrossed className="h-7 w-7 drop-shadow-md" strokeWidth={2.5} />
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-2 relative z-10">
-                                        {table.isReserved && (
-                                            <Badge className="bg-white text-indigo-950 border-none text-[9px] h-5 px-2 font-black animate-pulse rounded-full shadow-lg" style={{ color: themeColors.primary }}>RESERVADA</Badge>
-                                        )}
-                                        <Badge className="bg-white/20 text-white border-none backdrop-blur-md px-3 py-1 font-bold text-[10px] uppercase tracking-wider">
-                                            {table.orders.length} {table.orders.length === 1 ? 'Pedido' : 'Pedidos'}
-                                        </Badge>
+
+                                    <div className="space-y-4 flex-grow py-2">
+                                        <div className="flex items-center gap-2 text-white/90 bg-black/15 w-fit px-3 py-1.5 rounded-full backdrop-blur-sm shadow-inner">
+                                            <Clock className="h-3.5 w-3.5" />
+                                            <span className="text-[10px] font-bold uppercase tracking-widest">Há {minsOpen} min</span>
+                                        </div>
+                                        
+                                        <div>
+                                            <p className="text-[10px] uppercase font-bold tracking-widest text-white/50 mb-1">Cliente / Detalhes</p>
+                                            <p className={`text-base font-bold leading-tight line-clamp-2 ${table.customerNameFromMeta ? '' : (customersArray.length > 0 ? '' : 'italic text-white/60 font-medium')}`}>
+                                                {table.customerNameFromMeta || (customersArray.length > 0 ? customersArray.join(', ') : "Em consumo")}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="mt-4 pt-4 border-t border-white/20 flex items-end justify-between">
+                                        <div className="flex flex-col gap-2">
+                                            <div className="flex flex-wrap gap-1 max-w-[120px]">
+                                                {waitersArray.map((w: any) => (
+                                                    <Badge key={w} variant="secondary" className="bg-white/20 hover:bg-white/30 text-white border-none text-[9px] font-bold py-0.5 px-2 h-5 backdrop-blur-md shadow-sm">
+                                                        {w}
+                                                    </Badge>
+                                                ))}
+                                            </div>
+                                            <Badge className="bg-black/10 hover:bg-black/20 text-white border-white/20 backdrop-blur-md px-2 py-0.5 font-bold text-[9px] uppercase tracking-wider w-fit shadow-inner">
+                                                {table.orders.length} {table.orders.length === 1 ? 'Pedido' : 'Pedidos'}
+                                            </Badge>
+                                        </div>
+                                        
+                                        <div className="text-right">
+                                            <p className="text-[10px] uppercase font-bold tracking-widest text-white/60 mb-0.5">Total</p>
+                                            <p className="text-3xl font-black tracking-tighter drop-shadow-md">
+                                                <span className="text-sm font-bold mr-1 opacity-80">R$</span>{table.totalAmount.toFixed(2)}
+                                            </p>
+                                        </div>
                                     </div>
                                 </div>
-                                <CardContent className="p-5 flex flex-col space-y-4">
-                                    <div className="flex justify-between items-start pb-1">
-                                        <div className="space-y-1.5">
-                                            <div className="flex items-center gap-2" style={{ color: themeColors.primary }}>
-                                                <Clock className="h-4 w-4" />
-                                                <span className="text-xs font-bold uppercase tracking-wider">Há {minsOpen} min</span>
-                                            </div>
-                                            <p className={`text-sm font-black line-clamp-1 ${table.customerNameFromMeta ? '' : (customersArray.length > 0 ? '' : 'italic opacity-50')}`} style={{ color: themeColors.primary }}>
-                                                {table.customerNameFromMeta || (customersArray.length > 0 ? customersArray.join(', ') : "Mesa em consumo")}
-                                            </p>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="text-[10px] uppercase font-black tracking-widest leading-none mb-1 opacity-50" style={{ color: themeColors.primary }}>Total</p>
-                                            <p className="text-2xl font-black tracking-tighter leading-none" style={{ color: themeColors.primary }}>
-                                                <span className="text-xs font-bold mr-0.5">R$</span>{table.totalAmount.toFixed(2)}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    
-                                    <div className="pt-2 border-t flex flex-wrap gap-1.5" style={{ borderColor: `${themeColors.primary}33` }}>
-                                        {waitersArray.map((w: any) => (
-                                            <Badge key={w} variant="secondary" className="border-none text-[9px] font-bold py-0 h-5" style={{ backgroundColor: `${themeColors.primary}15`, color: themeColors.primary }}>
-                                                {w}
-                                            </Badge>
-                                        ))}
-                                    </div>
-                                    
-                                    <div className="pt-1">
-                                        <Button variant="outline" className="w-full h-10 rounded-xl font-bold text-xs transition-all" style={{ borderColor: `${themeColors.primary}88`, color: themeColors.primary }}>
-                                            Gerenciar Mesa
-                                        </Button>
-                                    </div>
-                                </CardContent>
                             </Card>
                         );
                     })}
