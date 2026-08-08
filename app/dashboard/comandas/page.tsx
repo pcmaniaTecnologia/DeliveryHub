@@ -806,7 +806,7 @@ export default function ComandasPage() {
                                         "group relative overflow-hidden transition-all duration-500 border border-slate-200/60 shadow-sm hover:shadow-2xl hover:-translate-y-2 rounded-[2rem] bg-white/80 backdrop-blur-xl",
                                         table.isReserved ? "ring-2 ring-opacity-50" : ""
                                     )}
-                                    style={table.isReserved ? { ringColor: themeColors.accent } : {}}
+                                    style={table.isReserved && themeColors?.accent ? { '--tw-ring-color': themeColors.accent } as React.CSSProperties : {}}
                                 >
                                     <div className="absolute inset-0 bg-gradient-to-b from-white/90 to-white/30 z-0 pointer-events-none" />
                                     <div className="absolute -right-12 -top-12 w-40 h-40 bg-emerald-400/10 rounded-full blur-3xl group-hover:bg-emerald-400/20 transition-all duration-700" />
