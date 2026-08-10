@@ -117,10 +117,11 @@ export default function PayablesPage() {
         }
 
         if (dateRange?.from) {
+            const fromDate = dateRange.from;
+            const toDate = dateRange.to || fromDate;
             filtered = filtered.filter(p => {
                 const date = p.dueDate?.toDate ? p.dueDate.toDate() : new Date(p.dueDate);
-                const toDate = dateRange.to || dateRange.from;
-                return isWithinInterval(date, { start: startOfDay(dateRange.from), end: endOfDay(toDate) });
+                return isWithinInterval(date, { start: startOfDay(fromDate), end: endOfDay(toDate) });
             });
         }
 

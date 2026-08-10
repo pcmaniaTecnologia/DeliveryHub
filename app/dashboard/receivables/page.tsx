@@ -98,9 +98,10 @@ export default function ReceivablesPage() {
             }
 
             if (dateRange?.from) {
+                const fromDate = dateRange.from;
                 const date = r.createdAt?.toDate ? r.createdAt.toDate() : new Date();
-                const toDate = dateRange.to || dateRange.from;
-                if (!isWithinInterval(date, { start: startOfDay(dateRange.from), end: endOfDay(toDate) })) {
+                const toDate = dateRange.to || fromDate;
+                if (!isWithinInterval(date, { start: startOfDay(fromDate), end: endOfDay(toDate) })) {
                     return false;
                 }
             }
