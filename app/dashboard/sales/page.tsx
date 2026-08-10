@@ -83,10 +83,15 @@ export default function POSPage() {
     const [isHistoryOpen, setIsHistoryOpen] = useState(false);
     const [recentOrders, setRecentOrders] = useState<any[]>([]);
     const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+    const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+    const [isCanceling, setIsCanceling] = useState(false);
+    const [orderToCancel, setOrderToCancel] = useState<any>(null);
 
     // Checkout State
     const [customerName, setCustomerName] = useState('Consumidor');
     const [customerPhone, setCustomerPhone] = useState('');
+    const [customerAddress, setCustomerAddress] = useState('');
+    const [customerEmail, setCustomerEmail] = useState('');
     const [paymentMethod, setPaymentMethod] = useState('Dinheiro');
     const [isWeightDialogOpen, setIsWeightDialogOpen] = useState(false);
     const [currentWeight, setCurrentWeight] = useState('1.000');
@@ -338,6 +343,21 @@ export default function POSPage() {
 
         setIsSubmitting(true);
 
+        // Validation for Crediário
+        const hasCrediario = isMultiPayment ? payments.some(p => p.method === 'Crediário') : paymentMethod === 'Crediário';
+        if (hasCrediario) {
+            if (!customerName || customerName.trim() === 'Consumidor') {
+                toast({ variant: 'destructive', title: 'Nome Obrigatório', description: 'Para vendas no crediário, informe o nome do cliente.' });
+                setIsSubmitting(false);
+                return;
+            }
+            if (!customerAddress || customerAddress.trim() === '') {
+                toast({ variant: 'destructive', title: 'Endereço Obrigatório', description: 'Para vendas no crediário, informe o endereço do cliente.' });
+                setIsSubmitting(false);
+                return;
+            }
+        }
+
         try {
             const ordersRef = collection(firestore, 'companies', effectiveCompanyId as string, 'orders');
 
@@ -383,10 +403,34 @@ export default function POSPage() {
 
             const docRef = await addDocument(ordersRef, orderData);
 
+            // Handle Crediário Generation
+            if (hasCrediario) {
+                const crediarioAmount = isMultiPayment 
+                    ? payments.filter(p => p.method === 'Crediário').reduce((acc, p) => acc + p.amount, 0)
+                    : totalWithDiscount;
+
+                const receivablesRef = collection(firestore, 'companies', effectiveCompanyId as string, 'receivables');
+                await addDocument(receivablesRef, {
+                    companyId: effectiveCompanyId,
+                    customerName: customerName.trim(),
+                    customerPhone: customerPhone.trim(),
+                    customerAddress: customerAddress.trim(),
+                    customerEmail: customerEmail.trim(),
+                    originalAmount: crediarioAmount,
+                    remainingAmount: crediarioAmount,
+                    status: 'pendente',
+                    dueDate: new Date(new Date().setMonth(new Date().getMonth() + 1)), // Vence em 1 mês por padrão
+                    createdAt: serverTimestamp(),
+                    originOrderId: docRef.id,
+                    notes: 'Venda via PDV'
+                });
+            }
+
             try {
                 if (isMultiPayment && payments.length > 0) {
                     // Para pagamentos múltiplos, registra uma transação para cada método
                     for (const p of payments) {
+                        if (p.method === 'Crediário') continue; // Não entra no caixa agora
                         const result = await recordCashierSale(
                             firestore,
                             effectiveCompanyId as string,
@@ -402,28 +446,30 @@ export default function POSPage() {
                         }
                     }
                 } else {
-                    // Pagamento único
-                    const result = await recordCashierSale(
-                        firestore,
-                        effectiveCompanyId as string,
-                        totalWithDiscount,
-                        `Venda de Balcão #${docRef.id.substring(0, 6).toUpperCase()}`,
-                        docRef.id,
-                        fullPaymentMethod
-                    );
+                    if (paymentMethod !== 'Crediário') {
+                        // Pagamento único
+                        const result = await recordCashierSale(
+                            firestore,
+                            effectiveCompanyId as string,
+                            totalWithDiscount,
+                            `Venda de Balcão #${docRef.id.substring(0, 6).toUpperCase()}`,
+                            docRef.id,
+                            fullPaymentMethod
+                        );
 
-                    if (result && result.success) {
-                        if (result.sessionId) {
-                            const orderRef = doc(firestore, 'companies', effectiveCompanyId as string, 'orders', docRef.id);
-                            await updateDocument(orderRef, { sessionId: result.sessionId });
+                        if (result && result.success) {
+                            if (result.sessionId) {
+                                const orderRef = doc(firestore, 'companies', effectiveCompanyId as string, 'orders', docRef.id);
+                                await updateDocument(orderRef, { sessionId: result.sessionId });
+                            }
+                        } else {
+                            console.warn('Venda não vinculada ao caixa (caixa pode estar fechado)');
+                            toast({
+                                variant: 'destructive',
+                                title: "Aviso de Caixa",
+                                description: "A venda foi salva, mas não foi possível vincular ao caixa (verifique se há um caixa aberto)."
+                            });
                         }
-                    } else {
-                        console.warn('Venda não vinculada ao caixa (caixa pode estar fechado)');
-                        toast({
-                            variant: 'destructive',
-                            title: "Aviso de Caixa",
-                            description: "A venda foi salva, mas não foi possível vincular ao caixa (verifique se há um caixa aberto)."
-                        });
                     }
                 }
             } catch (cashierError) {
@@ -456,12 +502,14 @@ export default function POSPage() {
                 }
             }
 
-            setLastOrder({ ...orderData, id: docRef.id });
+            setLastOrder({ ...orderData, id: docRef.id, originalCartForRefund: cart, hasCrediario });
             setCart([]);
             setIsCheckoutOpen(false);
             setIsSuccessOpen(true);
             setCustomerName('Consumidor');
             setCustomerPhone('');
+            setCustomerAddress('');
+            setCustomerEmail('');
             setPaymentMethod('Dinheiro');
             setDiscount('0.00');
             setAmountReceived('');
@@ -472,7 +520,8 @@ export default function POSPage() {
 
             toast({ title: "Venda Finalizada!", description: "O pedido foi registrado com sucesso." });
         } catch (e) {
-            toast({ variant: 'destructive', title: "Erro ao finalizar venda" });
+            console.error('Erro detalhado ao finalizar venda:', e);
+            toast({ variant: 'destructive', title: "Erro ao finalizar venda", description: e instanceof Error ? e.message : "Tente novamente ou contate o suporte." });
         } finally {
             setIsSubmitting(false);
         }
@@ -482,28 +531,111 @@ export default function POSPage() {
         if (!firestore || !effectiveCompanyId) return;
         setIsLoadingHistory(true);
         try {
-            const ordersRef = collection(firestore, 'companies', effectiveCompanyId, 'orders');
-            // Nota: Ordenação descendente requer índice. Se falhar, usaremos getDocs simples.
+            const ordersRef = collection(firestore, `companies/${effectiveCompanyId}/orders`);
             const q = query(
                 ordersRef,
                 where('origin', '==', 'PDV'),
-                limit(20)
+                limit(10)
             );
-            const querySnapshot = await getDocs(q);
-            const orders = querySnapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            })).sort((a: any, b: any) => {
-                const dateA = a.orderDate?.toDate?.() || new Date(0);
-                const dateB = b.orderDate?.toDate?.() || new Date(0);
-                return dateB.getTime() - dateA.getTime();
+            const snap = await getDocs(q);
+            const orders = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            
+            orders.sort((a: any, b: any) => {
+                const dateA = a.orderDate?.toMillis?.() || 0;
+                const dateB = b.orderDate?.toMillis?.() || 0;
+                return dateB - dateA;
             });
+
             setRecentOrders(orders);
-        } catch (error) {
-            console.error("Erro ao buscar histórico:", error);
-            toast({ variant: 'destructive', title: "Erro ao carregar histórico" });
+        } catch (e) {
+            console.error('Erro ao buscar histórico:', e);
+            toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível buscar as vendas recentes.' });
         } finally {
             setIsLoadingHistory(false);
+        }
+    };
+
+    const handleCancelSale = async () => {
+        const order = orderToCancel || lastOrder;
+        if (!firestore || !user || !order) return;
+        setIsCanceling(true);
+
+        try {
+            const orderDocRef = doc(firestore, `companies/${effectiveCompanyId}/orders`, order.id);
+            await updateDocument(orderDocRef, { status: 'Cancelado' });
+
+            // 1. Estorno de Estoque
+            // Usa o carrinho original se for a última venda, senão avalia os itens salvos buscando no productsData
+            const itemsToRefund = order.originalCartForRefund 
+                ? order.originalCartForRefund 
+                : order.orderItems?.map((item: any) => {
+                    const productDef = productsData?.find(p => p.id === item.productId);
+                    return {
+                        product: {
+                            id: item.productId,
+                            stockControlEnabled: productDef?.stockControlEnabled || false,
+                        },
+                        quantity: item.quantity
+                    };
+                }) || [];
+
+            const stockItems = itemsToRefund
+                .filter((item: any) => item.product?.stockControlEnabled)
+                .map((item: any) => ({ productId: item.product.id, quantity: item.quantity }));
+
+            if (stockItems.length > 0) {
+                await Promise.all(stockItems.map((item: any) => {
+                    const productRef = doc(firestore, 'companies', effectiveCompanyId as string, 'products', item.productId);
+                    return updateDocument(productRef, { stock: increment(item.quantity) });
+                }));
+            }
+
+            // 2. Extorno de Caixa
+            // Verifica se a venda teve pagamentos pelo array payments ou pelo paymentMethod direto
+            const paymentsToRefund = order.payments || (order.paymentMethod ? [{ method: order.paymentMethod, amount: order.totalAmount }] : []);
+
+            if (paymentsToRefund.length > 0) {
+                for (const p of paymentsToRefund) {
+                    if (p.method === 'Crediário') continue; 
+                    await recordCashierSale(
+                        firestore,
+                        effectiveCompanyId as string,
+                        p.amount,
+                        `Extorno Venda #${order.id.substring(0, 6).toUpperCase()} (${p.method})`,
+                        order.id,
+                        p.method,
+                        'withdrawal'
+                    );
+                }
+            }
+
+            // 3. Cancelar Crediário
+            const isCrediario = order.hasCrediario || paymentsToRefund.some((p: any) => p.method === 'Crediário');
+            if (isCrediario) {
+                const receivablesRef = collection(firestore, `companies/${effectiveCompanyId}/receivables`);
+                const q = query(receivablesRef, where('originOrderId', '==', order.id), limit(1));
+                const snap = await getDocs(q);
+                if (!snap.empty) {
+                    const receivableDoc = snap.docs[0];
+                    const recRef = doc(firestore, `companies/${effectiveCompanyId}/receivables`, receivableDoc.id);
+                    await updateDocument(recRef, { status: 'cancelado' });
+                }
+            }
+
+            toast({ title: 'Venda Cancelada', description: 'O estoque foi reposto e o valor estornado no caixa.' });
+            setIsCancelDialogOpen(false);
+            setIsSuccessOpen(false); 
+            setOrderToCancel(null);
+            
+            // Atualiza histórico se estiver aberto
+            if (isHistoryOpen) {
+                fetchRecentOrders();
+            }
+        } catch (error) {
+            console.error('Erro ao cancelar venda:', error);
+            toast({ variant: 'destructive', title: 'Erro', description: 'Houve um erro ao cancelar a venda.' });
+        } finally {
+            setIsCanceling(false);
         }
     };
 
@@ -884,12 +1016,25 @@ export default function POSPage() {
                                         value={customerName}
                                         onChange={e => setCustomerName(e.target.value)}
                                         placeholder="Ex: Consumidor"
+                                        className={paymentMethod === 'Crediário' && !customerName ? 'border-destructive' : ''}
                                     />
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="cust-phone" className="text-xs text-muted-foreground">WhatsApp</Label>
                                     <Input id="cust-phone" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} placeholder="(99) 99999-9999" />
                                 </div>
+                                {(paymentMethod === 'Crediário' || payments.some(p => p.method === 'Crediário')) && (
+                                    <>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="cust-address" className="text-xs text-muted-foreground">Endereço (Obrigatório para Crediário)</Label>
+                                            <Input id="cust-address" value={customerAddress} onChange={e => setCustomerAddress(e.target.value)} placeholder="Rua, Número, Bairro" />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="cust-email" className="text-xs text-muted-foreground">E-mail</Label>
+                                            <Input id="cust-email" type="email" value={customerEmail} onChange={e => setCustomerEmail(e.target.value)} placeholder="cliente@email.com" />
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         </div>
 
@@ -980,6 +1125,16 @@ export default function POSPage() {
                                             <span className="text-xs">C. Débito</span>
                                         </Label>
                                     </div>
+                                    <div>
+                                        <RadioGroupItem value="Crediário" id="crediario" className="peer sr-only" />
+                                        <Label
+                                            htmlFor="crediario"
+                                            className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                                        >
+                                            <User className="mb-2 h-5 w-5" />
+                                            <span className="text-xs">Crediário</span>
+                                        </Label>
+                                    </div>
                                 </RadioGroup>
                             ) : (
                                 <div className="space-y-3">
@@ -999,6 +1154,7 @@ export default function POSPage() {
                                                     <option value="PIX">PIX</option>
                                                     <option value="Cartão de Crédito">C. Crédito</option>
                                                     <option value="Cartão de Débito">C. Débito</option>
+                                                    <option value="Crediário">Crediário/Fiado</option>
                                                 </select>
                                                 <Input
                                                     type="number"
@@ -1141,9 +1297,14 @@ export default function POSPage() {
                     </div>
 
                     <DialogFooter className="flex-col gap-2 sm:flex-col">
-                        <Button onClick={handlePrint} className="w-full gap-2 bg-black hover:bg-gray-800">
-                            <Printer className="h-4 w-4" /> Imprimir Cupom
-                        </Button>
+                        <div className="flex w-full gap-2">
+                            <Button onClick={handlePrint} className="flex-1 gap-2 bg-black hover:bg-gray-800">
+                                <Printer className="h-4 w-4" /> Imprimir Cupom
+                            </Button>
+                            <Button variant="destructive" onClick={() => { setOrderToCancel(null); setIsCancelDialogOpen(true); }} className="flex-1 gap-2" title="Cancelar Venda">
+                                <Trash2 className="h-4 w-4" /> Cancelar Venda
+                            </Button>
+                        </div>
                         <Button variant="outline" onClick={() => setIsSuccessOpen(false)} className="w-full">
                             Nova Venda
                         </Button>
@@ -1225,17 +1386,25 @@ export default function POSPage() {
                                     <div key={order.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/30 transition-colors">
                                         <div className="flex-1">
                                             <div className="flex items-center gap-2">
-                                                <span className="font-bold text-sm">#{order.id.substring(0, 8).toUpperCase()}</span>
+                                                <span className={`font-bold text-sm ${order.status === 'Cancelado' ? 'line-through text-muted-foreground' : ''}`}>#{order.id.substring(0, 8).toUpperCase()}</span>
+                                                {order.status === 'Cancelado' && <Badge variant="destructive" className="text-[10px] h-4 px-1 py-0">Cancelada</Badge>}
                                                 <Badge variant="outline" className="text-[10px]">{order.orderDate?.toDate ? order.orderDate.toDate().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'Sem data'}</Badge>
                                             </div>
-                                            <p className="text-xs text-muted-foreground mt-1">
-                                                <span className="font-medium text-foreground">{order.customerName}</span> • 
+                                            <p className={`text-xs mt-1 ${order.status === 'Cancelado' ? 'text-muted-foreground/50' : 'text-muted-foreground'}`}>
+                                                <span className={`font-medium ${order.status === 'Cancelado' ? '' : 'text-foreground'}`}>{order.customerName}</span> • 
                                                 R$ {order.totalAmount.toFixed(2)} • {order.paymentMethod?.split('|')[0] || order.paymentMethod}
                                             </p>
                                         </div>
-                                        <Button variant="outline" size="icon" onClick={() => handlePrint(order)} className="h-9 w-9" title="Imprimir Cupom">
-                                            <Printer className="h-4 w-4" />
-                                        </Button>
+                                        <div className="flex gap-2">
+                                            <Button variant="outline" size="icon" onClick={() => handlePrint(order)} className="h-9 w-9" title="Imprimir Cupom">
+                                                <Printer className="h-4 w-4" />
+                                            </Button>
+                                            {order.status !== 'Cancelado' && (
+                                                <Button variant="outline" size="icon" className="h-9 w-9 text-destructive border-destructive/20 hover:bg-destructive/10" onClick={() => { setOrderToCancel(order); setIsCancelDialogOpen(true); }} title="Cancelar Venda">
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            )}
+                                        </div>
                                     </div>
                                 ))}
                             </div>
@@ -1245,6 +1414,25 @@ export default function POSPage() {
                             </div>
                         )}
                     </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Cancel Confirmation Dialog */}
+            <Dialog open={isCancelDialogOpen} onOpenChange={(open) => { setIsCancelDialogOpen(open); if (!open) setOrderToCancel(null); }}>
+                <DialogContent className="sm:max-w-[400px]">
+                    <DialogHeader>
+                        <DialogTitle>Cancelar Venda</DialogTitle>
+                        <DialogDescription>
+                            Tem certeza que deseja cancelar a venda #{(orderToCancel?.id || lastOrder?.id)?.substring(0, 8).toUpperCase()}? O estoque será reposto e o valor será estornado do caixa se aplicável. Esta ação não pode ser desfeita.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter className="gap-2 sm:gap-0 mt-4">
+                        <Button variant="outline" onClick={() => setIsCancelDialogOpen(false)} disabled={isCanceling}>Voltar</Button>
+                        <Button variant="destructive" onClick={handleCancelSale} disabled={isCanceling}>
+                            {isCanceling ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
+                            Confirmar Cancelamento
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
         </div>

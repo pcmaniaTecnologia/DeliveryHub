@@ -11,7 +11,7 @@ import {
 import { addDocument, updateDocument } from '@/firebase';
 
 /**
- * Records a sale in the currently open cashier session if one exists.
+ * Records a transaction in the currently open cashier session if one exists.
  */
 export async function recordCashierSale(
     firestore: any,
@@ -19,11 +19,12 @@ export async function recordCashierSale(
     amount: number | string,
     description: string,
     orderId?: string,
-    paymentMethod?: string
+    paymentMethod?: string,
+    type: 'sale' | 'deposit' | 'withdrawal' = 'sale'
 ) {
     const numericAmount = Number(amount);
     if (!firestore || !companyId || isNaN(numericAmount)) {
-        console.error('[Cashier] Invalid sale data:', { companyId, amount });
+        console.error('[Cashier] Invalid transaction data:', { companyId, amount });
         return false;
     }
 
@@ -39,7 +40,7 @@ export async function recordCashierSale(
             const transactionsRef = collection(firestore, 'companies', companyId, 'cashier_transactions');
             await addDocument(transactionsRef, {
                 sessionId,
-                type: 'sale',
+                type: type,
                 amount: amount,
                 description: description,
                 timestamp: serverTimestamp(),
@@ -48,16 +49,24 @@ export async function recordCashierSale(
             });
 
             const sessDocRef = doc(firestore, 'companies', companyId, 'cashier_sessions', sessionId);
-            await updateDocument(sessDocRef, {
-                totalSales: increment(numericAmount)
-            });
+            
+            if (type === 'sale') {
+                await updateDocument(sessDocRef, {
+                    totalSales: increment(numericAmount)
+                });
+            } else if (type === 'withdrawal') {
+                await updateDocument(sessDocRef, {
+                    totalWithdrawals: increment(numericAmount)
+                });
+            }
+            // deposits are calculated dynamically or added if needed
 
             return { success: true, sessionId };
         }
 
         return { success: false };
     } catch (error) {
-        console.error('[Cashier] Error recording sale:', error);
+        console.error('[Cashier] Error recording transaction:', error);
         return { success: false };
     }
 }
@@ -68,13 +77,14 @@ export type SalesByPaymentMethod = {
     credit: number;
     debit: number;
     others: number;
+    crediario: number;
 };
 
 /**
  * Internal helper to normalize and categorize payment methods.
  * High-precision version for DeliveryHub.
  */
-function categorizePayment(method: string): 'cash' | 'pix' | 'credit' | 'debit' | null {
+export function categorizePayment(method: string): 'cash' | 'pix' | 'credit' | 'debit' | 'crediario' | null {
     if (!method) return null;
 
     const n = method
@@ -137,7 +147,17 @@ function categorizePayment(method: string): 'cash' | 'pix' | 'credit' | 'debit' 
         return 'credit';
     }
 
-    // 5. CARTÃO GENÉRICO
+    // 5. CREDIÁRIO / FIADO
+    if (
+        n.includes('crediario') ||
+        n.includes('fiado') ||
+        n.includes('receber') ||
+        n === 'cred'
+    ) {
+        return 'crediario';
+    }
+
+    // 6. CARTÃO GENÉRICO
     if (n.includes('cartao') || n.startsWith('c.') || n.startsWith('cart')) {
         if (n.includes('deb')) return 'debit';
         if (n.includes('cre')) return 'credit';
@@ -152,7 +172,7 @@ function categorizePayment(method: string): 'cash' | 'pix' | 'credit' | 'debit' 
  * Priority: uses `order.payments` array if present, falls back to parsing `order.paymentMethod` string.
  */
 export function parseSalesByPaymentMethod(orders: any[]): SalesByPaymentMethod {
-    const acc: SalesByPaymentMethod = { cash: 0, pix: 0, credit: 0, debit: 0, others: 0 };
+    const acc: SalesByPaymentMethod = { cash: 0, pix: 0, credit: 0, debit: 0, others: 0, crediario: 0 };
 
     orders.forEach((order: any) => {
         if (order.status === 'Cancelado') return;

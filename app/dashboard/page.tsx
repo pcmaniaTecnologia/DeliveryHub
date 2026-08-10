@@ -39,7 +39,7 @@ import { cn } from '@/lib/utils';
 import { Calendar } from '@/components/ui/calendar';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { parseSalesByPaymentMethod } from '@/lib/finance-utils';
+import { parseSalesByPaymentMethod, categorizePayment } from '@/lib/finance-utils';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -179,6 +179,17 @@ export default function DashboardPage() {
   const { data: openSessions } = useCollection<CashSession>(openSessionRef);
   const currentCashSession = openSessions?.[0] ?? null;
 
+  // ── Cashier Transactions ────────────────────────────────────────────────
+  const transactionsRef = useMemoFirebase(() => {
+    if (!firestore || !user?.uid) return null;
+    let collRef = collection(firestore, `companies/${user.uid}/cashier_transactions`);
+    if (currentCashSession) {
+       return query(collRef, where('sessionId', '==', currentCashSession.id));
+    }
+    return query(collRef);
+  }, [firestore, user?.uid, currentCashSession]);
+  const { data: rawTransactions } = useCollection<any>(transactionsRef);
+
   // ── Modal State: Sangria ────────────────────────────────────────────────
   const [isSangriaOpen, setIsSangriaOpen] = useState(false);
   const [sangriaAmount, setSangriaAmount] = useState('');
@@ -306,12 +317,12 @@ export default function DashboardPage() {
   // ── Data Calculations ───────────────────────────────────────────────────
 
   const {
-    totalSales, totalOrders, avgTicket, pendingOrders, deliveryCustomers,
+    totalSales, totalDeposits, totalWithdrawals, totalOrders, avgTicket, pendingOrders, deliveryCustomers,
     salesChartData, recentOrdersWithDetails, salesByPaymentMethod,
     topProducts, lowStockProducts
   } = useMemo(() => {
     const empty = {
-      totalSales: 0, totalOrders: 0, avgTicket: 0, pendingOrders: 0,
+      totalSales: 0, totalDeposits: 0, totalWithdrawals: 0, totalOrders: 0, avgTicket: 0, pendingOrders: 0,
       deliveryCustomers: 0,
       salesChartData: [], recentOrdersWithDetails: [],
       salesByPaymentMethod: { cash: 0, pix: 0, credit: 0, debit: 0 },
@@ -341,6 +352,39 @@ export default function DashboardPage() {
     ).size;
 
     const salesByPaymentMethod = parseSalesByPaymentMethod(successfulOrders);
+    
+    let totalDeposits = 0;
+    let totalWithdrawals = 0;
+    if (rawTransactions) {
+        const transactions = rawTransactions.filter(t => {
+            if (currentCashSession) return t.sessionId === currentCashSession.id;
+            if (!dateRange?.from) return false;
+            const tDate = t.timestamp?.toDate ? t.timestamp.toDate() : new Date();
+            const toDate = dateRange.to || dateRange.from;
+            return isWithinInterval(tDate, { start: dateRange.from, end: toDate });
+        });
+
+        transactions.forEach(t => {
+            const val = Number(t.amount) || 0;
+            const cat = categorizePayment(t.paymentMethod || 'Dinheiro') || 'others';
+            
+            if (t.type === 'deposit') {
+                totalDeposits += val;
+                if (salesByPaymentMethod[cat] !== undefined) {
+                    salesByPaymentMethod[cat] += val;
+                } else {
+                    salesByPaymentMethod.others += val;
+                }
+            } else if (t.type === 'withdrawal') {
+                totalWithdrawals += val;
+                if (salesByPaymentMethod[cat] !== undefined) {
+                    salesByPaymentMethod[cat] -= val;
+                } else {
+                    salesByPaymentMethod.others -= val;
+                }
+            }
+        });
+    }
 
     const salesChartData = Array.from({ length: 7 }).map((_, i) => {
       const date = subDays(new Date(), i);
@@ -381,8 +425,8 @@ export default function DashboardPage() {
         }))
         .slice(0, 5);
 
-    return { totalSales, totalOrders, avgTicket, pendingOrders, deliveryCustomers, salesChartData, recentOrdersWithDetails, salesByPaymentMethod, topProducts, lowStockProducts };
-  }, [orders, products, categories, dateRange]);
+    return { totalSales, totalDeposits, totalWithdrawals, totalOrders, avgTicket, pendingOrders, deliveryCustomers, salesChartData, recentOrdersWithDetails, salesByPaymentMethod, topProducts, lowStockProducts };
+  }, [orders, products, categories, dateRange, rawTransactions, currentCashSession]);
 
   const isLoading = isUserLoading || isLoadingOrders || isLoadingAdmin || isLoadingProducts;
 
@@ -530,9 +574,27 @@ export default function DashboardPage() {
                 <span className="font-semibold text-right">R$ {salesByPaymentMethod.debit.toFixed(2)}</span>
               </div>
               <Separator />
-              <div className="flex justify-between font-bold text-base">
-                <span>Total Vendido:</span>
-                <span className="text-primary">R$ {totalSales.toFixed(2)}</span>
+              {currentCashSession && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Troco Inicial (Abertura):</span>
+                    <span className="font-medium text-right">R$ {(currentCashSession.openingBalance || 0).toFixed(2)}</span>
+                  </div>
+              )}
+              <div className="flex justify-between text-sm">
+                <span>Vendas de Produtos:</span>
+                <span className="font-medium text-right">+ R$ {totalSales.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span>Entradas Extras (Fiado/Reforço):</span>
+                <span className="font-medium text-emerald-600 text-right">+ R$ {totalDeposits.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span>Saídas (Sangrias/Despesas):</span>
+                <span className="font-medium text-rose-600 text-right">- R$ {totalWithdrawals.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between font-bold text-base pt-1">
+                <span>Saldo Esperado na Gaveta:</span>
+                <span className="text-primary">R$ {((currentCashSession?.openingBalance || 0) + totalSales + totalDeposits - totalWithdrawals).toFixed(2)}</span>
               </div>
             </div>
             <div className="space-y-2">
@@ -540,10 +602,10 @@ export default function DashboardPage() {
               <Input type="number" className="text-xl h-12 font-bold" placeholder="0.00"
                 value={closingActual} onChange={e => setClosingActual(e.target.value)} autoFocus />
               {closingActual && !isNaN(parseFloat(closingActual)) && (
-                <p className={cn("text-sm font-medium", parseFloat(closingActual) >= totalSales ? "text-emerald-600" : "text-rose-600")}>
-                  {parseFloat(closingActual) >= totalSales
-                    ? `✅ Confere (+R$ ${(parseFloat(closingActual) - totalSales).toFixed(2)})`
-                    : `⚠️ Diferença: -R$ ${(totalSales - parseFloat(closingActual)).toFixed(2)}`}
+                <p className={cn("text-sm font-medium", parseFloat(closingActual) >= ((currentCashSession?.openingBalance || 0) + totalSales + totalDeposits - totalWithdrawals) ? "text-emerald-600" : "text-rose-600")}>
+                  {parseFloat(closingActual) >= ((currentCashSession?.openingBalance || 0) + totalSales + totalDeposits - totalWithdrawals)
+                    ? `✅ Confere (+R$ ${(parseFloat(closingActual) - ((currentCashSession?.openingBalance || 0) + totalSales + totalDeposits - totalWithdrawals)).toFixed(2)})`
+                    : `⚠️ Diferença: -R$ ${(((currentCashSession?.openingBalance || 0) + totalSales + totalDeposits - totalWithdrawals) - parseFloat(closingActual)).toFixed(2)}`}
                 </p>
               )}
             </div>

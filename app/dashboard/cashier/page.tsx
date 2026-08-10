@@ -10,7 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { cn } from '@/lib/utils';
 import { Calendar } from '@/components/ui/calendar';
 import { ptBR } from 'date-fns/locale';
-import { parseSalesByPaymentMethod } from '@/lib/finance-utils';
+import { parseSalesByPaymentMethod, categorizePayment } from '@/lib/finance-utils';
 import { Calendar as CalendarIcon, FilterX } from 'lucide-react';
 import {
   Card,
@@ -250,8 +250,24 @@ export default function CashierPage() {
       return isWithinInterval(date, { start, end });
     });
 
-    return parseSalesByPaymentMethod(sessionOrders);
-  }, [rawOrders, currentSession, dateRange, activePreset, sessionOrderIds]);
+    const result = parseSalesByPaymentMethod(sessionOrders);
+
+    // Inclui pagamentos de fiado (deposits) e subtrai saídas (withdrawals) no breakdown por método
+    if (transactions) {
+        transactions.forEach(t => {
+            const val = Number(t.amount) || 0;
+            const cat = categorizePayment(t.paymentMethod || 'Dinheiro') || 'others';
+            
+            if (t.type === 'deposit') {
+                result[cat] += val;
+            } else if (t.type === 'withdrawal') {
+                result[cat] -= val;
+            }
+        });
+    }
+
+    return result;
+  }, [rawOrders, currentSession, dateRange, activePreset, sessionOrderIds, transactions]);
 
   const sessionTotalSales = useMemo(() => {
     // Caso o retorno venha como Array (formato antigo/gráfico)
@@ -738,6 +754,17 @@ export default function CashierPage() {
               <CardContent>
                 <div className="text-3xl font-bold text-emerald-600">+ R$ {stats.sales.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
                 <p className="text-xs text-muted-foreground mt-1">Total acumulado em vendas</p>
+              </CardContent>
+            </Card>
+
+            <Card className="shadow-sm border-l-4 border-l-purple-500">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium uppercase tracking-wider opacity-70">Entradas Extras</CardTitle>
+                <Plus className="h-4 w-4 text-purple-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-purple-600">+ R$ {stats.deposits.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                <p className="text-xs text-muted-foreground mt-1">Pagamentos de fiado e reforços</p>
               </CardContent>
             </Card>
 
