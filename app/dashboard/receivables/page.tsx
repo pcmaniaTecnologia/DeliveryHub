@@ -46,6 +46,10 @@ type Receivable = {
     createdAt: any;
     originOrderId?: string;
     notes?: string;
+    paidAt?: any;
+    amountReceived?: number;
+    paidMethod?: string;
+    discountGiven?: number;
 };
 
 export default function ReceivablesPage() {
