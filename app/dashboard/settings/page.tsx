@@ -574,7 +574,7 @@ export default function SettingsPage() {
   useEffect(() => {
     if (typeof window !== 'undefined' && user?.uid) {
       setMenuLink(`${window.location.origin}/menu/${user.uid}`);
-      setWaiterLink(`${window.location.origin}/waiter/${user.uid}/dashboard`);
+      setWaiterLink(`${window.location.origin}/waiter/${user.uid}`);
     }
   }, [user?.uid]);
 
@@ -921,6 +921,7 @@ export default function SettingsPage() {
           <TabsTrigger value="payments">Pagamentos</TabsTrigger>
 
           <TabsTrigger value="notifications">Mensagens</TabsTrigger>
+          <TabsTrigger value="waiters">Garçons</TabsTrigger>
           <TabsTrigger value="subscription">Assinatura</TabsTrigger>
         </TabsList>
 
@@ -1192,6 +1193,102 @@ export default function SettingsPage() {
               <Button onClick={handleSaveMessages} disabled={isLoading}>Salvar Modelos</Button>
             </CardFooter>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="waiters">
+          <Dialog open={isWaiterDialogOpen} onOpenChange={(open) => { setIsWaiterDialogOpen(open); if(!open) setEditingWaiter(null); }}>
+            <Card>
+              <CardHeader>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <CardTitle>Gerenciamento de Garçons</CardTitle>
+                    <CardDescription>Adicione e gerencie os garçons que usarão o sistema.</CardDescription>
+                  </div>
+                  <Button size="sm" className="gap-1 w-full sm:w-auto" disabled={!comandasEnabled || isLoading} onClick={() => handleOpenWaiterDialog()}>
+                    <PlusCircle className="h-4 w-4" /> Adicionar Garçom
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {!comandasEnabled ? (
+                  <Alert className="mb-4 bg-primary/5 border-primary/20">
+                    <AlertTitle>Sistema de Comandas Desativado</AlertTitle>
+                    <AlertDescription>
+                      Para utilizar o acesso de garçom, ative o Sistema de Comandas na aba Empresa.
+                    </AlertDescription>
+                  </Alert>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Nome</TableHead>
+                          <TableHead>Telefone</TableHead>
+                          <TableHead>PIN</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="text-right">Ações</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {!isLoadingWaiters && waiters?.length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                              Nenhum garçom cadastrado.
+                            </TableCell>
+                          </TableRow>
+                        )}
+                        {!isLoadingWaiters && waiters?.map((waiter) => (
+                          <TableRow key={waiter.id}>
+                            <TableCell className="font-medium">{waiter.name}</TableCell>
+                            <TableCell>{waiter.phone || '-'}</TableCell>
+                            <TableCell>••••</TableCell>
+                            <TableCell>
+                              <Switch 
+                                checked={waiter.isActive} 
+                                onCheckedChange={() => handleToggleWaiterStatus(waiter)} 
+                              />
+                            </TableCell>
+                            <TableCell className="text-right whitespace-nowrap">
+                              <Button variant="ghost" size="icon" onClick={() => handleOpenWaiterDialog(waiter)}>
+                                <Edit className="h-4 w-4 text-primary" />
+                              </Button>
+                              <Button variant="ghost" size="icon" onClick={() => handleDeleteWaiter(waiter.id, waiter.name)}>
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{editingWaiter ? 'Editar Garçom' : 'Adicionar Garçom'}</DialogTitle>
+                <DialogDescription>Defina os dados de acesso para o garçom.</DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="waiter-name">Nome do Garçom *</Label>
+                  <Input id="waiter-name" placeholder="Ex: João Silva" value={waiterName} onChange={(e) => setWaiterName(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="waiter-phone">Telefone (Opcional)</Label>
+                  <Input id="waiter-phone" placeholder="Ex: 11999999999" value={waiterPhone} onChange={(e) => setWaiterPhone(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="waiter-pin">PIN de Acesso (Senha numérica) *</Label>
+                  <Input id="waiter-pin" type="number" placeholder="Mínimo 4 dígitos" value={waiterPin} onChange={(e) => setWaiterPin(e.target.value)} />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button onClick={handleSaveWaiter}>Salvar</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </TabsContent>
 
         <TabsContent value="subscription">

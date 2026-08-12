@@ -94,33 +94,10 @@ export default function WaiterDashboardPage() {
     }
 
     if (!waiterName) {
-        return (
-            <div className="flex min-h-screen items-center justify-center p-4 bg-muted/30">
-                <Card className="w-full max-w-md">
-                    <CardHeader className="text-center">
-                        <div className="mx-auto bg-primary/10 w-16 h-16 rounded-full flex items-center justify-center mb-4">
-                            <Users className="w-8 h-8 text-primary" />
-                        </div>
-                        <CardTitle className="text-2xl">Acesso do Garçom</CardTitle>
-                        <p className="text-muted-foreground">{companyData?.name || 'Bem-vindo!'}</p>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium">Digite seu nome para começar:</label>
-                            <Input 
-                                placeholder="Seu nome aqui..." 
-                                value={nameInput} 
-                                onChange={(e) => setNameInput(e.target.value)}
-                                onKeyPress={(e) => e.key === 'Enter' && handleSetName()}
-                            />
-                        </div>
-                        <Button className="w-full h-12 text-lg" onClick={handleSetName} disabled={!nameInput.trim()}>
-                            Entrar no Sistema
-                        </Button>
-                    </CardContent>
-                </Card>
-            </div>
-        );
+        if (typeof window !== 'undefined') {
+            router.replace(`/waiter/${companyId}`);
+        }
+        return <div className="flex min-h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
     }
 
     const numTables = companyData?.numberOfTables || 0;
