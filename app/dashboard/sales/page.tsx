@@ -15,11 +15,31 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Textarea } from '@/components/ui/textarea';
 import Image from 'next/image';
 import { useImpersonation } from '@/context/impersonation-context';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { recordCashierSale } from '@/lib/finance-utils';
 import { formatQuantity } from '@/lib/utils';
+
+type VariantItem = {
+    name: string;
+    price: number;
+};
+
+type VariantGroup = {
+    name: string;
+    min: number;
+    max: number;
+    items: VariantItem[];
+};
+
+export type SelectedVariant = {
+    groupName: string;
+    itemName: string;
+    price: number;
+};
 
 type Product = {
     id: string;
@@ -33,6 +53,7 @@ type Product = {
     blockIfOutOfStock?: boolean;
     imageUrls: string[];
     isSoldByWeight?: boolean;
+    variants?: VariantGroup[];
 }
 
 type Category = {
@@ -45,7 +66,8 @@ type CartItem = {
     product: Product;
     quantity: number;
     finalPrice: number;
-    selectedVariants?: any[]; // Simplified for now
+    selectedVariants?: SelectedVariant[];
+    notes?: string;
 }
 
 export default function POSPage() {
@@ -93,9 +115,11 @@ export default function POSPage() {
     const [customerAddress, setCustomerAddress] = useState('');
     const [customerEmail, setCustomerEmail] = useState('');
     const [paymentMethod, setPaymentMethod] = useState('Dinheiro');
-    const [isWeightDialogOpen, setIsWeightDialogOpen] = useState(false);
+    const [isOptionsDialogOpen, setIsOptionsDialogOpen] = useState(false);
     const [currentWeight, setCurrentWeight] = useState('1.000');
-    const [selectedProductForWeight, setSelectedProductForWeight] = useState<Product | null>(null);
+    const [selectedProductForOptions, setSelectedProductForOptions] = useState<Product | null>(null);
+    const [selectedVariants, setSelectedVariants] = useState<SelectedVariant[]>([]);
+    const [itemNotes, setItemNotes] = useState('');
 
     // Scale State (Web Serial API)
     const [isScaleConnected, setIsScaleConnected] = useState(false);
@@ -213,7 +237,15 @@ export default function POSPage() {
     const activeProducts = useMemo(() => productsData?.filter(p => p.isActive) || [], [productsData]);
 
     // Cart Logic
-    const addToCart = (product: Product, weight?: number) => {
+    const openOptionsDialog = (product: Product) => {
+        setSelectedProductForOptions(product);
+        setSelectedVariants([]);
+        setItemNotes('');
+        setCurrentWeight('1.000');
+        setIsOptionsDialogOpen(true);
+    };
+
+    const addToCart = (product: Product, weight?: number, variants: SelectedVariant[] = [], notes: string = '') => {
         if (product.stockControlEnabled && product.blockIfOutOfStock !== false && (product.stock || 0) <= 0) {
             toast({
                 variant: 'destructive',
@@ -223,34 +255,85 @@ export default function POSPage() {
             return;
         }
 
-        if (product.isSoldByWeight && weight === undefined) {
-            setSelectedProductForWeight(product);
-            setCurrentWeight('1.000');
-            setIsWeightDialogOpen(true);
+        const needsOptions = (product.variants && product.variants.length > 0) || product.isSoldByWeight;
+        const isBypassingOptions = weight !== undefined || variants.length > 0 || notes !== '';
+
+        if (needsOptions && !isBypassingOptions) {
+            openOptionsDialog(product);
             return;
         }
 
         const qtyToAdd = weight !== undefined ? weight : 1;
+        const optionsPrice = variants.reduce((sum, v) => sum + v.price, 0);
+        const finalPrice = product.price + optionsPrice;
 
         setCart(prev => {
-            const existing = prev.find(item => item.product.id === product.id && !product.isSoldByWeight);
-            if (existing && !product.isSoldByWeight) {
-                return prev.map(item => item.product.id === product.id ? { ...item, quantity: item.quantity + qtyToAdd } : item);
+            const hasOptions = variants.length > 0 || notes.trim() !== '';
+            const existing = prev.find(item => 
+                item.product.id === product.id && 
+                !product.isSoldByWeight &&
+                !hasOptions &&
+                (!item.selectedVariants || item.selectedVariants.length === 0) &&
+                (!item.notes)
+            );
+            
+            if (existing && !product.isSoldByWeight && !hasOptions) {
+                return prev.map(item => item.id === existing.id ? { ...item, quantity: item.quantity + qtyToAdd } : item);
             }
-            return [...prev, { id: `${product.id}-${Date.now()}`, product, quantity: qtyToAdd, finalPrice: product.price }];
+            return [...prev, { 
+                id: `${product.id}-${Date.now()}`, 
+                product, 
+                quantity: qtyToAdd, 
+                finalPrice: finalPrice,
+                selectedVariants: variants,
+                notes
+            }];
         });
     };
 
-    const handleWeightConfirm = () => {
-        if (!selectedProductForWeight) return;
-        const weight = parseFloat(currentWeight.replace(',', '.'));
-        if (isNaN(weight) || weight <= 0) {
-            toast({ variant: 'destructive', title: 'Peso inválido' });
-            return;
+    const handleOptionsSelection = (groupName: string, itemName: string, price: number, isSingleChoice: boolean) => {
+        const group = selectedProductForOptions?.variants?.find(v => v.name === groupName);
+        if (!group) return;
+        const isCurrentlySelected = selectedVariants.some(v => v.groupName === groupName && v.itemName === itemName);
+        const groupItemsSelectedCount = selectedVariants.filter(v => v.groupName === groupName).length;
+        if (isSingleChoice) {
+            setSelectedVariants(prev => [...prev.filter(v => v.groupName !== groupName), { groupName, itemName, price }]);
+        } else {
+            if (isCurrentlySelected) {
+                setSelectedVariants(prev => prev.filter(v => !(v.groupName === groupName && v.itemName === itemName)));
+            } else {
+                if (groupItemsSelectedCount >= group.max) {
+                    toast({ variant: 'destructive', title: 'Limite atingido', description: `Máximo de ${group.max} opção(ões) para "${groupName}".` });
+                } else {
+                    setSelectedVariants(prev => [...prev, { groupName, itemName, price }]);
+                }
+            }
         }
-        addToCart(selectedProductForWeight, weight);
-        setIsWeightDialogOpen(false);
-        setSelectedProductForWeight(null);
+    };
+
+    const handleOptionsConfirm = () => {
+        if (!selectedProductForOptions) return;
+
+        for (const group of selectedProductForOptions.variants || []) {
+            const selectedCount = selectedVariants.filter(v => v.groupName === group.name).length;
+            if (selectedCount < group.min) {
+                toast({ variant: 'destructive', title: 'Seleção Incompleta', description: `Selecione pelo menos ${group.min} opção(ões) para "${group.name}".` });
+                return;
+            }
+        }
+
+        let weightToPass = undefined;
+        if (selectedProductForOptions.isSoldByWeight) {
+            weightToPass = parseFloat(currentWeight.replace(',', '.'));
+            if (isNaN(weightToPass) || weightToPass <= 0) {
+                toast({ variant: 'destructive', title: 'Peso inválido' });
+                return;
+            }
+        }
+
+        addToCart(selectedProductForOptions, weightToPass, selectedVariants, itemNotes);
+        setIsOptionsDialogOpen(false);
+        setSelectedProductForOptions(null);
     };
 
     const removeFromCart = (cartItemId: string) => {
@@ -308,13 +391,13 @@ export default function POSPage() {
             if (e.key === 'Escape') {
                 if (isCheckoutOpen) setIsCheckoutOpen(false);
                 if (isSuccessOpen) setIsSuccessOpen(false);
-                if (isWeightDialogOpen) setIsWeightDialogOpen(false);
+                if (isOptionsDialogOpen) setIsOptionsDialogOpen(false);
             }
         };
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isCheckoutOpen, cart.length, isSuccessOpen, isWeightDialogOpen, customerName, customerPhone, paymentMethod, discount, amountReceived, isMultiPayment, payments]);
+    }, [isCheckoutOpen, cart.length, isSuccessOpen, isOptionsDialogOpen, customerName, customerPhone, paymentMethod, discount, amountReceived, isMultiPayment, payments]);
 
     const handleCheckout = async () => {
         if (!firestore || !user || cart.length === 0) return;
@@ -382,15 +465,23 @@ export default function POSPage() {
                 deliveryFee: 0,
                 paymentMethod: fullPaymentMethod,
                 discount: parseFloat(discount || '0'),
-                orderItems: cart.map(item => ({
-                    productId: item.product.id,
-                    productName: item.product.name,
-                    quantity: item.quantity,
-                    unitPrice: item.product.price,
-                    finalPrice: item.finalPrice,
-                    notes: '',
-                    isSoldByWeight: item.product.isSoldByWeight ?? false,
-                })),
+                orderItems: cart.map(item => {
+                    let combinedNotes = item.notes || '';
+                    if (item.selectedVariants && item.selectedVariants.length > 0) {
+                        const variantsText = item.selectedVariants.map(v => `${v.itemName}`).join(', ');
+                        combinedNotes = combinedNotes ? `${variantsText} | Obs: ${combinedNotes}` : variantsText;
+                    }
+                    return {
+                        productId: item.product.id,
+                        productName: item.product.name,
+                        quantity: item.quantity,
+                        unitPrice: item.product.price,
+                        finalPrice: item.finalPrice,
+                        notes: combinedNotes,
+                        isSoldByWeight: item.product.isSoldByWeight ?? false,
+                        selectedVariants: item.selectedVariants || [],
+                    };
+                }),
                 totalAmount: totalWithDiscount,
                 subtotal: total,
                 origin: 'PDV',
@@ -661,6 +752,7 @@ export default function POSPage() {
                     <span>${formatQuantity(item.quantity, item.isSoldByWeight)} ${item.productName}</span>
                     <span>R$ ${(item.finalPrice * item.quantity).toFixed(2)}</span>
                 </div>
+                ${item.notes ? `<div style="font-size: 10px; color: #555; padding-left: 10px; margin-bottom: 4px;">${item.notes}</div>` : ''}
             `).join('') || '';
 
             const subtotalHtml = order.discount > 0 ? `
@@ -853,7 +945,19 @@ export default function POSPage() {
                                 <div key={item.id} className="flex gap-2 sm:gap-3">
                                     <div className="flex-1 min-w-0">
                                         <p className="font-medium text-xs sm:text-sm truncate">{item.product.name}</p>
-                                        <p className="text-[10px] sm:text-xs text-muted-foreground">
+                                        
+                                        {item.selectedVariants && item.selectedVariants.length > 0 && (
+                                            <div className="text-[10px] text-muted-foreground mt-0.5">
+                                                {item.selectedVariants.map((v, idx) => (
+                                                    <span key={idx} className="block">• {v.itemName} {v.price > 0 ? `(+R$ ${v.price.toFixed(2)})` : ''}</span>
+                                                ))}
+                                            </div>
+                                        )}
+                                        {item.notes && (
+                                            <p className="text-[10px] text-muted-foreground mt-0.5 italic">Obs: {item.notes}</p>
+                                        )}
+
+                                        <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
                                             {item.product.isSoldByWeight
                                                 ? `${formatQuantity(item.quantity, true)} x R$ ${item.product.price.toFixed(2).replace('.', ',')}`
                                                 : `R$ ${item.finalPrice.toFixed(2).replace('.', ',')} x ${item.quantity}`}
@@ -873,12 +977,13 @@ export default function POSPage() {
                                                 </div>
                                             ) : (
                                                 <Button variant="outline" size="sm" className="h-7 text-[9px] sm:text-[10px]" onClick={() => {
-                                                    setSelectedProductForWeight(item.product);
+                                                    openOptionsDialog(item.product);
                                                     setCurrentWeight(item.quantity.toFixed(3));
-                                                    setIsWeightDialogOpen(true);
+                                                    setSelectedVariants(item.selectedVariants || []);
+                                                    setItemNotes(item.notes || '');
                                                     removeFromCart(item.id);
                                                 }}>
-                                                    Peso
+                                                    Editar
                                                 </Button>
                                             )}
 
@@ -1248,9 +1353,16 @@ export default function POSPage() {
                             <div className="divider"></div>
                             <div className="bold">ITENS:</div>
                             {lastOrder?.orderItems?.map((item: any) => (
-                                <div key={item.productId} className="item">
-                                    <span>{formatQuantity(item.quantity, item.isSoldByWeight)} {item.productName}</span>
-                                    <span>R$ {(item.finalPrice * item.quantity).toFixed(2)}</span>
+                                <div key={item.productId} className="mb-2">
+                                    <div className="item">
+                                        <span>{formatQuantity(item.quantity, item.isSoldByWeight)} {item.productName}</span>
+                                        <span>R$ {(item.finalPrice * item.quantity).toFixed(2)}</span>
+                                    </div>
+                                    {item.notes && (
+                                        <div className="text-[10px] text-muted-foreground pl-2 leading-tight text-left">
+                                            {item.notes}
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                             <div className="divider"></div>
@@ -1312,55 +1424,136 @@ export default function POSPage() {
                 </DialogContent>
             </Dialog>
 
-            {/* Weight Entry Dialog */}
-            <Dialog open={isWeightDialogOpen} onOpenChange={setIsWeightDialogOpen}>
-                <DialogContent className="sm:max-w-[400px]">
-                    <DialogHeader>
-                        <DialogTitle>Informar Peso</DialogTitle>
+            {/* Options Entry Dialog */}
+            <Dialog open={isOptionsDialogOpen} onOpenChange={setIsOptionsDialogOpen}>
+                <DialogContent className="sm:max-w-[450px] max-h-[90vh] flex flex-col p-0 overflow-hidden">
+                    <DialogHeader className="px-5 pt-5 pb-2">
+                        <DialogTitle>{selectedProductForOptions?.name}</DialogTitle>
                         <DialogDescription>
-                            Produto vendido por peso. Insira o peso em Kg (ex: 0.500 para 500g).
+                            {selectedProductForOptions?.isSoldByWeight ? 'Produto vendido por peso.' : 'Selecione as opções do produto.'}
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="py-6 flex flex-col items-center gap-4">
-                        <div className="text-center">
-                            <h3 className="text-lg font-bold">{selectedProductForWeight?.name}</h3>
-                            <p className="text-primary font-semibold">R$ {selectedProductForWeight?.price.toFixed(2)} / kg</p>
-                        </div>
-                        
-                        {!isScaleConnected ? (
-                            <Button 
-                                variant="outline" 
-                                className="w-full max-w-[200px] border-dashed border-primary/50 text-primary hover:bg-primary/5"
-                                onClick={connectScale}
-                            >
-                                🔌 Conectar Balança
-                            </Button>
-                        ) : (
-                            <div className="w-full max-w-[200px] flex items-center justify-center gap-2 bg-emerald-500/10 text-emerald-600 px-4 py-2 rounded-lg font-semibold animate-pulse border border-emerald-500/20">
-                                <span className="h-2 w-2 rounded-full bg-emerald-500"></span> Lendo Balança...
-                            </div>
-                        )}
 
-                        <div className="w-full max-w-[200px] relative">
-                            <Input
-                                type="text"
-                                className={`text-4xl h-20 text-center font-black pr-12 transition-all ${isScaleConnected ? 'bg-emerald-50 border-emerald-200 focus-visible:ring-emerald-500' : ''}`}
-                                value={currentWeight}
-                                onChange={e => setCurrentWeight(e.target.value)}
-                                autoFocus={!isScaleConnected}
-                                readOnly={isScaleConnected}
-                                onKeyPress={e => e.key === 'Enter' && handleWeightConfirm()}
-                            />
-                            <span className="absolute right-4 top-1/2 -translate-y-1/2 font-bold text-muted-foreground">Kg</span>
+                    <ScrollArea className="flex-1 px-5">
+                        <div className="py-2 flex flex-col gap-6">
+                            {/* Variants Section */}
+                            {selectedProductForOptions?.variants?.map(group => {
+                                const isSingleChoice = group.max === 1 && group.min === 1;
+                                return (
+                                    <div key={group.name} className="space-y-2">
+                                        <Separator className="mb-4" />
+                                        <div className="flex items-center justify-between">
+                                            <h4 className="font-semibold">{group.name}</h4>
+                                            {group.min > 0 && <span className="text-xs bg-primary/10 text-primary rounded-full px-2 py-0.5 font-medium">Obrigatório</span>}
+                                        </div>
+                                        <p className="text-xs text-muted-foreground">
+                                            {group.min > 0 && group.max > group.min
+                                                ? `Selecione de ${group.min} a ${group.max} opções`
+                                                : group.min > 0 && group.max === group.min
+                                                ? `Selecione ${group.min} ${group.min > 1 ? 'opções' : 'opção'}`
+                                                : `Selecione até ${group.max} ${group.max > 1 ? 'opções' : 'opção'}`}
+                                        </p>
+                                        
+                                        {isSingleChoice ? (
+                                            <RadioGroup 
+                                                value={selectedVariants.find(v => v.groupName === group.name)?.itemName ? `${selectedVariants.find(v => v.groupName === group.name)?.itemName};${selectedVariants.find(v => v.groupName === group.name)?.price}` : undefined}
+                                                onValueChange={(value) => handleOptionsSelection(group.name, value.split(';')[0], parseFloat(value.split(';')[1]), true)}
+                                            >
+                                                {group.items.map(item => (
+                                                    <div key={item.name} className="flex items-center justify-between rounded-lg border px-3 py-2 has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5 transition-colors">
+                                                        <div className="flex items-center gap-2">
+                                                            <RadioGroupItem value={`${item.name};${item.price}`} id={`${group.name}-${item.name}`} />
+                                                            <Label htmlFor={`${group.name}-${item.name}`} className="cursor-pointer font-normal">{item.name}</Label>
+                                                        </div>
+                                                        {item.price > 0 && <span className="text-sm font-medium text-primary">+ R$ {item.price.toFixed(2)}</span>}
+                                                    </div>
+                                                ))}
+                                            </RadioGroup>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                {group.items.map(item => (
+                                                    <div key={item.name} className="flex items-center justify-between rounded-lg border px-3 py-2 has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5 transition-colors">
+                                                        <div className="flex items-center gap-2">
+                                                            <Checkbox
+                                                                id={`${group.name}-${item.name}`}
+                                                                checked={selectedVariants.some(v => v.groupName === group.name && v.itemName === item.name)}
+                                                                onCheckedChange={() => handleOptionsSelection(group.name, item.name, item.price, false)}
+                                                            />
+                                                            <Label htmlFor={`${group.name}-${item.name}`} className="cursor-pointer font-normal">{item.name}</Label>
+                                                        </div>
+                                                        {item.price > 0 && <span className="text-sm font-medium text-primary">+ R$ {item.price.toFixed(2)}</span>}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+
+                            {/* Weight Section */}
+                            {selectedProductForOptions?.isSoldByWeight && (
+                                <div className="space-y-4 pt-4 border-t">
+                                    <div className="flex justify-between items-center">
+                                        <Label className="text-primary font-bold">Informar Peso (Kg)</Label>
+                                        <span className="text-xs bg-primary/10 text-primary rounded-full px-2 py-0.5 font-medium">Obrigatório</span>
+                                    </div>
+                                    <div className="flex flex-col items-center gap-4 bg-muted/30 p-4 rounded-xl">
+                                        {!isScaleConnected ? (
+                                            <Button 
+                                                variant="outline" 
+                                                className="w-full max-w-[200px] border-dashed border-primary/50 text-primary hover:bg-primary/5"
+                                                onClick={connectScale}
+                                            >
+                                                🔌 Conectar Balança
+                                            </Button>
+                                        ) : (
+                                            <div className="w-full max-w-[200px] flex items-center justify-center gap-2 bg-emerald-500/10 text-emerald-600 px-4 py-2 rounded-lg font-semibold animate-pulse border border-emerald-500/20">
+                                                <span className="h-2 w-2 rounded-full bg-emerald-500"></span> Lendo Balança...
+                                            </div>
+                                        )}
+                                        <div className="w-full max-w-[200px] relative">
+                                            <Input
+                                                type="text"
+                                                className={`text-4xl h-20 text-center font-black pr-12 transition-all ${isScaleConnected ? 'bg-emerald-50 border-emerald-200 focus-visible:ring-emerald-500' : ''}`}
+                                                value={currentWeight}
+                                                onChange={e => setCurrentWeight(e.target.value)}
+                                                autoFocus={!isScaleConnected}
+                                                readOnly={isScaleConnected}
+                                                onKeyPress={e => e.key === 'Enter' && handleOptionsConfirm()}
+                                            />
+                                            <span className="absolute right-4 top-1/2 -translate-y-1/2 font-bold text-muted-foreground">Kg</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Notes Section */}
+                            <div className="space-y-2 pb-6 pt-4 border-t">
+                                <Label htmlFor="notes" className="font-semibold">Observações (Opcional)</Label>
+                                <Textarea
+                                    id="notes"
+                                    placeholder="Ex: sem cebola..."
+                                    value={itemNotes}
+                                    onChange={(e) => setItemNotes(e.target.value)}
+                                    className="resize-none bg-muted/30"
+                                    rows={2}
+                                />
+                            </div>
                         </div>
-                        <div className="text-sm font-medium text-muted-foreground bg-muted/30 px-4 py-2 rounded-full">
-                            Valor Estimado: <span className="text-foreground">R$ {((selectedProductForWeight?.price || 0) * (parseFloat(currentWeight.replace(',', '.')) || 0)).toFixed(2)}</span>
+                    </ScrollArea>
+                    <div className="p-5 border-t bg-background">
+                        <div className="flex justify-between items-center mb-4">
+                            <span className="text-sm text-muted-foreground font-medium">Total Estimado</span>
+                            <span className="text-xl font-bold text-primary">
+                                R$ {((selectedProductForOptions?.price || 0) + selectedVariants.reduce((sum, v) => sum + v.price, 0)).toFixed(2)}
+                                {selectedProductForOptions?.isSoldByWeight ? ' / kg' : ''}
+                            </span>
+                        </div>
+                        <div className="flex gap-2">
+                            <Button variant="outline" className="flex-1" onClick={() => setIsOptionsDialogOpen(false)}>Cancelar</Button>
+                            <Button className="flex-[2]" onClick={handleOptionsConfirm}>Confirmar</Button>
                         </div>
                     </div>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsWeightDialogOpen(false)}>Cancelar</Button>
-                        <Button onClick={handleWeightConfirm} className="px-8">Confirmar Peso</Button>
-                    </DialogFooter>
                 </DialogContent>
             </Dialog>
 
