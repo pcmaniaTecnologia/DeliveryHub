@@ -36,14 +36,20 @@ export default function WaiterDashboardPage() {
     const firestore = useFirestore();
 
     const [waiterName, setWaiterName] = useState<string | null>(null);
+    const [isChecking, setIsChecking] = useState(true);
     const [nameInput, setNameInput] = useState('');
     const [selectedTable, setSelectedTable] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => {
         const saved = localStorage.getItem(`waiter_name_${companyId}`);
-        if (saved) setWaiterName(saved);
-    }, [companyId]);
+        if (saved) {
+            setWaiterName(saved);
+        } else {
+            router.replace(`/waiter/${companyId}`);
+        }
+        setIsChecking(false);
+    }, [companyId, router]);
 
     const handleSetName = () => {
         if (!nameInput.trim()) return;
@@ -55,6 +61,7 @@ export default function WaiterDashboardPage() {
         localStorage.removeItem(`waiter_name_${companyId}`);
         setWaiterName(null);
         setNameInput('');
+        router.replace(`/waiter/${companyId}`);
     };
 
     const companyRef = useMemoFirebase(() => {
@@ -89,15 +96,12 @@ export default function WaiterDashboardPage() {
         }, {} as Record<string, { orders: any[], total: number }>);
     }, [allOrders, companyData]);
 
-    if (isLoadingCompany || isLoadingOrders) {
+    if (isLoadingCompany || isLoadingOrders || isChecking) {
         return <div className="flex min-h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
     }
 
     if (!waiterName) {
-        if (typeof window !== 'undefined') {
-            router.replace(`/waiter/${companyId}`);
-        }
-        return <div className="flex min-h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+        return null;
     }
 
     const numTables = companyData?.numberOfTables || 0;
