@@ -393,8 +393,12 @@ export default function ComandasPage() {
     // Pre-calculate items for the selected table
     const tableItems = useMemo(() => {
         if (!selectedTable) return [];
+        
+        // Find current table in allTables to get real-time updates
+        const currentTable = allTables.find((t: any) => String(t.tableNumber) === String(selectedTable.tableNumber)) || selectedTable;
+        
         const items: any[] = [];
-        (selectedTable.orders || []).forEach((order: Order) => {
+        (currentTable.orders || []).forEach((order: Order) => {
             (order.orderItems || []).forEach((item, idx) => {
                 items.push({
                     ...item,
@@ -406,7 +410,37 @@ export default function ComandasPage() {
             });
         });
         return items;
-    }, [selectedTable]);
+    }, [selectedTable, allTables]);
+
+    const handleRemoveItem = async (item: any) => {
+        if (!firestore || !effectiveCompanyId) return;
+
+        if (!window.confirm(`Tem certeza que deseja excluir o item ${item.quantity}x ${item.productName || item.productId}?`)) {
+            return;
+        }
+
+        try {
+            const orderRef = doc(firestore, `companies/${effectiveCompanyId}/orders`, item.orderId);
+            const originalOrder = item.originalOrder;
+            
+            const newOrderItems = [...originalOrder.orderItems];
+            newOrderItems.splice(item.roundIdx, 1);
+            
+            if (newOrderItems.length === 0) {
+                await deleteDocument(orderRef);
+            } else {
+                const newTotalAmount = newOrderItems.reduce((sum: number, i: any) => sum + ((i.finalPrice || i.unitPrice) * i.quantity), 0);
+                await updateDocument(orderRef, {
+                    orderItems: newOrderItems,
+                    totalAmount: newTotalAmount
+                });
+            }
+            toast({ title: 'Item removido', description: 'O item foi removido da mesa com sucesso.' });
+        } catch (error) {
+            console.error(error);
+            toast({ variant: 'destructive', title: 'Erro ao remover item' });
+        }
+    };
 
     const itemsToPayTotal = useMemo(() => {
         return tableItems
@@ -1226,7 +1260,7 @@ export default function ComandasPage() {
                                         <h3 className="font-bold flex items-center gap-2"><Receipt className="w-4 h-4" /> Itens Consumidos</h3>
                                         <div className="space-y-2">
                                             {tableItems.map((item) => (
-                                                <div key={item.uniqueKey} className="flex justify-between items-start text-sm p-3 bg-muted/30 rounded-lg border border-border/50">
+                                                <div key={item.uniqueKey} className="flex justify-between items-start text-sm p-3 bg-muted/30 rounded-lg border border-border/50 group hover:bg-muted/50 transition-colors">
                                                     <div className="flex-1">
                                                         <div className="flex items-center gap-2">
                                                             <span className="font-bold text-primary">{formatQuantity(item.quantity, item.isSoldByWeight)}</span>
@@ -1240,7 +1274,18 @@ export default function ComandasPage() {
                                                         {item.notes && <p className="text-[10px] italic text-muted-foreground">Obs: {item.notes}</p>}
                                                         <p className="text-[9px] text-muted-foreground/60 uppercase mt-1">Lançado às {item.originalOrder.orderDate?.toDate().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} por {item.originalOrder.waiterName || 'Sistema'}</p>
                                                     </div>
-                                                    <span className="font-bold">R$ {((item.finalPrice || item.unitPrice) * item.quantity).toFixed(2)}</span>
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="font-bold">R$ {((item.finalPrice || item.unitPrice) * item.quantity).toFixed(2)}</span>
+                                                        <Button 
+                                                            variant="ghost" 
+                                                            size="icon" 
+                                                            className="h-6 w-6 text-destructive opacity-0 group-hover:opacity-100 transition-opacity" 
+                                                            onClick={() => handleRemoveItem(item)}
+                                                            title="Remover Item"
+                                                        >
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
                                                 </div>
                                             ))}
                                             {tableItems.length === 0 && (
