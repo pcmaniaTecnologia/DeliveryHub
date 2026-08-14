@@ -23,7 +23,7 @@ import {
   useCollection,
   useUser,
 } from '@/firebase';
-import { collection, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, serverTimestamp, getDocs, query, where } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -148,6 +148,56 @@ export default function CartSheet({ companyId, tableNumber: propTableNumber }: {
   const [addressComplement, setAddressComplement] = useState('');
   const [selectedPayment, setSelectedPayment] = useState<string>('');
   const [cashAmount, setCashAmount] = useState('');
+  
+  const [couponCode, setCouponCode] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string, type: 'percentage' | 'fixed', value: number } | null>(null);
+  const [couponError, setCouponError] = useState('');
+  const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
+
+  const handleApplyCoupon = async () => {
+    if (!couponCode.trim()) return;
+    setCouponError('');
+    setIsApplyingCoupon(true);
+    try {
+        if (!firestore) return;
+        const couponsRef = collection(firestore, 'companies', companyId, 'coupons');
+        const q = query(couponsRef, where('name', '==', couponCode.trim()), where('isActive', '==', true));
+        const querySnapshot = await getDocs(q);
+        
+        if (querySnapshot.empty) {
+            setCouponError('Cupom inválido ou inativo.');
+            setIsApplyingCoupon(false);
+            return;
+        }
+
+        const couponDoc = querySnapshot.docs[0];
+        const couponData = couponDoc.data();
+
+        if (couponData.validUntilDate && new Date(couponData.validUntilDate) < new Date()) {
+            setCouponError('Cupom expirado.');
+            setIsApplyingCoupon(false);
+            return;
+        }
+
+        if (couponData.usageLimit && (couponData.usageCount || 0) >= couponData.usageLimit) {
+            setCouponError('Cupom esgotado.');
+            setIsApplyingCoupon(false);
+            return;
+        }
+
+        setAppliedCoupon({
+            code: couponData.name,
+            type: couponData.type,
+            value: couponData.value,
+        });
+        toast({ title: 'Cupom aplicado com sucesso!' });
+    } catch (error) {
+        console.error('Erro ao aplicar cupom', error);
+        setCouponError('Erro ao aplicar cupom.');
+    } finally {
+        setIsApplyingCoupon(false);
+    }
+  };
 
   // Get waiter name from URL if present
   const waiterNameFromUrl = useMemo(() => {
@@ -162,7 +212,14 @@ export default function CartSheet({ companyId, tableNumber: propTableNumber }: {
   }, [deliveryType, addressNeighborhood, deliveryZones]);
 
   const deliveryFee = selectedZone?.deliveryFee || 0;
-  const finalTotal = totalPrice + deliveryFee;
+  const discountAmount = useMemo(() => {
+    if (!appliedCoupon) return 0;
+    if (appliedCoupon.type === 'percentage') {
+        return (totalPrice * appliedCoupon.value) / 100;
+    }
+    return appliedCoupon.value;
+  }, [appliedCoupon, totalPrice]);
+  const finalTotal = Math.max(0, totalPrice - discountAmount) + deliveryFee;
 
   const handlePlaceOrder = async () => {
     if (!firestore || !companyId || !companyData) return;
@@ -248,6 +305,7 @@ export default function CartSheet({ companyId, tableNumber: propTableNumber }: {
                 isSoldByWeight: Boolean(item.product.isSoldByWeight),
             })),
             totalAmount: Number(finalTotal) || 0,
+            ...(appliedCoupon ? { discountAmount: Number(discountAmount) || 0, couponCode: String(appliedCoupon.code || '') } : {}),
         };
         
         const docRef = await addDocument(ordersRef, orderData);
@@ -286,6 +344,7 @@ export default function CartSheet({ companyId, tableNumber: propTableNumber }: {
                             `--- *Itens* ---\n${itemsSummary}\n\n` +
                             `*Subtotal:* R$${totalPrice.toFixed(2)}\n` +
                             `${deliveryFee > 0 ? `*Entrega:* R$${deliveryFee.toFixed(2)}\n` : ''}` +
+                            `${discountAmount > 0 ? `*Desconto (${appliedCoupon?.code}):* -R$${discountAmount.toFixed(2)}\n` : ''}` +
                             `*Total:* *R$${finalTotal.toFixed(2)}*\n` +
                             `*Pagamento:* ${orderData.paymentMethod}`;
 
@@ -459,6 +518,40 @@ export default function CartSheet({ companyId, tableNumber: propTableNumber }: {
                                     <p className="text-xs text-muted-foreground mt-1">O pedido será liberado após a confirmação do pagamento pelo estabelecimento.</p>
                                 </div>
                             )}
+                            <Separator />
+                            <div className="grid gap-2">
+                                <Label className="font-semibold">Cupom de Desconto</Label>
+                                <div className="flex gap-2">
+                                    <Input 
+                                        placeholder="Digite seu cupom" 
+                                        value={couponCode} 
+                                        onChange={e => {
+                                            setCouponCode(e.target.value);
+                                            setCouponError('');
+                                        }} 
+                                        disabled={!!appliedCoupon || isApplyingCoupon}
+                                    />
+                                    {!appliedCoupon ? (
+                                        <Button variant="outline" onClick={handleApplyCoupon} disabled={!couponCode || isApplyingCoupon}>
+                                            {isApplyingCoupon ? 'Aplicando...' : 'Aplicar'}
+                                        </Button>
+                                    ) : (
+                                        <Button variant="destructive" onClick={() => {
+                                            setAppliedCoupon(null);
+                                            setCouponCode('');
+                                            setCouponError('');
+                                        }}>
+                                            Remover
+                                        </Button>
+                                    )}
+                                </div>
+                                {couponError && <p className="text-sm text-destructive">{couponError}</p>}
+                                {appliedCoupon && (
+                                    <p className="text-sm text-green-600 font-semibold">
+                                        Cupom aplicado! Desconto de {appliedCoupon.type === 'percentage' ? `${appliedCoupon.value}%` : `R$ ${appliedCoupon.value.toFixed(2)}`}
+                                    </p>
+                                )}
+                            </div>
                             </>
                             )}
                         </div>
@@ -467,6 +560,7 @@ export default function CartSheet({ companyId, tableNumber: propTableNumber }: {
                         <div className="space-y-1 text-sm">
                             <div className="flex justify-between text-muted-foreground"><span>Itens</span><span>R$ {totalPrice.toFixed(2)}</span></div>
                             {deliveryFee > 0 && <div className="flex justify-between text-muted-foreground"><span>Entrega</span><span>R$ {deliveryFee.toFixed(2)}</span></div>}
+                            {discountAmount > 0 && <div className="flex justify-between text-green-600 font-semibold"><span>Desconto</span><span>-R$ {discountAmount.toFixed(2)}</span></div>}
                             <div className="flex justify-between font-bold text-lg pt-1 border-t"><span>Total</span><span className="text-primary">R$ {finalTotal.toFixed(2)}</span></div>
                         </div>
                         <Button className="w-full h-12 text-lg shadow-md" onClick={handlePlaceOrder} disabled={isSubmitting}>
