@@ -16,7 +16,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useCart, type CartItem } from '@/context/cart-context';
 import { Trash2, LogOut, ShieldCheck, Minus, Plus, ShoppingCart } from 'lucide-react';
-import { useFirestore, addDocument, useUser } from '@/firebase';
+import { useFirestore, addDocument, useUser, useMemoFirebase, useCollection } from '@/firebase';
 import { collection, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -110,6 +110,13 @@ export default function WaiterCartSheet({ companyId }: { companyId: string}) {
     }
   }, [companyId, router, isAdminSession, urlWaiter]);
 
+  const productsRef = useMemoFirebase(() => {
+    if (!firestore || !companyId) return null;
+    return collection(firestore, `companies/${companyId}/products`);
+  }, [firestore, companyId]);
+  
+  const { data: productsData } = useCollection<any>(productsRef);
+
   const finalTotal = totalPrice; // No delivery fee for tables
 
   const handlePlaceOrder = async () => {
@@ -117,6 +124,50 @@ export default function WaiterCartSheet({ companyId }: { companyId: string}) {
 
     if (!tableNumber.trim()) {
         toast({ variant: 'destructive', title: 'Número da Mesa Obrigatório' });
+        return;
+    }
+
+    // Check for out of stock, deleted, inactive, or modified items
+    const invalidItems: string[] = [];
+
+    for (const item of cartItems) {
+        const freshProduct = productsData?.find((p: any) => p.id === item.product.id);
+        
+        if (!freshProduct) {
+            invalidItems.push(`"${item.product.name}" (Removido)`);
+            continue;
+        }
+
+        if (freshProduct.isActive === false) {
+            invalidItems.push(`"${item.product.name}" (Indisponível)`);
+            continue;
+        }
+
+        if (Number(freshProduct.price) !== Number(item.product.price)) {
+            invalidItems.push(`"${item.product.name}" (Preço atualizado)`);
+            continue;
+        }
+
+        if (freshProduct.name !== item.product.name) {
+            invalidItems.push(`"${item.product.name}" (Alterado para "${freshProduct.name}")`);
+            continue;
+        }
+
+        if (freshProduct.stockControlEnabled && freshProduct.blockIfOutOfStock !== false) {
+             const currentStock = Number(freshProduct.stock) || 0;
+             if (currentStock < item.quantity) {
+                 invalidItems.push(`"${item.product.name}" (Estoque insuficiente)`);
+                 continue;
+             }
+        }
+    }
+
+    if (invalidItems.length > 0) {
+        toast({
+            variant: 'destructive',
+            title: 'Ops! Comanda Desatualizada',
+            description: `Alguns itens mudaram no cardápio: ${invalidItems.join(', ')}. Por favor, remova-os e adicione novamente.`
+        });
         return;
     }
     

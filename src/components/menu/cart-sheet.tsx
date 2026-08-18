@@ -342,23 +342,46 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
         }
     }
 
-    // Check for out of stock items with blocking enabled (using fresh productsData)
-    const blockedItems = cartItems.filter(item => {
-        const freshProduct = productsData?.find((p: any) => p.id === item.product.id);
-        if (!freshProduct) return false;
-        
-        return (
-            freshProduct.stockControlEnabled && 
-            freshProduct.blockIfOutOfStock !== false && 
-            (Number(freshProduct.stock) || 0) < item.quantity
-        );
-    });
+    // Check for out of stock, deleted, inactive, or modified items
+    const invalidItems: string[] = [];
 
-    if (blockedItems.length > 0) {
+    for (const item of cartItems) {
+        const freshProduct = productsData?.find((p: any) => p.id === item.product.id);
+        
+        if (!freshProduct) {
+            invalidItems.push(`"${item.product.name}" (Removido)`);
+            continue;
+        }
+
+        if (freshProduct.isActive === false) {
+            invalidItems.push(`"${item.product.name}" (Indisponível)`);
+            continue;
+        }
+
+        if (Number(freshProduct.price) !== Number(item.product.price)) {
+            invalidItems.push(`"${item.product.name}" (Preço atualizado)`);
+            continue;
+        }
+
+        if (freshProduct.name !== item.product.name) {
+            invalidItems.push(`"${item.product.name}" (Alterado para "${freshProduct.name}")`);
+            continue;
+        }
+
+        if (freshProduct.stockControlEnabled && freshProduct.blockIfOutOfStock !== false) {
+             const currentStock = Number(freshProduct.stock) || 0;
+             if (currentStock < item.quantity) {
+                 invalidItems.push(`"${item.product.name}" (Estoque insuficiente)`);
+                 continue;
+             }
+        }
+    }
+
+    if (invalidItems.length > 0) {
         toast({
             variant: 'destructive',
-            title: 'Itens Esgotados no Carrinho',
-            description: `Os itens a seguir acabaram ou as vendas foram bloqueadas: ${blockedItems.map(i => i.product.name).join(', ')}. Remova-os para continuar.`
+            title: 'Ops! Carrinho Desatualizado',
+            description: `Alguns itens mudaram no cardápio: ${invalidItems.join(', ')}. Por favor, remova-os e adicione novamente.`
         });
         setIsSubmitting(false);
         return;
