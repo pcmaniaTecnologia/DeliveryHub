@@ -32,19 +32,29 @@ interface CartContextType {
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
-export const CartProvider = ({ children }: { children: ReactNode }) => {
+export const CartProvider = ({ children, companyId }: { children: ReactNode, companyId?: string }) => {
     const [cartItems, setCartItems] = useState<CartItem[]>([]);
 
     useEffect(() => {
-        const savedCart = localStorage.getItem('shoppingCart');
+        const storageKey = companyId ? `shoppingCart_${companyId}` : 'shoppingCart';
+        const savedCart = localStorage.getItem(storageKey);
         if (savedCart) {
-            setCartItems(JSON.parse(savedCart));
+            try {
+                setCartItems(JSON.parse(savedCart));
+            } catch (e) {
+                console.error("Failed to parse cart", e);
+            }
         }
-    }, []);
+    }, [companyId]);
 
     useEffect(() => {
-        localStorage.setItem('shoppingCart', JSON.stringify(cartItems));
-    }, [cartItems]);
+        const storageKey = companyId ? `shoppingCart_${companyId}` : 'shoppingCart';
+        if (cartItems.length > 0) {
+            localStorage.setItem(storageKey, JSON.stringify(cartItems));
+        } else {
+            localStorage.removeItem(storageKey);
+        }
+    }, [cartItems, companyId]);
 
     const addToCart = (product: Product, quantity = 1, notes = '', selectedVariants: SelectedVariant[] = []) => {
         const optionsPrice = selectedVariants.reduce((total, v) => total + v.price, 0);
