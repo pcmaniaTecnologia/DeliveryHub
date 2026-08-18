@@ -23,7 +23,7 @@ import {
   useCollection,
   useUser,
 } from '@/firebase';
-import { collection, doc, serverTimestamp, getDocs, query, where, setDoc } from 'firebase/firestore';
+import { collection, doc, serverTimestamp, getDocs, getDoc, query, where, setDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -221,20 +221,41 @@ export default function CartSheet({ companyId }: { companyId: string}) {
     };
     const safeStr = (v: any) => (v || '').toString();
 
-    // Check stock for all items before proceeding
+    // Check product existence, active status, and stock before proceeding
     for (const item of cartItems) {
-        if (item.product.stockControlEnabled) {
-            const productSnap = await getDocs(query(collection(firestore, 'companies', companyId, 'products'), where('__name__', '==', item.product.id)));
-            const currentStock = productSnap.docs[0]?.data()?.stock || 0;
-            
-            if (currentStock < item.quantity) {
-                toast({
+        const productRef = doc(firestore, 'companies', companyId, 'products', item.product.id);
+        const productSnap = await getDoc(productRef);
+        
+        if (!productSnap.exists()) {
+            toast({
+                variant: 'destructive',
+                title: 'Produto Removido',
+                description: `O produto "${item.product.name}" não existe mais no cardápio. Por favor, remova-o do carrinho.`
+            });
+            return;
+        }
+
+        const freshProduct = productSnap.data();
+
+        if (freshProduct.isActive === false) {
+             toast({
+                variant: 'destructive',
+                title: 'Produto Indisponível',
+                description: `O produto "${item.product.name}" não está mais disponível no momento. Por favor, remova-o do carrinho.`
+             });
+             return;
+        }
+
+        if (freshProduct.stockControlEnabled && freshProduct.blockIfOutOfStock !== false) {
+             const currentStock = Number(freshProduct.stock) || 0;
+             if (currentStock < item.quantity) {
+                 toast({
                     variant: 'destructive',
                     title: 'Ops! Estoque Esgotado',
-                    description: `O produto ${item.product.name} acabou de esgotar ou possui estoque insuficiente (${currentStock} un).`
-                });
-                return;
-            }
+                    description: `O produto "${item.product.name}" possui apenas ${currentStock} unidade(s) disponível(is) ou esgotou.`
+                 });
+                 return;
+             }
         }
     }
 
