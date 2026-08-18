@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Sheet,
@@ -228,16 +228,46 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
   
   const { data: userProfile } = useDoc<any>(userProfileRef);
 
+  const prevProfileStrRef = useRef('');
+
   useEffect(() => {
-    if (userProfile && !customerName) {
-      if (userProfile.name) setCustomerName(userProfile.name);
-      if (userProfile.phone) setCustomerPhone(userProfile.phone);
-      if (userProfile.addressStreet) setAddressStreet(userProfile.addressStreet);
-      if (userProfile.addressNumber) setAddressNumber(userProfile.addressNumber);
-      if (userProfile.addressNeighborhood) setAddressNeighborhood(userProfile.addressNeighborhood);
-      if (userProfile.addressComplement) setAddressComplement(userProfile.addressComplement);
+    if (userProfile) {
+      const profileStr = JSON.stringify({
+        name: userProfile.name,
+        phone: userProfile.phone,
+        street: userProfile.addressStreet,
+        num: userProfile.addressNumber,
+        neigh: userProfile.addressNeighborhood,
+        comp: userProfile.addressComplement
+      });
+
+      if (profileStr !== prevProfileStrRef.current) {
+        if (!customerName || customerName === userProfile.name || prevProfileStrRef.current === '') {
+           setCustomerName(userProfile.name || '');
+        } else if (!customerName) {
+           setCustomerName(userProfile.name || '');
+        }
+        
+        if (!customerPhone || customerPhone === userProfile.phone || prevProfileStrRef.current === '') setCustomerPhone(userProfile.phone || '');
+        
+        setAddressStreet(userProfile.addressStreet || '');
+        setAddressNumber(userProfile.addressNumber || '');
+        setAddressNeighborhood(userProfile.addressNeighborhood || '');
+        setAddressComplement(userProfile.addressComplement || '');
+        
+        prevProfileStrRef.current = profileStr;
+      }
+    } else if (userProfile === null && prevProfileStrRef.current !== '') {
+        // User logged out
+        prevProfileStrRef.current = '';
+        setCustomerName('');
+        setCustomerPhone('');
+        setAddressStreet('');
+        setAddressNumber('');
+        setAddressNeighborhood('');
+        setAddressComplement('');
     }
-  }, [userProfile]);
+  }, [userProfile, customerName, customerPhone]);
 
   const deliveryFee = selectedZone?.deliveryFee || 0;
   const discountAmount = useMemo(() => {
