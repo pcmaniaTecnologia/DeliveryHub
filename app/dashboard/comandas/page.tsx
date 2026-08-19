@@ -466,13 +466,14 @@ export default function ComandasPage() {
                 <head>
                     <title>Conferência de Mesa - ${selectedTable.tableNumber}</title>
                     <style>
-                        body { font-family: 'Courier New', Courier, monospace; width: 80mm; margin: 0 auto; padding: 10px; color: #000; }
-                        .header { text-align: center; border-bottom: 1px dashed #000; padding-bottom: 10px; margin-bottom: 10px; }
-                        .item { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 5px; }
-                        .total { border-top: 1px dashed #000; margin-top: 10px; padding-top: 10px; font-weight: bold; font-size: 16px; }
-                        .division { background: #f0f0f0; margin-top: 10px; padding: 10px; text-align: center; border: 1px solid #000; }
-                        .footer { margin-top: 20px; text-align: center; font-size: 12px; border-top: 1px dashed #000; padding-top: 10px; }
-                        @media print { body { width: 100%; } }
+                        body { font-family: 'Courier New', monospace; font-size: 12pt; margin: 20px; color: #000; font-weight: bold; width: 100%; }
+                        h2, p { margin: 0; text-align: center; color: #000; }
+                        h2 { font-size: 1.4em; font-weight: 900; }
+                        .header { text-align: center; border-bottom: 2px dashed #000; padding-bottom: 10px; margin-bottom: 10px; }
+                        .item { display: flex; justify-content: space-between; font-size: 1.1em; margin-bottom: 5px; font-weight: bold; }
+                        .total { border-top: 2px dashed #000; margin-top: 10px; padding-top: 10px; font-weight: 900; font-size: 1.3em; }
+                        .division { background: #f0f0f0; margin-top: 15px; padding: 15px; text-align: center; border: 2px dashed #000; }
+                        .footer { margin-top: 20px; text-align: center; font-size: 0.8em; border-top: 2px dashed #000; padding-top: 10px; opacity: 0.8; font-weight: normal; }
                     </style>
                 </head>
                 <body>
@@ -1207,54 +1208,7 @@ export default function ComandasPage() {
                                         </Button>
                                     </div>
 
-                                    {/* ── Seção de Contribuições (Dinheiro na Mesa) ── */}
-                                    <Card className="border-amber-200 bg-amber-50/30">
-                                        <CardHeader className="py-3 px-4 border-b border-amber-100 flex-row items-center justify-between">
-                                            <CardTitle className="text-sm font-bold flex items-center gap-2 text-amber-700">
-                                                <Banknote className="h-4 w-4" /> Dinheiro na Mesa
-                                            </CardTitle>
-                                            {totalContributions > 0 && <Badge className="bg-amber-600">Acumulado: R$ {totalContributions.toFixed(2)}</Badge>}
-                                        </CardHeader>
-                                        <CardContent className="p-4 space-y-4">
-                                            <div className="flex gap-2">
-                                                <Select value={contribMethod} onValueChange={setContribMethod}>
-                                                    <SelectTrigger className="w-32 h-9 text-xs"><SelectValue /></SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="Dinheiro">Dinheiro</SelectItem>
-                                                        <SelectItem value="Pix">Pix</SelectItem>
-                                                        <SelectItem value="Cartão">Cartão</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                                <div className="relative flex-1">
-                                                    <span className="absolute left-2 top-2.5 text-[10px] font-bold text-muted-foreground">R$</span>
-                                                    <Input 
-                                                        className="h-9 pl-6 text-sm font-bold" 
-                                                        placeholder="Valor..." 
-                                                        value={contribAmount}
-                                                        onChange={(e) => setContribAmount(e.target.value)}
-                                                        onKeyDown={(e) => e.key === 'Enter' && handleAddContribution()}
-                                                    />
-                                                </div>
-                                                <Button size="sm" className="h-9 bg-amber-600 hover:bg-amber-700" onClick={handleAddContribution} disabled={isSavingContrib}>
-                                                    {isSavingContrib ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                                                </Button>
-                                            </div>
-                                            
-                                            {tableContributions.length > 0 && (
-                                                <div className="space-y-1.5">
-                                                    {tableContributions.map((c) => (
-                                                        <div key={c.id} className="flex justify-between items-center text-xs bg-white/50 p-2 rounded border border-amber-100">
-                                                            <span className="font-medium">{c.method}</span>
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="font-bold">R$ {c.amount.toFixed(2)}</span>
-                                                                <button onClick={() => handleDeleteContribution(c.id)} className="text-destructive hover:opacity-70"><Trash2 className="h-3 w-3" /></button>
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </CardContent>
-                                    </Card>
+
 
                                     <div className="space-y-3">
                                         <h3 className="font-bold flex items-center gap-2"><Receipt className="w-4 h-4" /> Itens Consumidos</h3>

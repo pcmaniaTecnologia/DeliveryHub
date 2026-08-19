@@ -21,6 +21,7 @@ import { useImpersonation } from '@/context/impersonation-context';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { recordCashierSale } from '@/lib/finance-utils';
 import { formatQuantity } from '@/lib/utils';
+import { generateOrderPrintHtml } from '@/lib/print-utils';
 
 type Product = {
     id: string;
@@ -379,9 +380,9 @@ export default function POSPage() {
         }
     };
 
-    const handlePrint = () => {
-        const printContent = document.getElementById('receipt-content');
-        if (!printContent) return;
+    const handlePrint = (orderToPrint?: any) => {
+        const order = (orderToPrint && !orderToPrint.nativeEvent && orderToPrint.orderItems) ? orderToPrint : lastOrder;
+        if (!order) return;
 
         const windowUrl = 'about:blank';
         const uniqueName = new Date();
@@ -389,37 +390,8 @@ export default function POSPage() {
         const printWindow = window.open(windowUrl, windowName, 'left=50000,top=50000,width=0,height=0');
 
         if (printWindow) {
-            printWindow.document.write(`
-                <html>
-                    <head>
-                        <title>Impressão de Cupom</title>
-                        <style>
-                            @page { size: auto; margin: 0; }
-                            body { 
-                                font-family: 'Courier New', Courier, monospace; 
-                                width: 80mm; 
-                                padding: 10px; 
-                                font-size: 12px;
-                                line-height: 1.2;
-                            }
-                            .center { text-align: center; }
-                            .bold { font-weight: bold; }
-                            .divider { border-top: 1px dashed #000; margin: 5px 0; }
-                            .item { display: flex; justify-content: space-between; }
-                            .total { font-size: 14px; font-weight: bold; margin-top: 5px; }
-                        </style>
-                    </head>
-                    <body>
-                        \${printContent.innerHTML}
-                        <script>
-                            window.onload = function() {
-                                window.print();
-                                window.close();
-                            };
-                        </script>
-                    </body>
-                </html>
-            `);
+            const html = generateOrderPrintHtml(order as any, { name: 'DeliveryHub' });
+            printWindow.document.write(html);
             printWindow.document.close();
         }
     };
@@ -951,8 +923,8 @@ export default function POSPage() {
                             {lastOrder?.customerPhone && <div>Tel: {lastOrder.customerPhone}</div>}
                             <div className="divider"></div>
                             <div className="center">Obrigado pela preferência!</div>
-                            <div className="center" style={{ fontSize: '10px', marginTop: '10px', opacity: 0.7 }}>sistema criado por PC MANIA</div>
-                            <div className="center" style={{ fontSize: '10px', opacity: 0.7 }}>www.pcmania.net</div>
+                            <div className="center" style={{ fontSize: '14px', marginTop: '10px', fontWeight: 'bold' }}>sistema criado por PC MANIA</div>
+                            <div className="center" style={{ fontSize: '14px', fontWeight: 'bold' }}>www.pcmania.net</div>
                         </div>
                     </div>
 

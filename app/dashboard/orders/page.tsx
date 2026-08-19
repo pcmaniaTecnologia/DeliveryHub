@@ -82,6 +82,10 @@ export type Order = {
   courierName?: string;
   courierAcceptedAt?: Timestamp;
   courierDeliveredAt?: Timestamp;
+  discount?: number;
+  subtotal?: number;
+  amountReceived?: number;
+  change?: number;
 };
 
 

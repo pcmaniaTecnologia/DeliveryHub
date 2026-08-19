@@ -41,7 +41,7 @@ export function generateOrderPrintHtml(order: Order, company?: Company) {
         `;
     }).join('');
 
-    const subtotal = order.totalAmount - (order.deliveryFee || 0);
+    const subtotal = order.subtotal || (order.totalAmount - (order.deliveryFee || 0) + (order.discount || 0));
 
     return `
         <html>
@@ -66,7 +66,7 @@ export function generateOrderPrintHtml(order: Order, company?: Company) {
             <body>
                 <h2>${company?.name || 'Seu Restaurante'}</h2>
                 <p>Pedido: ${order.id.substring(0, 6).toUpperCase()}</p>
-                <p>${order.orderDate.toDate().toLocaleString('pt-BR')}</p>
+                <p>${order.orderDate?.toDate ? order.orderDate.toDate().toLocaleString('pt-BR') : new Date().toLocaleString('pt-BR')}</p>
                 <hr />
                 <div class="section">
                     <p class="section-title">Cliente:</p>
@@ -88,13 +88,16 @@ export function generateOrderPrintHtml(order: Order, company?: Company) {
                 <hr />
                 <div class="totals">
                     <p>Subtotal: R$${subtotal.toFixed(2)}</p>
+                    ${order.discount && order.discount > 0 ? `<p>Desconto: - R$${order.discount.toFixed(2)}</p>` : ''}
                     ${order.deliveryFee && order.deliveryFee > 0 ? `<p>Taxa de Entrega: R$${order.deliveryFee.toFixed(2)}</p>` : ''}
                     <strong>Total: R$${order.totalAmount.toFixed(2)}</strong>
                 </div>
                  <hr />
                 <p style="text-align: left;">Pagamento: ${order.paymentMethod}</p>
+                ${order.amountReceived && order.amountReceived > 0 ? `<p style="text-align: left;">Recebido: R$${order.amountReceived.toFixed(2)}</p>` : ''}
+                ${order.change && order.change > 0 ? `<p style="text-align: left;">Troco: R$${order.change.toFixed(2)}</p>` : ''}
                 <p style="text-align: left;">Entrega: ${order.deliveryType}</p>
-                <div style="text-align: center; margin-top: 20px; font-size: 0.8em; opacity: 0.8; font-weight: normal;">sistema criado por PC MANIA<br>www.pcmania.net</div>
+                <div style="text-align: center; margin-top: 20px; font-weight: bold; font-size: 1.1em;">sistema criado por PC MANIA<br>www.pcmania.net</div>
                 <script>
                     window.print();
                     window.onafterprint = () => window.close();

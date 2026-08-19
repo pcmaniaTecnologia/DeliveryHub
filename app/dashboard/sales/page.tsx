@@ -22,6 +22,7 @@ import { useImpersonation } from '@/context/impersonation-context';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { recordCashierSale } from '@/lib/finance-utils';
 import { formatQuantity } from '@/lib/utils';
+import { generateOrderPrintHtml } from '@/lib/print-utils';
 
 type VariantItem = {
     name: string;
@@ -737,7 +738,7 @@ export default function POSPage() {
     }, [isHistoryOpen]);
 
     const handlePrint = (orderToPrint?: any) => {
-        const order = orderToPrint || lastOrder;
+        const order = (orderToPrint && !orderToPrint.nativeEvent && orderToPrint.orderItems) ? orderToPrint : lastOrder;
         if (!order) return;
 
         const windowUrl = 'about:blank';
@@ -746,93 +747,8 @@ export default function POSPage() {
         const printWindow = window.open(windowUrl, windowName, 'left=50000,top=50000,width=0,height=0');
 
         if (printWindow) {
-            const dateStr = order.orderDate?.toDate ? order.orderDate.toDate().toLocaleString('pt-BR') : new Date().toLocaleString('pt-BR');
-            const itemsHtml = order.orderItems?.map((item: any) => `
-                <div class="item">
-                    <span>${formatQuantity(item.quantity, item.isSoldByWeight)} ${item.productName}</span>
-                    <span>R$ ${(item.finalPrice * item.quantity).toFixed(2)}</span>
-                </div>
-                ${item.notes ? `<div style="font-size: 10px; color: #555; padding-left: 10px; margin-bottom: 4px;">${item.notes}</div>` : ''}
-            `).join('') || '';
-
-            const subtotalHtml = order.discount > 0 ? `
-                <div class="item">
-                    <span>Subtotal</span>
-                    <span>R$ ${order.subtotal?.toFixed(2)}</span>
-                </div>
-                <div class="item">
-                    <span>Desconto</span>
-                    <span>- R$ ${order.discount?.toFixed(2)}</span>
-                </div>
-            ` : '';
-
-            const changeHtml = (order.amountReceived > 0 && order.change >= 0) ? `
-                <div class="item">
-                    <span>Recebido</span>
-                    <span>R$ ${order.amountReceived?.toFixed(2)}</span>
-                </div>
-                <div class="item">
-                    <span>Troco</span>
-                    <span>R$ ${order.change?.toFixed(2)}</span>
-                </div>
-            ` : '';
-
-            printWindow.document.write(`
-                <html>
-                    <head>
-                        <title>Impressão de Cupom</title>
-                        <style>
-                            @page { size: auto; margin: 0; }
-                            body { 
-                                font-family: 'Courier New', Courier, monospace; 
-                                width: 80mm; 
-                                padding: 10px; 
-                                font-size: 12px;
-                                line-height: 1.2;
-                            }
-                            .center { text-align: center; }
-                            .bold { font-weight: bold; }
-                            .divider { border-top: 1px dashed #000; margin: 5px 0; }
-                            .item { display: flex; justify-content: space-between; }
-                            .total { font-size: 14px; font-weight: bold; margin-top: 5px; }
-                        </style>
-                    </head>
-                    <body>
-                        <div class="center bold">DeliveryHub</div>
-                        <div class="center">Cupom não fiscal</div>
-                        <div class="divider"></div>
-                        <div>Data: ${dateStr}</div>
-                        <div>Pedido: ${order.id?.substring(0, 8).toUpperCase()}</div>
-                        <div class="divider"></div>
-                        <div class="bold">ITENS:</div>
-                        ${itemsHtml}
-                        <div class="divider"></div>
-                        ${subtotalHtml}
-                        <div class="total item">
-                            <span>TOTAL</span>
-                            <span>R$ ${order.totalAmount?.toFixed(2)}</span>
-                        </div>
-                        <div class="divider"></div>
-                        <div class="bold">PAGAMENTO:</div>
-                        <div>${order.paymentMethod}</div>
-                        ${changeHtml}
-                        <div class="divider"></div>
-                        <div class="bold">CLIENTE:</div>
-                        <div>${order.customerName}</div>
-                        ${order.customerPhone ? `<div>Tel: ${order.customerPhone}</div>` : ''}
-                        <div class="divider"></div>
-                        <div class="center">Obrigado pela preferência!</div>
-                        <div class="center" style="font-size: 10px; margin-top: 10px; opacity: 0.7;">sistema criado por PC MANIA</div>
-                        <div class="center" style="font-size: 10px; opacity: 0.7;">www.pcmania.net</div>
-                        <script>
-                            window.onload = function() {
-                                window.print();
-                                window.close();
-                            };
-                        </script>
-                    </body>
-                </html>
-            `);
+            const html = generateOrderPrintHtml(order as any, { name: 'DeliveryHub' });
+            printWindow.document.write(html);
             printWindow.document.close();
         }
     };
@@ -1403,8 +1319,8 @@ export default function POSPage() {
                             {lastOrder?.customerPhone && <div>Tel: {lastOrder.customerPhone}</div>}
                             <div className="divider"></div>
                             <div className="center">Obrigado pela preferência!</div>
-                            <div className="center" style={{ fontSize: '10px', marginTop: '10px', opacity: 0.7 }}>sistema criado por PC MANIA</div>
-                            <div className="center" style={{ fontSize: '10px', opacity: 0.7 }}>www.pcmania.net</div>
+                            <div className="center" style={{ fontSize: '14px', marginTop: '10px', fontWeight: 'bold' }}>sistema criado por PC MANIA</div>
+                            <div className="center" style={{ fontSize: '14px', fontWeight: 'bold' }}>www.pcmania.net</div>
                         </div>
                     </div>
 
