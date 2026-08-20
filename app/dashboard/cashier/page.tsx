@@ -670,9 +670,9 @@ export default function CashierPage() {
                             const val = e.target.value;
                             if (val) {
                                 const [y, m, d] = val.split('-').map(Number);
-                                setDateRange(prev => ({ ...prev, to: new Date(y, m - 1, d) }));
+                                setDateRange(prev => ({ from: prev?.from, to: new Date(y, m - 1, d) }));
                             } else {
-                                setDateRange(prev => ({ ...prev, to: undefined }));
+                                setDateRange(prev => ({ from: prev?.from, to: undefined }));
                             }
                             setActivePreset(null);
                         }} 
