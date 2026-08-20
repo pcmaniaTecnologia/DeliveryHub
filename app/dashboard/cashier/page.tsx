@@ -637,47 +637,49 @@ export default function CashierPage() {
             Ontem
           </Button>
 
-          <Popover>
-            <PopoverTrigger asChild>
-                <Button
-                variant={activePreset === null ? 'default' : 'ghost'}
-                size="sm"
-                className={cn(
-                    "h-9 px-4 rounded-lg justify-start text-left font-normal",
-                    !dateRange && activePreset !== null && "text-muted-foreground"
-                )}
-                >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {dateRange?.from ? (
-                    dateRange.to ? (
-                    <>
-                        {format(dateRange.from, "dd/MM")} - {format(dateRange.to, "dd/MM")}
-                    </>
-                    ) : (
-                        format(dateRange.from, "dd/MM")
-                    )
-                ) : (
-                    <span>Período</span>
-                )}
-                </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="end">
-                <Calendar
-                initialFocus
-                mode="range"
-                defaultMonth={dateRange?.from}
-                selected={dateRange}
-                onSelect={(range) => {
-                    if (range) {
-                        setDateRange(range);
-                        setActivePreset(null);
-                    }
-                }}
-                numberOfMonths={2}
-                locale={ptBR}
-                />
-            </PopoverContent>
-          </Popover>
+          <Card className="p-2 border-primary/20 bg-primary/5 shadow-none flex-shrink-0">
+            <div className="flex items-center gap-2">
+                <div className="flex flex-col gap-1">
+                    <Label htmlFor="start" className="text-[10px] uppercase font-bold text-muted-foreground px-1">Início</Label>
+                    <Input 
+                        id="start" 
+                        type="date" 
+                        className="h-9 w-36 bg-background text-sm" 
+                        value={dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : ''} 
+                        onChange={e => {
+                            const val = e.target.value;
+                            if (val) {
+                                const [y, m, d] = val.split('-').map(Number);
+                                setDateRange(prev => ({ ...prev, from: new Date(y, m - 1, d) }));
+                            } else {
+                                setDateRange(prev => ({ ...prev, from: undefined }));
+                            }
+                            setActivePreset(null);
+                        }} 
+                    />
+                </div>
+                <CalendarIcon className="h-4 w-4 text-muted-foreground mt-4" />
+                <div className="flex flex-col gap-1">
+                    <Label htmlFor="end" className="text-[10px] uppercase font-bold text-muted-foreground px-1">Fim</Label>
+                    <Input 
+                        id="end" 
+                        type="date" 
+                        className="h-9 w-36 bg-background text-sm" 
+                        value={dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : ''} 
+                        onChange={e => {
+                            const val = e.target.value;
+                            if (val) {
+                                const [y, m, d] = val.split('-').map(Number);
+                                setDateRange(prev => ({ ...prev, to: new Date(y, m - 1, d) }));
+                            } else {
+                                setDateRange(prev => ({ ...prev, to: undefined }));
+                            }
+                            setActivePreset(null);
+                        }} 
+                    />
+                </div>
+            </div>
+          </Card>
 
           {(dateRange || activePreset !== 'session') && (
             <Button 

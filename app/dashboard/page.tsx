@@ -581,8 +581,8 @@ export default function DashboardPage() {
                   </div>
               )}
               <div className="flex justify-between text-sm">
-                <span>Vendas de Produtos:</span>
-                <span className="font-medium text-right">+ R$ {totalSales.toFixed(2)}</span>
+                <span>Vendas em Dinheiro:</span>
+                <span className="font-medium text-right">+ R$ {salesByPaymentMethod.cash.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span>Entradas Extras (Fiado/Reforço):</span>
@@ -594,7 +594,7 @@ export default function DashboardPage() {
               </div>
               <div className="flex justify-between font-bold text-base pt-1">
                 <span>Saldo Esperado na Gaveta:</span>
-                <span className="text-primary">R$ {((currentCashSession?.openingBalance || 0) + totalSales + totalDeposits - totalWithdrawals).toFixed(2)}</span>
+                <span className="text-primary">R$ {((currentCashSession?.openingBalance || 0) + salesByPaymentMethod.cash + totalDeposits - totalWithdrawals).toFixed(2)}</span>
               </div>
             </div>
             <div className="space-y-2">
@@ -602,10 +602,10 @@ export default function DashboardPage() {
               <Input type="number" className="text-xl h-12 font-bold" placeholder="0.00"
                 value={closingActual} onChange={e => setClosingActual(e.target.value)} autoFocus />
               {closingActual && !isNaN(parseFloat(closingActual)) && (
-                <p className={cn("text-sm font-medium", parseFloat(closingActual) >= ((currentCashSession?.openingBalance || 0) + totalSales + totalDeposits - totalWithdrawals) ? "text-emerald-600" : "text-rose-600")}>
-                  {parseFloat(closingActual) >= ((currentCashSession?.openingBalance || 0) + totalSales + totalDeposits - totalWithdrawals)
-                    ? `✅ Confere (+R$ ${(parseFloat(closingActual) - ((currentCashSession?.openingBalance || 0) + totalSales + totalDeposits - totalWithdrawals)).toFixed(2)})`
-                    : `⚠️ Diferença: -R$ ${(((currentCashSession?.openingBalance || 0) + totalSales + totalDeposits - totalWithdrawals) - parseFloat(closingActual)).toFixed(2)}`}
+                <p className={cn("text-sm font-medium", parseFloat(closingActual) >= ((currentCashSession?.openingBalance || 0) + salesByPaymentMethod.cash + totalDeposits - totalWithdrawals) ? "text-emerald-600" : "text-rose-600")}>
+                  {parseFloat(closingActual) >= ((currentCashSession?.openingBalance || 0) + salesByPaymentMethod.cash + totalDeposits - totalWithdrawals)
+                    ? `✅ Confere (+R$ ${(parseFloat(closingActual) - ((currentCashSession?.openingBalance || 0) + salesByPaymentMethod.cash + totalDeposits - totalWithdrawals)).toFixed(2)})`
+                    : `⚠️ Diferença: -R$ ${(((currentCashSession?.openingBalance || 0) + salesByPaymentMethod.cash + totalDeposits - totalWithdrawals) - parseFloat(closingActual)).toFixed(2)}`}
                 </p>
               )}
             </div>
@@ -745,7 +745,7 @@ export default function DashboardPage() {
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="end">
                 <Calendar initialFocus mode="range" defaultMonth={dateRange?.from}
-                  selected={dateRange} onSelect={handleDateRangeChange} numberOfMonths={2} locale={ptBR} />
+                  selected={dateRange} onSelect={handleDateRangeChange} numberOfMonths={1} locale={ptBR} />
               </PopoverContent>
             </Popover>
             <Button onClick={() => handlePresetChange('today')} variant={activePreset === 'today' ? 'default' : 'outline'}>Hoje</Button>

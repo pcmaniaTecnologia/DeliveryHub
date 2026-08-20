@@ -521,6 +521,7 @@ export default function SettingsPage() {
       delivery: 'Boas notícias, {cliente}! Seu pedido nº {pedido_id} acabou de sair para entrega e logo chegará até você! 🛵',
       ready: 'Ei, {cliente}! Seu pedido nº {pedido_id} está prontinho te esperando para retirada. 😊',
   });
+  const [deleteReason, setDeleteReason] = useState('');
 
   useEffect(() => {
     if (companyData) {
@@ -1344,11 +1345,45 @@ export default function SettingsPage() {
                   todos os produtos, pedidos e removerá seu acesso ao sistema.
                 </AlertDialogDescription>
               </AlertDialogHeader>
+              
+              <div className="py-3">
+                <Label htmlFor="delete-reason" className="text-sm font-medium mb-2 block text-foreground">
+                  Por favor, informe o motivo da exclusão para confirmar:
+                </Label>
+                <Textarea 
+                  id="delete-reason" 
+                  value={deleteReason} 
+                  onChange={(e) => setDeleteReason(e.target.value)} 
+                  placeholder="Ex: Vou fechar a loja, estou migrando de sistema..." 
+                  className="resize-none"
+                  rows={2}
+                />
+              </div>
+
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={async () => {
+                <AlertDialogCancel onClick={() => setDeleteReason('')}>Cancelar</AlertDialogCancel>
+                <AlertDialogAction 
+                  disabled={deleteReason.trim().length < 5}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50" 
+                  onClick={async (e) => {
+                    if (deleteReason.trim().length < 5) {
+                        e.preventDefault();
+                        return;
+                    }
                     if (!user || !auth) return;
                     try {
+                        const feedbackRef = collection(firestore!, 'deletion_feedback');
+                        try {
+                            await addDocument(feedbackRef, {
+                                userId: user.uid,
+                                storeName: storeName || 'Desconhecido',
+                                reason: deleteReason,
+                                deletedAt: serverTimestamp()
+                            });
+                        } catch (err) {
+                            console.error("Não foi possível salvar o feedback", err);
+                        }
+
                         const companyDocRef = doc(firestore!, 'companies', user.uid);
                         const companyUserDocRef = doc(firestore!, 'users', user.uid);
                         
@@ -1360,7 +1395,7 @@ export default function SettingsPage() {
                         await deleteAuthUser(user);
                         router.push('/signup');
                         toast({ title: "Conta excluída", description: "Sua loja foi removida com sucesso." });
-                    } catch (e) {
+                    } catch (err) {
                          toast({ variant: 'destructive', title: "Erro ao excluir", description: "Tente novamente ou contate o suporte." });
                     }
                 }}>
