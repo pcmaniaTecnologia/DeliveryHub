@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useUser, useFirestore, useCollection, useMemoFirebase, addDocument, updateDocument } from '@/firebase';
-import { collection, serverTimestamp, doc, increment, getDocs, query, where, limit } from 'firebase/firestore';
+import { collection, serverTimestamp, doc, increment, getDocs, query, where, limit, orderBy } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
@@ -626,17 +626,14 @@ export default function POSPage() {
             const ordersRef = collection(firestore, `companies/${effectiveCompanyId}/orders`);
             const q = query(
                 ordersRef,
-                where('origin', '==', 'PDV'),
-                limit(10)
+                orderBy('orderDate', 'desc'),
+                limit(100)
             );
             const snap = await getDocs(q);
-            const orders = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            let orders = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             
-            orders.sort((a: any, b: any) => {
-                const dateA = a.orderDate?.toMillis?.() || 0;
-                const dateB = b.orderDate?.toMillis?.() || 0;
-                return dateB - dateA;
-            });
+            // Filtra as vendas do PDV
+            orders = orders.filter((o: any) => o.origin === 'PDV');
 
             setRecentOrders(orders);
         } catch (e) {
