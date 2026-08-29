@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
-import { MoreHorizontal, PlusCircle, Trash2, Search, ArrowUp, ArrowDown } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Trash2, Search, ArrowUp, ArrowDown, Edit2, Check, X } from 'lucide-react';
 import { useForm, useFieldArray, Controller, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -136,6 +136,8 @@ export default function ProductsPage() {
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [newCategoryName, setNewCategoryName] = useState('');
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+  const [editingCategoryName, setEditingCategoryName] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   
@@ -369,6 +371,29 @@ export default function ProductsPage() {
     });
   };
 
+  const handleStartEditCategory = (category: Category) => {
+    setEditingCategoryId(category.id);
+    setEditingCategoryName(category.name);
+  };
+
+  const handleSaveEditCategory = async (categoryId: string) => {
+    if (!editingCategoryName.trim()) {
+        toast({ variant: "destructive", title: "Nome da categoria é obrigatório." });
+        return;
+    }
+    if (!firestore || !effectiveCompanyId) return;
+    
+    const categoryDocRef = doc(firestore, `companies/${effectiveCompanyId}/categories/${categoryId}`);
+    try {
+        await updateDocument(categoryDocRef, { name: editingCategoryName });
+        toast({ title: "Categoria atualizada!" });
+        setEditingCategoryId(null);
+        setEditingCategoryName('');
+    } catch (error: any) {
+        toast({ variant: "destructive", title: "Erro ao atualizar categoria", description: error.message });
+    }
+  };
+
   const handleDeleteCategory = (categoryId: string) => {
     if (!firestore || !effectiveCompanyId) return;
     
@@ -516,36 +541,57 @@ export default function ProductsPage() {
                         <div className="space-y-2">
                              {sortedCategoriesList?.map((cat, index) => (
                                 <div key={cat.id} className="flex items-center justify-between p-2 border rounded-md">
-                                    <span>{cat.name}</span>
-                                    <div className="flex items-center gap-1">
-                                        <Button variant="ghost" size="icon" onClick={() => handleMoveCategory(index, 'up')} disabled={index === 0}>
-                                            <ArrowUp className="h-4 w-4" />
-                                        </Button>
-                                        <Button variant="ghost" size="icon" onClick={() => handleMoveCategory(index, 'down')} disabled={index === sortedCategoriesList.length - 1}>
-                                            <ArrowDown className="h-4 w-4" />
-                                        </Button>
-                                        <AlertDialog>
-                                          <AlertDialogTrigger asChild>
-                                            <Button variant="ghost" size="icon">
-                                                <Trash2 className="h-4 w-4 text-destructive" />
+                                    {editingCategoryId === cat.id ? (
+                                        <div className="flex-1 flex items-center gap-2 mr-2">
+                                            <Input
+                                                value={editingCategoryName}
+                                                onChange={(e) => setEditingCategoryName(e.target.value)}
+                                                autoFocus
+                                            />
+                                            <Button variant="ghost" size="icon" onClick={() => handleSaveEditCategory(cat.id)}>
+                                                <Check className="h-4 w-4 text-green-600" />
                                             </Button>
-                                          </AlertDialogTrigger>
-                                          <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                              <AlertDialogTitle>Excluir Categoria</AlertDialogTitle>
-                                              <AlertDialogDescription>
-                                                Tem certeza que deseja excluir esta categoria? Esta ação não pode ser desfeita.
-                                              </AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                              <AlertDialogAction onClick={() => handleDeleteCategory(cat.id)} className="bg-destructive hover:bg-destructive/90">
-                                                Excluir
-                                              </AlertDialogAction>
-                                            </AlertDialogFooter>
-                                          </AlertDialogContent>
-                                        </AlertDialog>
-                                    </div>
+                                            <Button variant="ghost" size="icon" onClick={() => setEditingCategoryId(null)}>
+                                                <X className="h-4 w-4 text-destructive" />
+                                            </Button>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <span>{cat.name}</span>
+                                            <div className="flex items-center gap-1">
+                                                <Button variant="ghost" size="icon" onClick={() => handleMoveCategory(index, 'up')} disabled={index === 0}>
+                                                    <ArrowUp className="h-4 w-4" />
+                                                </Button>
+                                                <Button variant="ghost" size="icon" onClick={() => handleMoveCategory(index, 'down')} disabled={index === sortedCategoriesList.length - 1}>
+                                                    <ArrowDown className="h-4 w-4" />
+                                                </Button>
+                                                <Button variant="ghost" size="icon" onClick={() => handleStartEditCategory(cat)}>
+                                                    <Edit2 className="h-4 w-4" />
+                                                </Button>
+                                                <AlertDialog>
+                                                  <AlertDialogTrigger asChild>
+                                                    <Button variant="ghost" size="icon">
+                                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                                    </Button>
+                                                  </AlertDialogTrigger>
+                                                  <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                      <AlertDialogTitle>Excluir Categoria</AlertDialogTitle>
+                                                      <AlertDialogDescription>
+                                                        Tem certeza que deseja excluir esta categoria? Esta ação não pode ser desfeita.
+                                                      </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                      <AlertDialogAction onClick={() => handleDeleteCategory(cat.id)} className="bg-destructive hover:bg-destructive/90">
+                                                        Excluir
+                                                      </AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                  </AlertDialogContent>
+                                                </AlertDialog>
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                             ))}
                         </div>
