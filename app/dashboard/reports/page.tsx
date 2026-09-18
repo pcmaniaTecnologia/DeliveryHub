@@ -11,7 +11,7 @@ import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
     PieChart, Pie, Cell, Legend, AreaChart, Area 
 } from 'recharts';
-import { DollarSign, Truck, Store, ClipboardList, Wallet, TrendingUp, Calendar, AlertCircle, Package, BarChart3, PieChart as PieChartIcon, Activity, Bike } from 'lucide-react';
+import { DollarSign, Truck, Store, ClipboardList, Wallet, TrendingUp, Calendar, AlertCircle, Package, BarChart3, PieChart as PieChartIcon, Activity, Bike, Ticket } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format, startOfDay, endOfDay, isWithinInterval, subDays, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -24,6 +24,7 @@ type Order = {
     deliveryType: string;
     origin?: string;
     status: string;
+    notes?: string;
     orderDate: Timestamp;
     orderItems?: {
         productId: string;
@@ -122,12 +123,17 @@ export default function ReportsPage() {
         const byType = {
             deliveryOnly: filtered.filter(o => normalizeStr(o.deliveryType) === 'delivery').reduce((sum, o) => sum + o.totalAmount, 0),
             retiradaOnly: filtered.filter(o => normalizeStr(o.deliveryType) === 'retirada').reduce((sum, o) => sum + o.totalAmount, 0),
-            balcao: filtered.filter(o => normalizeStr(o.deliveryType) === 'balcao' || normalizeStr(o.origin) === 'pdv').reduce((sum, o) => sum + o.totalAmount, 0),
+            balcao: filtered.filter(o => (normalizeStr(o.deliveryType) === 'balcao' || normalizeStr(o.origin) === 'pdv') && o.notes !== 'Venda de Ficha Rápida').reduce((sum, o) => sum + o.totalAmount, 0),
             comanda: filtered.filter(o => normalizeStr(o.deliveryType) === 'mesa' || normalizeStr(o.origin) === 'comanda').reduce((sum, o) => sum + o.totalAmount, 0),
+            fichas: filtered.filter(o => o.notes === 'Venda de Ficha Rápida').reduce((sum, o) => sum + o.totalAmount, 0),
+            fichasCount: filtered.filter(o => o.notes === 'Venda de Ficha Rápida').reduce((sum, o) => {
+                const qtd = (o.orderItems || []).reduce((q, i) => q + (i.quantity || 0), 0);
+                return sum + qtd;
+            }, 0),
         };
 
         // Totals
-        const totalFaturamento = byType.deliveryOnly + byType.retiradaOnly + byType.balcao + byType.comanda;
+        const totalFaturamento = byType.deliveryOnly + byType.retiradaOnly + byType.balcao + byType.comanda + byType.fichas;
 
         // Payment Distribution - Normalization
         const paymentsMap: { [key: string]: number } = {
@@ -285,7 +291,7 @@ export default function ReportsPage() {
             </div>
 
             {/* Summary Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <Card className="border-l-4 border-l-primary shadow-sm">
                     <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0 text-muted-foreground font-medium">
                         <CardTitle className="text-sm">Faturamento Total</CardTitle>
@@ -329,6 +335,17 @@ export default function ReportsPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">R$ {reportData?.byType.comanda.toFixed(2)}</div>
+                    </CardContent>
+                </Card>
+
+                <Card className="border-l-4 border-l-green-500 shadow-sm">
+                    <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0 text-muted-foreground font-medium">
+                        <CardTitle className="text-sm">Fichas Vendidas</CardTitle>
+                        <Ticket className="h-4 w-4 text-green-500" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">R$ {(reportData?.byType.fichas || 0).toFixed(2)}</div>
+                        <p className="text-xs text-muted-foreground mt-1">{reportData?.byType.fichasCount || 0} fichas emitidas</p>
                     </CardContent>
                 </Card>
             </div>

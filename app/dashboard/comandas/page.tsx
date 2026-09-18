@@ -11,7 +11,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { useImpersonation } from '@/context/impersonation-context';
-import { Loader2, Users, User, Receipt, Clock, CheckCircle2, PlusCircle, Trash2, Plus, Minus, X, Calculator, ShoppingBag, Search, Tag, Wallet, HandCoins, ArrowDownCircle, Banknote, Lock, Printer, UtensilsCrossed } from 'lucide-react';
+import { Loader2, Users, User, Receipt, Clock, CheckCircle2, PlusCircle, Trash2, Plus, Minus, X, Calculator, ShoppingBag, Search, Tag, Wallet, HandCoins, ArrowDownCircle, Banknote, Lock, Printer, UtensilsCrossed, Ticket } from 'lucide-react';
+import { generateTokenPrintHtml } from '@/lib/print-utils';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
@@ -389,6 +390,95 @@ export default function ComandasPage() {
     // Controla qual item está com campo de desconto aberto
     const [discountOpenKey, setDiscountOpenKey] = useState<string | null>(null);
     const [discountInput, setDiscountInput] = useState('');
+
+    // Vender Ficha states
+    const [isTokenModalOpen, setIsTokenModalOpen] = useState(false);
+    const [tokenProductSearch, setTokenProductSearch] = useState('');
+    const [tokenSelectedProduct, setTokenSelectedProduct] = useState<{id: string, name: string, price: number} | null>(null);
+    const [tokenQuantity, setTokenQuantity] = useState(1);
+    const [tokenPaymentMethod, setTokenPaymentMethod] = useState('');
+    const [isProcessingToken, setIsProcessingToken] = useState(false);
+    const [isTokenSearchOpen, setIsTokenSearchOpen] = useState(false);
+
+    const productsRef = useMemoFirebase(() => {
+        if (!firestore || !effectiveCompanyId) return null;
+        return collection(firestore, 'companies', effectiveCompanyId, 'products');
+    }, [firestore, effectiveCompanyId]);
+    const { data: allProducts } = useCollection<{ id: string; name: string; price: number }>(productsRef);
+
+    // Auto-fill price when product name changes
+    const handleTokenProductSearchChange = (val: string) => {
+        setTokenProductSearch(val);
+        setTokenSelectedProduct(null);
+        setIsTokenSearchOpen(true);
+    };
+    
+    const handleSelectTokenProduct = (product: {id: string, name: string, price: number}) => {
+        setTokenSelectedProduct(product);
+        setTokenProductSearch(product.name);
+        setIsTokenSearchOpen(false);
+    };
+
+    const handleSellToken = async () => {
+        if (!firestore || !effectiveCompanyId || !tokenSelectedProduct || tokenQuantity <= 0 || !tokenPaymentMethod) {
+            toast({ variant: 'destructive', title: "Selecione um produto, quantidade e forma de pagamento." });
+            return;
+        }
+
+        setIsProcessingToken(true);
+        try {
+            const ordersRef = collection(firestore, 'companies', effectiveCompanyId, 'orders');
+            const price = tokenSelectedProduct.price;
+            const orderTotal = price * tokenQuantity;
+
+            const orderData = {
+                companyId: effectiveCompanyId,
+                customerId: 'balcao_system',
+                customerName: 'Cliente Balcão (Ficha)',
+                orderDate: serverTimestamp(),
+                status: 'Entregue', // Already delivered/paid
+                deliveryType: 'Balcão',
+                deliveryFee: 0,
+                discount: 0,
+                subtotal: orderTotal,
+                totalAmount: orderTotal,
+                notes: 'Venda de Ficha Rápida',
+                paymentMethod: `${tokenPaymentMethod}: R$ ${orderTotal.toFixed(2)}`,
+                payments: [{ method: tokenPaymentMethod, amount: orderTotal }],
+                orderItems: [{
+                    productId: tokenSelectedProduct.id,
+                    productName: tokenSelectedProduct.name,
+                    quantity: tokenQuantity,
+                    unitPrice: price,
+                    finalPrice: price,
+                    isSoldByWeight: false
+                }]
+            };
+
+            await addDocument(ordersRef, orderData);
+
+            toast({ title: 'Fichas vendidas com sucesso!' });
+
+            // Imprimir
+            const printHtml = generateTokenPrintHtml(tokenQuantity, tokenSelectedProduct.name, price, companyData?.name, tokenPaymentMethod);
+            const printWindow = window.open('', '_blank', 'width=300,height=500');
+            if (printWindow) {
+                printWindow.document.write(printHtml);
+                printWindow.document.close();
+            }
+
+            // Fechar modal
+            setIsTokenModalOpen(false);
+            setTokenProductSearch('');
+            setTokenSelectedProduct(null);
+            setTokenQuantity(1);
+        } catch (error) {
+            console.error(error);
+            toast({ variant: 'destructive', title: 'Erro ao vender ficha' });
+        } finally {
+            setIsProcessingToken(false);
+        }
+    };
 
     // Pre-calculate items for the selected table
     const tableItems = useMemo(() => {
@@ -786,6 +876,15 @@ export default function ComandasPage() {
                     >
                         <Receipt className="h-4 w-4" />
                         <span className="hidden sm:inline">QR Codes</span>
+                    </Button>
+                    <Button
+                        variant="default"
+                        size="sm"
+                        className="shrink-0 gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                        onClick={() => setIsTokenModalOpen(true)}
+                    >
+                        <Ticket className="h-4 w-4" />
+                        <span className="hidden sm:inline">Vender Ficha</span>
                     </Button>
                     <Button
                         variant="outline"
@@ -1353,6 +1452,89 @@ export default function ComandasPage() {
                         <Button onClick={handleTransferTable} disabled={isSavingTransfer || !transferToTable}>
                             {isSavingTransfer ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <HandCoins className="h-4 w-4 mr-2" />}
                             Transferir Tudo
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Token Dialog */}
+            <Dialog open={isTokenModalOpen} onOpenChange={setIsTokenModalOpen}>
+                <DialogContent className="sm:max-w-[400px]">
+                    <DialogHeader>
+                        <DialogTitle>Vender Ficha</DialogTitle>
+                        <DialogDescription>Selecione o produto para venda rápida e impressão de ficha.</DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="grid grid-cols-4 gap-4">
+                            <div className="col-span-3 space-y-2 relative">
+                                <Label>Produto</Label>
+                                <Input 
+                                    placeholder="Pesquise o produto..."
+                                    value={tokenProductSearch}
+                                    onChange={(e) => handleTokenProductSearchChange(e.target.value)}
+                                    onFocus={() => setIsTokenSearchOpen(true)}
+                                    onBlur={() => setTimeout(() => setIsTokenSearchOpen(false), 200)}
+                                />
+                                {isTokenSearchOpen && tokenProductSearch && (
+                                    <div className="absolute top-full left-0 w-full mt-1 bg-white border rounded-md shadow-lg z-50 max-h-48 overflow-y-auto">
+                                        {allProducts?.filter(p => p.name.toLowerCase().includes(tokenProductSearch.toLowerCase())).map(p => (
+                                            <div 
+                                                key={p.id} 
+                                                className="px-3 py-2 text-sm hover:bg-slate-100 cursor-pointer border-b last:border-0"
+                                                onMouseDown={(e) => {
+                                                    e.preventDefault();
+                                                    handleSelectTokenProduct(p);
+                                                }}
+                                            >
+                                                <div className="font-medium truncate">{p.name}</div>
+                                                <div className="text-xs text-muted-foreground">R$ {p.price.toFixed(2)}</div>
+                                            </div>
+                                        ))}
+                                        {allProducts?.filter(p => p.name.toLowerCase().includes(tokenProductSearch.toLowerCase())).length === 0 && (
+                                            <div className="px-3 py-2 text-sm text-muted-foreground text-center">Nenhum encontrado.</div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                            <div className="col-span-1 space-y-2">
+                                <Label>Valor</Label>
+                                <Input 
+                                    value={tokenSelectedProduct ? tokenSelectedProduct.price.toFixed(2) : "0.00"}
+                                    disabled
+                                    className="bg-muted text-center px-1"
+                                />
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Quantidade de Fichas</Label>
+                            <div className="flex items-center gap-4">
+                                <Button variant="outline" size="icon" onClick={() => setTokenQuantity(Math.max(1, tokenQuantity - 1))}><Minus className="h-4 w-4" /></Button>
+                                <span className="font-bold text-lg w-8 text-center">{tokenQuantity}</span>
+                                <Button variant="outline" size="icon" onClick={() => setTokenQuantity(tokenQuantity + 1)}><Plus className="h-4 w-4" /></Button>
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Forma de Pagamento</Label>
+                            <Select value={tokenPaymentMethod} onValueChange={setTokenPaymentMethod}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Selecione..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {companyData?.paymentMethods?.cash !== false && <SelectItem value="Dinheiro">Dinheiro</SelectItem>}
+                                    {companyData?.paymentMethods?.credit !== false && <SelectItem value="Cartão de Crédito">Cartão de Crédito</SelectItem>}
+                                    {companyData?.paymentMethods?.debit !== false && <SelectItem value="Cartão de Débito">Cartão de Débito</SelectItem>}
+                                    {companyData?.paymentMethods?.pix !== false && <SelectItem value="PIX">PIX</SelectItem>}
+                                    {/* Caso antigo ou se não tiver config de paymentMethods */}
+                                    {!companyData?.paymentMethods && <SelectItem value="Vale Refeição">Vale Refeição</SelectItem>}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsTokenModalOpen(false)}>Cancelar</Button>
+                        <Button onClick={handleSellToken} disabled={isProcessingToken || !tokenSelectedProduct || tokenQuantity <= 0 || !tokenPaymentMethod}>
+                            {isProcessingToken ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Printer className="h-4 w-4 mr-2" />}
+                            Vender e Imprimir
                         </Button>
                     </DialogFooter>
                 </DialogContent>

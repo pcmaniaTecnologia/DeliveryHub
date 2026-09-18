@@ -29,11 +29,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, Printer, Bike } from 'lucide-react';
+import { MoreHorizontal, Printer, Bike, Ticket } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { generateOrderPrintHtml } from '@/lib/print-utils';
+import { generateOrderPrintHtml, generateOrderTokensPrintHtml } from '@/lib/print-utils';
 import { Input } from '@/components/ui/input';
 import { Search } from 'lucide-react';
 
@@ -88,6 +88,12 @@ export type Order = {
   change?: number;
 };
 
+
+export const isFichaOrder = (order?: Order | null) => {
+    if (!order) return false;
+    return order.notes === 'Venda de Ficha Rápida' ||
+           (!!order.customerName && order.customerName.toLowerCase().includes('ficha'));
+};
 
 const statusMap: { [key: string]: Order['status'][] } = {
   "Todos": ["Novo", "Aguardando pagamento", "Em preparo", "Pronto para retirada", "Saiu para entrega", "Entregue", "Cancelado", "Entregue à mesa"],
@@ -190,6 +196,29 @@ export default function OrdersPage() {
             }
         }
     };
+
+    const handlePrintTokens = (orderToPrint: Order) => {
+        if (!firestore || !user) return;
+        const printHtml = generateOrderTokensPrintHtml(orderToPrint, companyData || undefined);
+        const printWindow = window.open('', '_blank', 'width=300,height=500');
+        if (printWindow) {
+            printWindow.document.write(printHtml);
+            printWindow.document.close();
+        }
+
+        if (orderToPrint.status === 'Novo' || orderToPrint.status === 'Aguardando pagamento' || orderToPrint.deliveryType === 'Mesa') {
+            const orderDocRef = doc(firestore, `companies/${user.uid}/orders`, orderToPrint.id);
+            if (orderToPrint.status !== 'Cancelado' && orderToPrint.status !== 'Entregue') {
+                updateDocument(orderDocRef, { status: 'Em preparo' }).catch(() => {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({
+                        path: orderDocRef.path,
+                        operation: 'update',
+                        requestResourceData: { status: 'Em preparo' },
+                    }));
+                });
+            }
+        }
+    };
     
     const isLoading = isUserLoading || isLoadingOrders || isLoadingCompany;
 
@@ -251,7 +280,9 @@ export default function OrdersPage() {
                           const matchesId = order.id.toLowerCase().includes(queryNorm);
                           
                           return matchesName || matchesPhone || matchesId;
-                      }).sort((a, b) => b.orderDate.toMillis() - a.orderDate.toMillis()).map(order => (
+                      }).sort((a, b) => b.orderDate.toMillis() - a.orderDate.toMillis()).map(order => {
+                        const isFicha = isFichaOrder(order);
+                        return (
                         <TableRow key={order.id}>
                           <TableCell className="font-medium">
                             {order.deliveryType === 'Mesa' || order.tableNumber ? (
@@ -260,7 +291,16 @@ export default function OrdersPage() {
                                 order.id.substring(0, 6).toUpperCase()
                             )}
                           </TableCell>
-                          <TableCell>{order.customerName}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span>{order.customerName || 'Anônimo'}</span>
+                              {isFicha && (
+                                <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300 gap-1 text-[11px] py-0 px-1.5 font-bold">
+                                  <Ticket className="h-3 w-3" /> Ficha
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
                           <TableCell>
                             <Badge className={`min-w-fit whitespace-nowrap ${
                               order.status === 'Novo' ? 'bg-orange-500 hover:bg-orange-600' :
@@ -275,23 +315,38 @@ export default function OrdersPage() {
                           <TableCell className="text-right">R${order.totalAmount.toFixed(2)}</TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-2">
-                              <Button 
-                                variant={(order.status === 'Novo' || order.status === 'Aguardando pagamento') ? 'default' : 'outline'} 
-                                className="h-9 px-3 gap-2 flex items-center" 
-                                onClick={() => handlePrintOrder(order)}
-                                title={(order.status === 'Novo' || order.status === 'Aguardando pagamento') ? 'Imprimir e Iniciar Preparo' : 'Imprimir Pedido'}
-                              >
-                                <Printer className="h-4 w-4" />
-                                <span translate="no">Imprimir</span>
-                              </Button>
+                              {isFicha ? (
+                                <Button 
+                                  variant="default" 
+                                  className="h-9 px-3 gap-2 flex items-center bg-amber-600 hover:bg-amber-700 text-white font-medium" 
+                                  onClick={() => handlePrintTokens(order)}
+                                  title="Imprimir Fichas"
+                                >
+                                  <Ticket className="h-4 w-4" />
+                                  <span translate="no">Imprimir Fichas</span>
+                                </Button>
+                              ) : (
+                                <Button 
+                                  variant={(order.status === 'Novo' || order.status === 'Aguardando pagamento') ? 'default' : 'outline'} 
+                                  className="h-9 px-3 gap-2 flex items-center" 
+                                  onClick={() => handlePrintOrder(order)}
+                                  title={(order.status === 'Novo' || order.status === 'Aguardando pagamento') ? 'Imprimir e Iniciar Preparo' : 'Imprimir Pedido'}
+                                >
+                                  <Printer className="h-4 w-4" />
+                                  <span translate="no">Imprimir</span>
+                                </Button>
+                              )}
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
                                   <DropdownMenuLabel>Ações</DropdownMenuLabel>
                                   <DropdownMenuItem onClick={() => setSelectedOrder(order)}>Ver Detalhes</DropdownMenuItem>
-                                   <DropdownMenuItem onClick={() => handlePrintOrder(order)}>
-                                     <Printer className="mr-2 h-4 w-4" /> <span translate="no">Imprimir</span>
-                                   </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handlePrintTokens(order)}>
+                                    <Ticket className="mr-2 h-4 w-4" /> <span translate="no">Imprimir Ficha(s)</span>
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handlePrintOrder(order)}>
+                                    <Printer className="mr-2 h-4 w-4" /> <span translate="no">Imprimir Comprovante</span>
+                                  </DropdownMenuItem>
                                   <DropdownMenuSeparator />
                                   <DropdownMenuItem onClick={() => handleUpdateStatus(order, 'Em preparo')}>Mudar para Preparo</DropdownMenuItem>
                                   {order.deliveryType === 'Mesa' && (
@@ -326,7 +381,8 @@ export default function OrdersPage() {
                             </div>
                           </TableCell>
                         </TableRow>
-                      ))
+                      );
+                      })
                       )}
                     </TableBody>
                   </Table>
@@ -369,6 +425,28 @@ const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order; co
             }
         }
     };
+
+    const handlePrintTokens = () => {
+        if (!order || !firestore || !user) return;
+        const printHtml = generateOrderTokensPrintHtml(order, company);
+        const printWindow = window.open('', '_blank', 'width=300,height=500');
+        if (printWindow) {
+            printWindow.document.write(printHtml);
+            printWindow.document.close();
+        }
+
+        if (order.status === 'Novo' || order.status === 'Aguardando pagamento' || order.deliveryType === 'Mesa') {
+            const orderRef = doc(firestore, `companies/${user.uid}/orders`, order.id);
+            if (order.status !== 'Cancelado' && order.status !== 'Entregue') {
+                updateDocument(orderRef, { status: 'Em preparo' }).catch(() => {});
+            }
+        }
+    };
+
+    const isFicha = isFichaOrder(order);
+    const totalTokens = (order.orderItems || []).reduce((sum, item) => {
+        return sum + (item.isSoldByWeight ? 1 : Math.max(1, Math.round(item.quantity || 1)));
+    }, 0);
 
     const subtotal = order.totalAmount - (order.deliveryFee || 0);
 
@@ -470,7 +548,41 @@ const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order; co
                             )}
                         </div>
                     )}
-                    <Button variant="outline" className="w-full mt-2" onClick={handlePrint}><Printer className="mr-2 h-4 w-4" /> Imprimir e Começar Preparo</Button>
+                    {isFicha ? (
+                        <>
+                            <Button 
+                                variant="default" 
+                                className="w-full mt-2 gap-2 bg-amber-600 hover:bg-amber-700 text-white font-medium" 
+                                onClick={handlePrintTokens}
+                            >
+                                <Ticket className="h-4 w-4" /> Imprimir Fichas ({totalTokens})
+                            </Button>
+                            <Button 
+                                variant="outline" 
+                                className="w-full gap-2" 
+                                onClick={handlePrint}
+                            >
+                                <Printer className="h-4 w-4" /> Imprimir Comprovante
+                            </Button>
+                        </>
+                    ) : (
+                        <>
+                            <Button 
+                                variant="outline" 
+                                className="w-full mt-2 gap-2" 
+                                onClick={handlePrint}
+                            >
+                                <Printer className="h-4 w-4" /> Imprimir e Começar Preparo
+                            </Button>
+                            <Button 
+                                variant="outline" 
+                                className="w-full gap-2 text-amber-700 border-amber-300 hover:bg-amber-50" 
+                                onClick={handlePrintTokens}
+                            >
+                                <Ticket className="h-4 w-4" /> Imprimir Ficha(s) ({totalTokens})
+                            </Button>
+                        </>
+                    )}
                 </DialogFooter>
             </DialogContent>
         </Dialog>

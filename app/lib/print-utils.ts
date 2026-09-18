@@ -106,3 +106,158 @@ export function generateOrderPrintHtml(order: Order, company?: Company) {
         </html>
     `;
 }
+
+export function generateTokenPrintHtml(quantity: number, productName: string, price: number, companyName?: string, paymentMethod?: string) {
+    let html = `
+        <html>
+            <head>
+                <title>Fichas</title>
+                <style>
+                    @media print {
+                        @page { margin: 0; }
+                        body { margin: 0; padding: 0; }
+                    }
+                    body { font-family: 'Courier New', monospace; margin: 0; padding: 0; color: #000; font-weight: bold; }
+                    .ficha { 
+                        width: 100%; 
+                        padding: 20px 10px; 
+                        border-bottom: 2px dashed black; 
+                        text-align: center;
+                        page-break-inside: avoid;
+                        box-sizing: border-box;
+                    }
+                    h2 { font-size: 1.4em; font-weight: 900; margin: 0 0 10px 0; }
+                    .produto { font-size: 1.8em; font-weight: 900; margin: 10px 0; text-transform: uppercase; }
+                    .data { font-size: 0.9em; margin: 5px 0; }
+                    .info { font-size: 1em; margin: 5px 0; }
+                    .ficha-num { font-size: 0.85em; margin: 6px 0; font-weight: bold; }
+                    .valido { margin-top: 15px; font-size: 1.2em; font-weight: bold; border: 2px solid black; padding: 5px; display: inline-block; }
+                </style>
+            </head>
+            <body>
+    `;
+
+    const dateStr = new Date().toLocaleString('pt-BR');
+
+    for(let i = 0; i < quantity; i++) {
+        html += `
+            <div class="ficha">
+                <h2>${companyName || 'Restaurante'}</h2>
+                <div class="produto">1x ${productName}</div>
+                <div class="data">${dateStr}</div>
+                <div class="info">Valor: R$ ${price.toFixed(2)}</div>
+                ${paymentMethod ? `<div class="info">Pagamento: ${paymentMethod}</div>` : ''}
+                ${quantity > 1 ? `<div class="ficha-num">Ficha ${i + 1} de ${quantity}</div>` : ''}
+                <div class="valido">VÁLIDO PARA 1 CONSUMO</div>
+            </div>
+        `;
+    }
+
+    html += `
+                <script>
+                    window.print();
+                    window.onafterprint = () => window.close();
+                </script>
+            </body>
+        </html>
+    `;
+    return html;
+}
+
+export function generateOrderTokensPrintHtml(order: Order, company?: Company) {
+    let html = `
+        <!DOCTYPE html>
+        <html>
+            <head>
+                <meta charset="utf-8" />
+                <title>Fichas - Pedido ${order.id.substring(0, 6).toUpperCase()}</title>
+                <style>
+                    @media print {
+                        @page { margin: 0; }
+                        body { margin: 0; padding: 0; }
+                    }
+                    body { font-family: 'Courier New', monospace; margin: 0; padding: 0; color: #000; font-weight: bold; }
+                    .ficha { 
+                        width: 100%; 
+                        padding: 20px 10px; 
+                        border-bottom: 2px dashed black; 
+                        text-align: center;
+                        page-break-inside: avoid;
+                        box-sizing: border-box;
+                    }
+                    h2 { font-size: 1.4em; font-weight: 900; margin: 0 0 10px 0; }
+                    .produto { font-size: 1.8em; font-weight: 900; margin: 10px 0; text-transform: uppercase; }
+                    .data { font-size: 0.9em; margin: 5px 0; }
+                    .info { font-size: 1em; margin: 5px 0; }
+                    .variants { font-size: 0.85em; margin: 5px 0; }
+                    .obs { font-size: 0.85em; font-style: italic; margin: 5px 0; }
+                    .ficha-num { font-size: 0.85em; margin: 6px 0; font-weight: bold; }
+                    .valido { margin-top: 15px; font-size: 1.2em; font-weight: bold; border: 2px solid black; padding: 5px; display: inline-block; }
+                </style>
+            </head>
+            <body>
+    `;
+
+    let dateStr = new Date().toLocaleString('pt-BR');
+    if (order.orderDate) {
+        if (typeof (order.orderDate as any).toDate === 'function') {
+            dateStr = (order.orderDate as any).toDate().toLocaleString('pt-BR');
+        } else if (order.orderDate instanceof Date) {
+            dateStr = order.orderDate.toLocaleString('pt-BR');
+        } else if ((order.orderDate as any).seconds) {
+            dateStr = new Date((order.orderDate as any).seconds * 1000).toLocaleString('pt-BR');
+        }
+    }
+
+    const totalTokens = (order.orderItems || []).reduce((sum, item) => {
+        return sum + (item.isSoldByWeight ? 1 : Math.max(1, Math.round(item.quantity || 1)));
+    }, 0);
+
+    let currentTokenIndex = 0;
+
+    (order.orderItems || []).forEach(item => {
+        const qty = item.isSoldByWeight ? 1 : Math.max(1, Math.round(item.quantity || 1));
+        const price = item.finalPrice || item.unitPrice || 0;
+
+        const groupedVariants: { [key: string]: { name: string; price: number }[] } = {};
+        if (item.selectedVariants) {
+            item.selectedVariants.forEach(v => {
+                if (!groupedVariants[v.groupName]) groupedVariants[v.groupName] = [];
+                groupedVariants[v.groupName].push({ name: v.itemName, price: v.price });
+            });
+        }
+        const variantsText = Object.entries(groupedVariants).map(([group, items]) => {
+            const itemsText = items.map(i => `${i.name}${i.price > 0 ? ` (+R$${i.price.toFixed(2)})` : ''}`).join(', ');
+            return `<div>${group}: ${itemsText}</div>`;
+        }).join('');
+
+        for (let i = 0; i < qty; i++) {
+            currentTokenIndex++;
+            html += `
+                <div class="ficha">
+                    <h2>${company?.name || 'Restaurante'}</h2>
+                    <div class="produto">${item.isSoldByWeight ? `${item.quantity.toFixed(3).replace('.', ',')} kg ` : '1x '}${item.productName || item.productId}</div>
+                    ${variantsText ? `<div class="variants">${variantsText}</div>` : ''}
+                    ${item.notes ? `<div class="obs">OBS: ${item.notes}</div>` : ''}
+                    <div class="data">${dateStr}</div>
+                    <div class="info">Valor: R$ ${price.toFixed(2)}</div>
+                    ${order.paymentMethod ? `<div class="info">Pagamento: ${order.paymentMethod}</div>` : ''}
+                    ${order.customerName && order.notes !== 'Venda de Ficha Rápida' && !order.customerName.toLowerCase().includes('ficha') ? `<div class="info">Cliente: ${order.customerName}</div>` : ''}
+                    <div class="ficha-num">Pedido #${order.id.substring(0, 6).toUpperCase()}${totalTokens > 1 ? ` &bull; Ficha ${currentTokenIndex} de ${totalTokens}` : ''}</div>
+                    <div class="valido">VÁLIDO PARA 1 CONSUMO</div>
+                </div>
+            `;
+        }
+    });
+
+    html += `
+                <script>
+                    window.print();
+                    window.onafterprint = () => window.close();
+                </script>
+            </body>
+        </html>
+    `;
+    return html;
+}
+

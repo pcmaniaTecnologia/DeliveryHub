@@ -3,13 +3,17 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, collection, type Timestamp } from 'firebase/firestore';
+import { doc, collection, type Timestamp, addDoc, serverTimestamp } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Users, PlusCircle, Receipt, ShoppingBag, LogOut, Search } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Loader2, Users, PlusCircle, Receipt, ShoppingBag, LogOut, Search, Ticket, Printer, Plus, Minus } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { generateTokenPrintHtml } from '@/lib/print-utils';
+import { useToast } from '@/hooks/use-toast';
 
 type OrderItem = {
     productName?: string;
@@ -40,6 +44,16 @@ export default function WaiterDashboardPage() {
     const [nameInput, setNameInput] = useState('');
     const [selectedTable, setSelectedTable] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState('');
+    const { toast } = useToast();
+
+    // Vender Ficha states
+    const [isTokenModalOpen, setIsTokenModalOpen] = useState(false);
+    const [tokenProductSearch, setTokenProductSearch] = useState('');
+    const [tokenSelectedProduct, setTokenSelectedProduct] = useState<{id: string, name: string, price: number} | null>(null);
+    const [tokenQuantity, setTokenQuantity] = useState(1);
+    const [tokenPaymentMethod, setTokenPaymentMethod] = useState('');
+    const [isProcessingToken, setIsProcessingToken] = useState(false);
+    const [isTokenSearchOpen, setIsTokenSearchOpen] = useState(false);
 
     useEffect(() => {
         const saved = localStorage.getItem(`waiter_name_${companyId}`);
@@ -69,7 +83,7 @@ export default function WaiterDashboardPage() {
         return doc(firestore, 'companies', companyId);
     }, [firestore, companyId]);
 
-    const { data: companyData, isLoading: isLoadingCompany } = useDoc<{ numberOfTables?: number, name?: string }>(companyRef);
+    const { data: companyData, isLoading: isLoadingCompany } = useDoc<{ numberOfTables?: number, name?: string, paymentMethods?: { cash?: boolean, pix?: boolean, credit?: boolean, debit?: boolean } }>(companyRef);
 
     const ordersRef = useMemoFirebase(() => {
         if (!firestore || !companyId) return null;
@@ -77,6 +91,78 @@ export default function WaiterDashboardPage() {
     }, [firestore, companyId]);
 
     const { data: allOrders, isLoading: isLoadingOrders } = useCollection<Order>(ordersRef);
+
+    const productsRef = useMemoFirebase(() => {
+        if (!firestore || !companyId) return null;
+        return collection(firestore, `companies/${companyId}/products`);
+    }, [firestore, companyId]);
+
+    const { data: allProducts } = useCollection<{ id: string; name: string; price: number }>(productsRef);
+
+    const handleTokenProductSearchChange = (val: string) => {
+        setTokenProductSearch(val);
+        setTokenSelectedProduct(null);
+        setIsTokenSearchOpen(true);
+    };
+
+    const handleSelectTokenProduct = (product: { id: string; name: string; price: number }) => {
+        setTokenSelectedProduct(product);
+        setTokenProductSearch(product.name);
+        setIsTokenSearchOpen(false);
+    };
+
+    const handleSellToken = async () => {
+        if (!firestore || !tokenSelectedProduct || tokenQuantity <= 0 || !tokenPaymentMethod) {
+            toast({ variant: 'destructive', title: 'Selecione um produto, quantidade e forma de pagamento.' });
+            return;
+        }
+        setIsProcessingToken(true);
+        try {
+            const price = tokenSelectedProduct.price;
+            const orderTotal = price * tokenQuantity;
+            const ordersCollRef = collection(firestore, `companies/${companyId}/orders`);
+            await addDoc(ordersCollRef, {
+                companyId,
+                customerId: 'balcao_system',
+                customerName: `Ficha - ${waiterName || 'Garçom'}`,
+                orderDate: serverTimestamp(),
+                status: 'Entregue',
+                deliveryType: 'Balcão',
+                deliveryFee: 0,
+                discount: 0,
+                subtotal: orderTotal,
+                totalAmount: orderTotal,
+                notes: 'Venda de Ficha Rápida',
+                paymentMethod: `${tokenPaymentMethod}: R$ ${orderTotal.toFixed(2)}`,
+                payments: [{ method: tokenPaymentMethod, amount: orderTotal }],
+                orderItems: [{
+                    productId: tokenSelectedProduct.id,
+                    productName: tokenSelectedProduct.name,
+                    quantity: tokenQuantity,
+                    unitPrice: price,
+                    finalPrice: price,
+                    isSoldByWeight: false
+                }]
+            });
+            toast({ title: 'Fichas vendidas com sucesso!' });
+            const printHtml = generateTokenPrintHtml(tokenQuantity, tokenSelectedProduct.name, price, companyData?.name, tokenPaymentMethod);
+            const printWindow = window.open('', '_blank', 'width=300,height=500');
+            if (printWindow) {
+                printWindow.document.write(printHtml);
+                printWindow.document.close();
+            }
+            setIsTokenModalOpen(false);
+            setTokenProductSearch('');
+            setTokenSelectedProduct(null);
+            setTokenQuantity(1);
+            setTokenPaymentMethod('');
+        } catch (err) {
+            console.error(err);
+            toast({ variant: 'destructive', title: 'Erro ao vender ficha' });
+        } finally {
+            setIsProcessingToken(false);
+        }
+    };
 
     const tableStates = useMemo(() => {
         if (!allOrders || !companyData) return {};
@@ -123,6 +209,9 @@ export default function WaiterDashboardPage() {
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
                     </div>
+                    <Button size="sm" className="gap-1 shrink-0 bg-green-600 hover:bg-green-700 text-white" onClick={() => setIsTokenModalOpen(true)}>
+                        <Ticket className="w-4 h-4" /> Vender Ficha
+                    </Button>
                     <Button variant="ghost" size="sm" className="text-muted-foreground gap-2 shrink-0" onClick={handleLogoutName}>
                         <LogOut className="w-4 h-4" /> Sair
                     </Button>
@@ -219,6 +308,85 @@ export default function WaiterDashboardPage() {
                     </DialogContent>
                 </Dialog>
             )}
+
+            {/* Token Dialog */}
+            <Dialog open={isTokenModalOpen} onOpenChange={setIsTokenModalOpen}>
+                <DialogContent className="sm:max-w-[400px]">
+                    <DialogHeader>
+                        <DialogTitle>Vender Ficha</DialogTitle>
+                        <DialogDescription>Pesquise o produto e imprima a ficha para o cliente.</DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="grid grid-cols-4 gap-4">
+                            <div className="col-span-3 space-y-2 relative">
+                                <Label>Produto</Label>
+                                <Input
+                                    placeholder="Pesquise o produto..."
+                                    value={tokenProductSearch}
+                                    onChange={(e) => handleTokenProductSearchChange(e.target.value)}
+                                    onFocus={() => setIsTokenSearchOpen(true)}
+                                    onBlur={() => setTimeout(() => setIsTokenSearchOpen(false), 200)}
+                                />
+                                {isTokenSearchOpen && tokenProductSearch && (
+                                    <div className="absolute top-full left-0 w-full mt-1 bg-white border rounded-md shadow-lg z-50 max-h-48 overflow-y-auto">
+                                        {allProducts?.filter(p => p.name.toLowerCase().includes(tokenProductSearch.toLowerCase())).map(p => (
+                                            <div
+                                                key={p.id}
+                                                className="px-3 py-2 text-sm hover:bg-slate-100 cursor-pointer border-b last:border-0"
+                                                onMouseDown={(e) => { e.preventDefault(); handleSelectTokenProduct(p); }}
+                                            >
+                                                <div className="font-medium truncate">{p.name}</div>
+                                                <div className="text-xs text-muted-foreground">R$ {p.price.toFixed(2)}</div>
+                                            </div>
+                                        ))}
+                                        {allProducts?.filter(p => p.name.toLowerCase().includes(tokenProductSearch.toLowerCase())).length === 0 && (
+                                            <div className="px-3 py-2 text-sm text-muted-foreground text-center">Nenhum encontrado.</div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                            <div className="col-span-1 space-y-2">
+                                <Label>Valor</Label>
+                                <Input
+                                    value={tokenSelectedProduct ? tokenSelectedProduct.price.toFixed(2) : '0.00'}
+                                    disabled
+                                    className="bg-muted text-center px-1"
+                                />
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Quantidade de Fichas</Label>
+                            <div className="flex items-center gap-4">
+                                <Button variant="outline" size="icon" onClick={() => setTokenQuantity(Math.max(1, tokenQuantity - 1))}><Minus className="h-4 w-4" /></Button>
+                                <span className="font-bold text-lg w-8 text-center">{tokenQuantity}</span>
+                                <Button variant="outline" size="icon" onClick={() => setTokenQuantity(tokenQuantity + 1)}><Plus className="h-4 w-4" /></Button>
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Forma de Pagamento</Label>
+                            <Select value={tokenPaymentMethod} onValueChange={setTokenPaymentMethod}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Selecione..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {companyData?.paymentMethods?.cash !== false && <SelectItem value="Dinheiro">Dinheiro</SelectItem>}
+                                    {companyData?.paymentMethods?.credit !== false && <SelectItem value="Cartão de Crédito">Cartão de Crédito</SelectItem>}
+                                    {companyData?.paymentMethods?.debit !== false && <SelectItem value="Cartão de Débito">Cartão de Débito</SelectItem>}
+                                    {companyData?.paymentMethods?.pix !== false && <SelectItem value="PIX">PIX</SelectItem>}
+                                    {!companyData?.paymentMethods && <SelectItem value="Dinheiro">Dinheiro</SelectItem>}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsTokenModalOpen(false)}>Cancelar</Button>
+                        <Button onClick={handleSellToken} disabled={isProcessingToken || !tokenSelectedProduct || tokenQuantity <= 0 || !tokenPaymentMethod}>
+                            {isProcessingToken ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Printer className="h-4 w-4 mr-2" />}
+                            Vender e Imprimir
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
