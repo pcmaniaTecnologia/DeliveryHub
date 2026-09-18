@@ -261,3 +261,66 @@ export function generateOrderTokensPrintHtml(order: Order, company?: Company) {
     return html;
 }
 
+/**
+ * Imprime o HTML gerado de forma limpa e não-bloqueante usando um iframe invisível.
+ * Evita o congelamento do JavaScript no navegador (window.print bloqueante)
+ * e previne que popups sejam bloqueados ou travem o Radix UI.
+ */
+export function printHtml(html: string) {
+    if (typeof window === 'undefined') return;
+
+    const cleanHtml = html.replace(/<script[\s\S]*?<\/script>/gi, '');
+
+    try {
+        const iframe = document.createElement('iframe');
+        iframe.style.position = 'fixed';
+        iframe.style.right = '0';
+        iframe.style.bottom = '0';
+        iframe.style.width = '0';
+        iframe.style.height = '0';
+        iframe.style.border = '0';
+        iframe.style.visibility = 'hidden';
+        document.body.appendChild(iframe);
+
+        const iframeDoc = iframe.contentWindow?.document || iframe.contentDocument;
+        if (!iframeDoc) {
+            throw new Error('Não foi possível acessar o documento do iframe');
+        }
+
+        iframeDoc.open();
+        iframeDoc.write(cleanHtml);
+        iframeDoc.close();
+
+        const triggerPrint = () => {
+            try {
+                iframe.contentWindow?.focus();
+                iframe.contentWindow?.print();
+            } catch (e) {
+                console.error('Erro ao chamar print() no iframe:', e);
+            } finally {
+                setTimeout(() => {
+                    if (document.body.contains(iframe)) {
+                        document.body.removeChild(iframe);
+                    }
+                    if (typeof document !== 'undefined') {
+                        document.body.style.pointerEvents = 'auto';
+                    }
+                }, 1000);
+            }
+        };
+
+        setTimeout(triggerPrint, 300);
+    } catch (err) {
+        console.warn('Fallback para window.open devido a erro no iframe:', err);
+        const printWindow = window.open('', '_blank', 'width=400,height=600');
+        if (printWindow) {
+            printWindow.document.write(html);
+            printWindow.document.close();
+        }
+        if (typeof document !== 'undefined') {
+            document.body.style.pointerEvents = 'auto';
+        }
+    }
+}
+
+

@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, Users, PlusCircle, Receipt, ShoppingBag, LogOut, Search, Ticket, Printer, Plus, Minus } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { generateTokenPrintHtml } from '@/lib/print-utils';
+import { generateTokenPrintHtml, printHtml } from '@/lib/print-utils';
 import { useToast } from '@/hooks/use-toast';
 
 type OrderItem = {
@@ -145,22 +145,35 @@ export default function WaiterDashboardPage() {
                 }]
             });
             toast({ title: 'Fichas vendidas com sucesso!' });
-            const printHtml = generateTokenPrintHtml(tokenQuantity, tokenSelectedProduct.name, price, companyData?.name, tokenPaymentMethod);
-            const printWindow = window.open('', '_blank', 'width=300,height=500');
-            if (printWindow) {
-                printWindow.document.write(printHtml);
-                printWindow.document.close();
-            }
+            const printHtmlContent = generateTokenPrintHtml(tokenQuantity, tokenSelectedProduct.name, price, companyData?.name, tokenPaymentMethod);
+            
+            // Fechar modal primeiro e limpar campos para evitar travamento da interface
             setIsTokenModalOpen(false);
             setTokenProductSearch('');
             setTokenSelectedProduct(null);
             setTokenQuantity(1);
             setTokenPaymentMethod('');
+            setIsTokenSearchOpen(false);
+
+            if (typeof document !== 'undefined') {
+                document.body.style.pointerEvents = 'auto';
+            }
+
+            // Executa a impressão via iframe de forma segura
+            setTimeout(() => {
+                printHtml(printHtmlContent);
+                if (typeof document !== 'undefined') {
+                    document.body.style.pointerEvents = 'auto';
+                }
+            }, 150);
         } catch (err) {
             console.error(err);
             toast({ variant: 'destructive', title: 'Erro ao vender ficha' });
         } finally {
             setIsProcessingToken(false);
+            if (typeof document !== 'undefined') {
+                document.body.style.pointerEvents = 'auto';
+            }
         }
     };
 
@@ -310,7 +323,22 @@ export default function WaiterDashboardPage() {
             )}
 
             {/* Token Dialog */}
-            <Dialog open={isTokenModalOpen} onOpenChange={setIsTokenModalOpen}>
+            <Dialog 
+                open={isTokenModalOpen} 
+                onOpenChange={(open) => {
+                    setIsTokenModalOpen(open);
+                    if (!open) {
+                        setTokenProductSearch('');
+                        setTokenSelectedProduct(null);
+                        setTokenQuantity(1);
+                        setTokenPaymentMethod('');
+                        setIsTokenSearchOpen(false);
+                        if (typeof document !== 'undefined') {
+                            document.body.style.pointerEvents = 'auto';
+                        }
+                    }
+                }}
+            >
                 <DialogContent className="sm:max-w-[400px]">
                     <DialogHeader>
                         <DialogTitle>Vender Ficha</DialogTitle>

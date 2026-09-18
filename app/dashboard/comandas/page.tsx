@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { useImpersonation } from '@/context/impersonation-context';
 import { Loader2, Users, User, Receipt, Clock, CheckCircle2, PlusCircle, Trash2, Plus, Minus, X, Calculator, ShoppingBag, Search, Tag, Wallet, HandCoins, ArrowDownCircle, Banknote, Lock, Printer, UtensilsCrossed, Ticket } from 'lucide-react';
-import { generateTokenPrintHtml } from '@/lib/print-utils';
+import { generateTokenPrintHtml, printHtml } from '@/lib/print-utils';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
@@ -459,24 +459,36 @@ export default function ComandasPage() {
 
             toast({ title: 'Fichas vendidas com sucesso!' });
 
-            // Imprimir
-            const printHtml = generateTokenPrintHtml(tokenQuantity, tokenSelectedProduct.name, price, companyData?.name, tokenPaymentMethod);
-            const printWindow = window.open('', '_blank', 'width=300,height=500');
-            if (printWindow) {
-                printWindow.document.write(printHtml);
-                printWindow.document.close();
-            }
+            // Gerar HTML da ficha antes de limpar estados
+            const printHtmlContent = generateTokenPrintHtml(tokenQuantity, tokenSelectedProduct.name, price, companyData?.name, tokenPaymentMethod);
 
-            // Fechar modal
+            // Fechar modal e resetar campos imediatamente para evitar travamento de interface
             setIsTokenModalOpen(false);
             setTokenProductSearch('');
             setTokenSelectedProduct(null);
             setTokenQuantity(1);
+            setTokenPaymentMethod('');
+            setIsTokenSearchOpen(false);
+
+            if (typeof document !== 'undefined') {
+                document.body.style.pointerEvents = 'auto';
+            }
+
+            // Executa a impressão via iframe após o modal fechar
+            setTimeout(() => {
+                printHtml(printHtmlContent);
+                if (typeof document !== 'undefined') {
+                    document.body.style.pointerEvents = 'auto';
+                }
+            }, 150);
         } catch (error) {
             console.error(error);
             toast({ variant: 'destructive', title: 'Erro ao vender ficha' });
         } finally {
             setIsProcessingToken(false);
+            if (typeof document !== 'undefined') {
+                document.body.style.pointerEvents = 'auto';
+            }
         }
     };
 
@@ -1458,7 +1470,22 @@ export default function ComandasPage() {
             </Dialog>
 
             {/* Token Dialog */}
-            <Dialog open={isTokenModalOpen} onOpenChange={setIsTokenModalOpen}>
+            <Dialog 
+                open={isTokenModalOpen} 
+                onOpenChange={(open) => {
+                    setIsTokenModalOpen(open);
+                    if (!open) {
+                        setTokenProductSearch('');
+                        setTokenSelectedProduct(null);
+                        setTokenQuantity(1);
+                        setTokenPaymentMethod('');
+                        setIsTokenSearchOpen(false);
+                        if (typeof document !== 'undefined') {
+                            document.body.style.pointerEvents = 'auto';
+                        }
+                    }
+                }}
+            >
                 <DialogContent className="sm:max-w-[400px]">
                     <DialogHeader>
                         <DialogTitle>Vender Ficha</DialogTitle>
