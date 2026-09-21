@@ -26,6 +26,7 @@ import { generateOrderPrintHtml } from '@/lib/print-utils';
 type Product = {
     id: string;
     name: string;
+    barcode?: string;
     description: string;
     price: number;
     categoryId: string;
@@ -100,8 +101,11 @@ export default function POSPage() {
     // Filtered Products
     const filteredProducts = useMemo(() => {
         if (!productsData) return [];
+        const query = searchQuery.toLowerCase().trim();
         return productsData.filter(p => {
-            const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
+            const matchesName = p.name.toLowerCase().includes(query);
+            const matchesBarcode = p.barcode ? p.barcode.toLowerCase().includes(query) : false;
+            const matchesSearch = query === '' || matchesName || matchesBarcode;
             const matchesCategory = selectedCategory ? p.categoryId === selectedCategory : true;
             return p.isActive && matchesSearch && matchesCategory;
         });
@@ -136,6 +140,32 @@ export default function POSPage() {
             }
             return [...prev, { id: `${product.id}-${Date.now()}`, product, quantity: qtyToAdd, finalPrice: product.price }];
         });
+    };
+
+    const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const query = searchQuery.trim().toLowerCase();
+            if (!query) return;
+
+            // 1. Tenta correspondência exata por código de barras
+            const exactBarcodeMatch = activeProducts.find(
+                p => p.barcode && p.barcode.trim().toLowerCase() === query
+            );
+
+            if (exactBarcodeMatch) {
+                addToCart(exactBarcodeMatch);
+                setSearchQuery('');
+                return;
+            }
+
+            // 2. Se houver apenas 1 produto no filtro atual, adiciona ele
+            if (filteredProducts.length === 1) {
+                addToCart(filteredProducts[0]);
+                setSearchQuery('');
+                return;
+            }
+        }
     };
 
     const handleWeightConfirm = () => {
@@ -407,10 +437,11 @@ export default function POSPage() {
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                             <Input
                                 ref={searchInputRef}
-                                placeholder="Buscar produto... [F3]"
+                                placeholder="Buscar produto ou código de barras... [F3]"
                                 className="pl-9"
                                 value={searchQuery}
                                 onChange={e => setSearchQuery(e.target.value)}
+                                onKeyDown={handleSearchKeyDown}
                             />
                         </div>
                         <div className="flex gap-2 overflow-x-auto pb-1 max-w-full sm:max-w-[400px]">
@@ -449,7 +480,7 @@ export default function POSPage() {
                                             src={product.imageUrls[0]}
                                             alt={product.name}
                                             fill
-                                            className={`object-cover group-hover:scale-110 transition-transform \${product.stockControlEnabled && product.blockIfOutOfStock !== false && (Number(product.stock) || 0) <= 0 ? 'grayscale opacity-30' : ''}`}
+                                            className={`object-cover group-hover:scale-110 transition-transform ${product.stockControlEnabled && product.blockIfOutOfStock !== false && (Number(product.stock) || 0) <= 0 ? 'grayscale opacity-30' : ''}`}
                                             unoptimized
                                         />
                                     ) : (
@@ -465,6 +496,11 @@ export default function POSPage() {
                                 </div>
                                 <div className="flex flex-col h-full">
                                     <h3 className="font-semibold text-[10px] sm:text-xs md:text-sm line-clamp-2 mb-1 leading-tight sm:leading-normal">{product.name}</h3>
+                                    {product.barcode && (
+                                        <span className="text-[9px] text-muted-foreground font-mono block -mt-0.5 mb-1 truncate">
+                                            {product.barcode}
+                                        </span>
+                                    )}
                                     <div className="flex flex-col sm:flex-row sm:items-center justify-between mt-auto gap-1">
                                         <span className="text-primary font-bold text-xs sm:text-sm">R$ {product.price.toFixed(2)}</span>
                                         {product.stockControlEnabled && (

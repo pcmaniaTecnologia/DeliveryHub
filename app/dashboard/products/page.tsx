@@ -87,6 +87,7 @@ const variantGroupSchema = z.object({
 
 const productFormSchema = z.object({
   name: z.string().min(3, { message: 'O nome deve ter pelo menos 3 caracteres.' }),
+  barcode: z.string().optional().or(z.literal('')),
   description: z.string().optional(),
   price: z.coerce.number().positive({ message: 'O preço deve ser um número positivo.' }),
   categoryId: z.string().min(1, { message: 'A categoria é obrigatória.' }),
@@ -106,6 +107,7 @@ type VariantGroup = z.infer<typeof variantGroupSchema>;
 type Product = {
     id: string;
     name: string;
+    barcode?: string;
     description: string;
     price: number;
     categoryId: string;
@@ -145,6 +147,7 @@ export default function ProductsPage() {
     resolver: zodResolver(productFormSchema) as Resolver<z.infer<typeof productFormSchema>, any>,
     defaultValues: {
       name: '',
+      barcode: '',
       description: '',
       price: 0,
       categoryId: '',
@@ -167,6 +170,7 @@ export default function ProductsPage() {
     if (editingProduct) {
       form.reset({
         name: editingProduct.name,
+        barcode: editingProduct.barcode || '',
         description: editingProduct.description || '',
         price: editingProduct.price,
         categoryId: editingProduct.categoryId,
@@ -181,6 +185,7 @@ export default function ProductsPage() {
     } else {
       form.reset({
         name: '',
+        barcode: '',
         description: '',
         price: 0,
         categoryId: '',
@@ -212,6 +217,56 @@ export default function ProductsPage() {
   const onSubmit = async (values: z.infer<typeof productFormSchema>) => {
     if (!firestore || !effectiveCompanyId) return;
     setIsSaving(true);
+
+    const normalizedBarcode = values.barcode?.trim();
+    if (normalizedBarcode) {
+      // 1. Checa se o código já existe na lista em memória
+      const duplicateInMemory = products?.find(p => 
+        p.id !== editingProduct?.id && 
+        p.barcode && 
+        p.barcode.trim().toLowerCase() === normalizedBarcode.toLowerCase()
+      );
+
+      if (duplicateInMemory) {
+        setIsSaving(false);
+        form.setError('barcode', {
+          type: 'manual',
+          message: `Código já está em uso pelo produto "${duplicateInMemory.name}".`,
+        });
+        toast({
+          variant: 'destructive',
+          title: 'Código de barras já cadastrado',
+          description: `O código "${normalizedBarcode}" já está em uso pelo produto "${duplicateInMemory.name}".`,
+        });
+        return;
+      }
+
+      // 2. Checa via query no Firestore para segurança completa
+      try {
+        const barcodeQuery = query(
+          collection(firestore, `companies/${effectiveCompanyId}/products`),
+          where('barcode', '==', normalizedBarcode)
+        );
+        const barcodeSnapshot = await getDocs(barcodeQuery);
+        const duplicateDoc = barcodeSnapshot.docs.find(d => d.id !== editingProduct?.id);
+        if (duplicateDoc) {
+          const dupData = duplicateDoc.data();
+          setIsSaving(false);
+          form.setError('barcode', {
+            type: 'manual',
+            message: `Código já está em uso pelo produto "${dupData.name || 'existente'}".`,
+          });
+          toast({
+            variant: 'destructive',
+            title: 'Código de barras já cadastrado',
+            description: `O código "${normalizedBarcode}" já está em uso pelo produto "${dupData.name || 'existente'}".`,
+          });
+          return;
+        }
+      } catch (err) {
+        console.error('Erro ao verificar código de barras duplicado:', err);
+      }
+    }
 
     let finalImageUrl = values.imageUrl;
 
@@ -338,6 +393,7 @@ export default function ProductsPage() {
     const duplicatedData = {
         ...productDataToCopy,
         name: `${product.name} (Cópia)`,
+        barcode: '', // Limpa o código de barras para não duplicar
         sortOrder: Date.now(),
     };
 
@@ -452,7 +508,11 @@ export default function ProductsPage() {
     
     let result = [...products].sort(sortFn);
     if (searchQuery.trim()) {
-        result = result.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()));
+        const q = searchQuery.toLowerCase().trim();
+        result = result.filter(p => 
+            p.name.toLowerCase().includes(q) || 
+            (p.barcode && p.barcode.toLowerCase().includes(q))
+        );
     }
     return result;
   }, [products, searchQuery, sortedCategoriesList]);
@@ -628,6 +688,22 @@ export default function ProductsPage() {
                       <FormControl>
                         <Input placeholder="Ex: Cheeseburger Duplo" {...field} />
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="barcode"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Código de Barras</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Ex: 7891234567890 (opcional)" {...field} />
+                      </FormControl>
+                      <FormDescription className="text-xs">
+                        Código de barras ou referência para busca rápida no PDV.
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -884,7 +960,7 @@ export default function ProductsPage() {
         <div className="relative mb-4">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Pesquisar produto por nome..."
+            placeholder="Pesquisar produto por nome ou código de barras..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9"
@@ -933,7 +1009,14 @@ export default function ProductsPage() {
                         </div>
                     )}
                   </TableCell>
-                  <TableCell className="font-medium">{product.name}</TableCell>
+                  <TableCell className="font-medium">
+                    <div>{product.name}</div>
+                    {product.barcode && (
+                      <div className="text-xs text-muted-foreground font-mono">
+                        Cód: {product.barcode}
+                      </div>
+                    )}
+                  </TableCell>
                   <TableCell>
                     <Badge variant={!product.isActive ? 'outline' : 'default'}>
                       {product.isActive ? 'Ativo' : 'Inativo'}
