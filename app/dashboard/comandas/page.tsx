@@ -395,6 +395,7 @@ export default function ComandasPage() {
     const [isTokenModalOpen, setIsTokenModalOpen] = useState(false);
     const [tokenProductSearch, setTokenProductSearch] = useState('');
     const [tokenSelectedProduct, setTokenSelectedProduct] = useState<{id: string, name: string, price: number} | null>(null);
+    const [tokenCustomerName, setTokenCustomerName] = useState('');
     const [tokenQuantity, setTokenQuantity] = useState(1);
     const [tokenPaymentMethod, setTokenPaymentMethod] = useState('');
     const [isProcessingToken, setIsProcessingToken] = useState(false);
@@ -430,11 +431,13 @@ export default function ComandasPage() {
             const ordersRef = collection(firestore, 'companies', effectiveCompanyId, 'orders');
             const price = tokenSelectedProduct.price;
             const orderTotal = price * tokenQuantity;
+            const clientName = tokenCustomerName.trim();
+            const finalCustomerName = clientName || 'Cliente Balcão (Ficha)';
 
             const orderData = {
                 companyId: effectiveCompanyId,
                 customerId: 'balcao_system',
-                customerName: 'Cliente Balcão (Ficha)',
+                customerName: finalCustomerName,
                 orderDate: serverTimestamp(),
                 status: 'Entregue', // Already delivered/paid
                 deliveryType: 'Balcão',
@@ -460,12 +463,13 @@ export default function ComandasPage() {
             toast({ title: 'Fichas vendidas com sucesso!' });
 
             // Gerar HTML da ficha antes de limpar estados
-            const printHtmlContent = generateTokenPrintHtml(tokenQuantity, tokenSelectedProduct.name, price, companyData?.name, tokenPaymentMethod);
+            const printHtmlContent = generateTokenPrintHtml(tokenQuantity, tokenSelectedProduct.name, price, companyData?.name, tokenPaymentMethod, clientName || undefined);
 
             // Fechar modal e resetar campos imediatamente para evitar travamento de interface
             setIsTokenModalOpen(false);
             setTokenProductSearch('');
             setTokenSelectedProduct(null);
+            setTokenCustomerName('');
             setTokenQuantity(1);
             setTokenPaymentMethod('');
             setIsTokenSearchOpen(false);
@@ -1477,6 +1481,7 @@ export default function ComandasPage() {
                     if (!open) {
                         setTokenProductSearch('');
                         setTokenSelectedProduct(null);
+                        setTokenCustomerName('');
                         setTokenQuantity(1);
                         setTokenPaymentMethod('');
                         setIsTokenSearchOpen(false);
@@ -1531,6 +1536,14 @@ export default function ComandasPage() {
                                     className="bg-muted text-center px-1"
                                 />
                             </div>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Nome do Cliente <span className="text-xs text-muted-foreground font-normal">(Opcional)</span></Label>
+                            <Input 
+                                placeholder="Nome do cliente (opcional)"
+                                value={tokenCustomerName}
+                                onChange={(e) => setTokenCustomerName(e.target.value)}
+                            />
                         </div>
                         <div className="space-y-2">
                             <Label>Quantidade de Fichas</Label>

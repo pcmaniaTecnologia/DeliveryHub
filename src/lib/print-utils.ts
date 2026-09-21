@@ -107,7 +107,7 @@ export function generateOrderPrintHtml(order: Order, company?: Company) {
     `;
 }
 
-export function generateTokenPrintHtml(quantity: number, productName: string, price: number, companyName?: string, paymentMethod?: string) {
+export function generateTokenPrintHtml(quantity: number, productName: string, price: number, companyName?: string, paymentMethod?: string, customerName?: string) {
     let html = `
         <html>
             <head>
@@ -147,6 +147,7 @@ export function generateTokenPrintHtml(quantity: number, productName: string, pr
                 <div class="data">${dateStr}</div>
                 <div class="info">Valor: R$ ${price.toFixed(2)}</div>
                 ${paymentMethod ? `<div class="info">Pagamento: ${paymentMethod}</div>` : ''}
+                ${customerName ? `<div class="info">Cliente: ${customerName}</div>` : ''}
                 ${quantity > 1 ? `<div class="ficha-num">Ficha ${i + 1} de ${quantity}</div>` : ''}
                 <div class="valido">VÁLIDO PARA 1 CONSUMO</div>
             </div>
@@ -242,7 +243,7 @@ export function generateOrderTokensPrintHtml(order: Order, company?: Company) {
                     <div class="data">${dateStr}</div>
                     <div class="info">Valor: R$ ${price.toFixed(2)}</div>
                     ${order.paymentMethod ? `<div class="info">Pagamento: ${order.paymentMethod}</div>` : ''}
-                    ${order.customerName && order.notes !== 'Venda de Ficha Rápida' && !order.customerName.toLowerCase().includes('ficha') ? `<div class="info">Cliente: ${order.customerName}</div>` : ''}
+                    ${order.customerName && !order.customerName.toLowerCase().includes('ficha') && !order.customerName.toLowerCase().includes('cliente balcão') ? `<div class="info">Cliente: ${order.customerName}</div>` : ''}
                     <div class="ficha-num">Pedido #${order.id.substring(0, 6).toUpperCase()}${totalTokens > 1 ? ` &bull; Ficha ${currentTokenIndex} de ${totalTokens}` : ''}</div>
                     <div class="valido">VÁLIDO PARA 1 CONSUMO</div>
                 </div>

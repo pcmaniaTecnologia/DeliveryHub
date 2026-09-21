@@ -284,8 +284,10 @@ export default function OrdersPage() {
                           const matchesName = orderNameNorm.includes(queryNorm);
                           const matchesPhone = queryDigits.length > 0 && orderPhoneDigits.includes(queryDigits);
                           const matchesId = order.id.toLowerCase().includes(queryNorm);
+                          const matchesNotes = order.notes ? order.notes.toLowerCase().includes(queryNorm) : false;
+                          const matchesWaiter = (order as any).waiterName ? (order as any).waiterName.toLowerCase().includes(queryNorm) : false;
                           
-                          return matchesName || matchesPhone || matchesId;
+                          return matchesName || matchesPhone || matchesId || matchesNotes || matchesWaiter;
                       }).sort((a, b) => b.orderDate.toMillis() - a.orderDate.toMillis()).map(order => {
                         const isFicha = isFichaOrder(order);
                         return (
