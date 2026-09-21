@@ -98,10 +98,31 @@ export default function POSPage() {
     const [isMultiPayment, setIsMultiPayment] = useState(false);
     const [payments, setPayments] = useState<{ method: string, amount: number, received?: number }[]>([]);
 
+    // Helper para extrair multiplicador de quantidade (ex: "3*código", "5*nome", "2*")
+    const parseSearchMultiplier = (input: string) => {
+        const trimmed = input.trim();
+        const match = trimmed.match(/^(\d+(?:[.,]\d+)?)\s*[*xX]\s*(.*)$/);
+        if (match) {
+            const qty = parseFloat(match[1].replace(',', '.'));
+            const term = match[2].trim();
+            return {
+                hasMultiplier: true,
+                quantity: isNaN(qty) || qty <= 0 ? 1 : qty,
+                searchTerm: term,
+            };
+        }
+        return {
+            hasMultiplier: false,
+            quantity: 1,
+            searchTerm: trimmed,
+        };
+    };
+
     // Filtered Products
     const filteredProducts = useMemo(() => {
         if (!productsData) return [];
-        const query = searchQuery.toLowerCase().trim();
+        const { searchTerm } = parseSearchMultiplier(searchQuery);
+        const query = searchTerm.toLowerCase().trim();
         return productsData.filter(p => {
             const matchesName = p.name.toLowerCase().includes(query);
             const matchesBarcode = p.barcode ? p.barcode.toLowerCase().includes(query) : false;
@@ -142,10 +163,21 @@ export default function POSPage() {
         });
     };
 
+    const handleProductClick = (product: Product) => {
+        const { hasMultiplier, quantity } = parseSearchMultiplier(searchQuery);
+        if (hasMultiplier) {
+            addToCart(product, quantity);
+            setSearchQuery('');
+        } else {
+            addToCart(product);
+        }
+    };
+
     const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Enter') {
             e.preventDefault();
-            const query = searchQuery.trim().toLowerCase();
+            const { quantity, searchTerm } = parseSearchMultiplier(searchQuery);
+            const query = searchTerm.toLowerCase().trim();
             if (!query) return;
 
             // 1. Tenta correspondência exata por código de barras
@@ -154,14 +186,24 @@ export default function POSPage() {
             );
 
             if (exactBarcodeMatch) {
-                addToCart(exactBarcodeMatch);
+                addToCart(exactBarcodeMatch, quantity);
                 setSearchQuery('');
                 return;
             }
 
-            // 2. Se houver apenas 1 produto no filtro atual, adiciona ele
+            // 2. Se houver apenas 1 produto no filtro atual, adiciona ele com a quantidade
             if (filteredProducts.length === 1) {
-                addToCart(filteredProducts[0]);
+                addToCart(filteredProducts[0], quantity);
+                setSearchQuery('');
+                return;
+            }
+
+            // 3. Tenta correspondência exata por nome
+            const exactNameMatch = activeProducts.find(
+                p => p.name.trim().toLowerCase() === query
+            );
+            if (exactNameMatch) {
+                addToCart(exactNameMatch, quantity);
                 setSearchQuery('');
                 return;
             }
@@ -192,6 +234,21 @@ export default function POSPage() {
             }
             return item;
         }).filter(item => item.quantity > 0));
+    };
+
+    const handleQuantityInputChange = (cartItemId: string, rawValue: string) => {
+        const parsed = parseFloat(rawValue);
+        if (isNaN(parsed)) {
+            setCart(prev => prev.map(item => item.id === cartItemId ? { ...item, quantity: 0 } : item));
+        } else {
+            setCart(prev => prev.map(item => item.id === cartItemId ? { ...item, quantity: Math.max(0, parsed) } : item));
+        }
+    };
+
+    const handleQuantityInputBlur = (cartItemId: string, currentQty: number) => {
+        if (currentQty <= 0) {
+            removeFromCart(cartItemId);
+        }
     };
 
     const updateItemPrice = (cartItemId: string, newPrice: number) => {
@@ -437,7 +494,7 @@ export default function POSPage() {
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                             <Input
                                 ref={searchInputRef}
-                                placeholder="Buscar produto ou código de barras... [F3]"
+                                placeholder="Buscar produto ou bipar código (ex: 3*código)... [F3]"
                                 className="pl-9"
                                 value={searchQuery}
                                 onChange={e => setSearchQuery(e.target.value)}
@@ -471,7 +528,7 @@ export default function POSPage() {
                         {filteredProducts.map(product => (
                             <div
                                 key={product.id}
-                                onClick={() => addToCart(product)}
+                                onClick={() => handleProductClick(product)}
                                 className="group relative flex flex-col border rounded-lg p-2 sm:p-3 cursor-pointer hover:border-primary transition-all hover:bg-primary/5 active:scale-95"
                             >
                                 <div className="relative aspect-square w-full mb-2 sm:mb-3 rounded-md overflow-hidden bg-muted">
@@ -549,12 +606,23 @@ export default function POSPage() {
                                     <div className="flex items-center gap-1 sm:gap-2">
                                         <div className="flex flex-col items-end gap-1">
                                             {!item.product.isSoldByWeight ? (
-                                                <div className="flex items-center border rounded-md px-1">
-                                                    <Button variant="ghost" size="icon" className="h-6 w-6 sm:h-7 sm:w-7" onClick={() => updateQuantity(item.id, -1)}>
+                                                <div className="flex items-center border rounded-md px-0.5 bg-background shadow-sm">
+                                                    <Button variant="ghost" size="icon" className="h-6 w-6 sm:h-7 sm:w-7 p-0 hover:bg-muted" onClick={() => updateQuantity(item.id, -1)}>
                                                         <Minus className="h-3 w-3" />
                                                     </Button>
-                                                    <span className="w-5 sm:w-6 text-center text-xs sm:text-sm font-bold">{item.quantity}</span>
-                                                    <Button variant="ghost" size="icon" className="h-6 w-6 sm:h-7 sm:w-7" onClick={() => updateQuantity(item.id, 1)}>
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        step="1"
+                                                        className="w-10 sm:w-12 h-6 sm:h-7 text-center text-xs sm:text-sm font-bold border-0 bg-transparent p-0 focus:outline-none focus:ring-1 focus:ring-primary rounded [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                        value={item.quantity === 0 ? '' : item.quantity}
+                                                        placeholder="1"
+                                                        onChange={(e) => handleQuantityInputChange(item.id, e.target.value)}
+                                                        onBlur={() => handleQuantityInputBlur(item.id, item.quantity)}
+                                                        onFocus={(e) => e.target.select()}
+                                                        title="Clique para digitar a quantidade manual"
+                                                    />
+                                                    <Button variant="ghost" size="icon" className="h-6 w-6 sm:h-7 sm:w-7 p-0 hover:bg-muted" onClick={() => updateQuantity(item.id, 1)}>
                                                         <Plus className="h-3 w-3" />
                                                     </Button>
                                                 </div>
