@@ -9,11 +9,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Users, PlusCircle, Receipt, ShoppingBag, LogOut, Search, Ticket, Printer, Plus, Minus } from 'lucide-react';
+import { Loader2, Users, PlusCircle, Receipt, ShoppingBag, LogOut, Search, Ticket, Printer, Plus, Minus, Download } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { generateTokenPrintHtml, printHtml } from '@/lib/print-utils';
 import { useToast } from '@/hooks/use-toast';
+import { useWaiterPwaInstall, WaiterInstallDialog } from '@/waiter/waiter-install-dialog';
 
 type OrderItem = {
     productName?: string;
@@ -45,6 +46,7 @@ export default function WaiterDashboardPage() {
     const [selectedTable, setSelectedTable] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const { toast } = useToast();
+    const { isStandalone, isIOS, isInAppBrowser, isModalOpen, setIsModalOpen, triggerInstall } = useWaiterPwaInstall();
 
     // Vender Ficha states
     const [isTokenModalOpen, setIsTokenModalOpen] = useState(false);
@@ -230,6 +232,18 @@ export default function WaiterDashboardPage() {
                     <Button size="sm" className="gap-1 shrink-0 bg-green-600 hover:bg-green-700 text-white" onClick={() => setIsTokenModalOpen(true)}>
                         <Ticket className="w-4 h-4" /> Vender Ficha
                     </Button>
+                    {!isStandalone && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1 shrink-0"
+                            onClick={triggerInstall}
+                            title="Instalar como Aplicativo"
+                        >
+                            <Download className="w-4 h-4 animate-pulse text-primary" />
+                            <span className="hidden sm:inline">Instalar App</span>
+                        </Button>
+                    )}
                     <Button variant="ghost" size="sm" className="text-muted-foreground gap-2 shrink-0" onClick={handleLogoutName}>
                         <LogOut className="w-4 h-4" /> Sair
                     </Button>
@@ -429,6 +443,13 @@ export default function WaiterDashboardPage() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <WaiterInstallDialog
+                open={isModalOpen}
+                onOpenChange={setIsModalOpen}
+                isIOS={isIOS}
+                isInAppBrowser={isInAppBrowser}
+            />
         </div>
     );
 }

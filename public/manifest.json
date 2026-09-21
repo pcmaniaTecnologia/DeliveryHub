@@ -1,0 +1,21 @@
+{
+  "name": "DeliveryHub - Garçom",
+  "short_name": "Garçom",
+  "description": "Aplicativo do Garçom e Sistema DeliveryHub",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1fb6e5",
+  "icons": [
+    {
+      "src": "/logo.png?v=3",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/logo.png?v=3",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
