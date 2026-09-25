@@ -4,7 +4,7 @@ import { LoadingScreen } from '@/components/LoadingScreen';
 
 import {
   Banknote, CreditCard, DollarSign, Package, PieChart, Landmark,
-  ShoppingCart, Users, Calendar as CalendarIcon, Printer, ShieldCheck,
+  ShoppingCart, Users, Printer, ShieldCheck,
   ArrowDownCircle, ArrowUpCircle, XCircle, Loader2, Lock, AlertCircle, TrendingUp, BarChart3
 } from 'lucide-react';
 import Link from 'next/link';
@@ -34,9 +34,7 @@ import { useState, useMemo } from 'react';
 import { subDays, format, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { DateRange } from 'react-day-picker';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import { Calendar } from '@/components/ui/calendar';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { parseSalesByPaymentMethod, categorizePayment } from '@/lib/finance-utils';
@@ -728,29 +726,57 @@ export default function DashboardPage() {
 
       {/* ══════════ HEADER + FILTROS ══════════ */}
       <div>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <h2 className="text-3xl font-bold tracking-tight">Painel</h2>
-          <div className="flex flex-wrap items-center gap-2">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button id="date" variant="outline"
-                  className={cn("w-[240px] justify-start text-left font-normal", !dateRange && "text-muted-foreground")}>
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {dateRange?.from ? (
-                    dateRange.to ? (
-                      <>{format(dateRange.from, "LLL dd, y", { locale: ptBR })} — {format(dateRange.to, "LLL dd, y", { locale: ptBR })}</>
-                    ) : format(dateRange.from, "LLL dd, y", { locale: ptBR })
-                  ) : <span>Selecione uma data</span>}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="end">
-                <Calendar initialFocus mode="range" defaultMonth={dateRange?.from}
-                  selected={dateRange} onSelect={handleDateRangeChange} numberOfMonths={1} locale={ptBR} />
-              </PopoverContent>
-            </Popover>
-            <Button onClick={() => handlePresetChange('today')} variant={activePreset === 'today' ? 'default' : 'outline'}>Hoje</Button>
-            <Button onClick={() => handlePresetChange('week')} variant={activePreset === 'week' ? 'default' : 'outline'}>Semana</Button>
-            <Button onClick={() => handlePresetChange('month')} variant={activePreset === 'month' ? 'default' : 'outline'}>Mês</Button>
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <h2 className="text-3xl font-bold tracking-tight">Painel</h2>
+            {/* Botões de atalho */}
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+              <Button size="sm" onClick={() => handlePresetChange('today')} variant={activePreset === 'today' ? 'default' : 'outline'} className="text-xs">Hoje</Button>
+              <Button size="sm" onClick={() => handlePresetChange('week')} variant={activePreset === 'week' ? 'default' : 'outline'} className="text-xs">Últimos 7 dias</Button>
+              <Button size="sm" onClick={() => handlePresetChange('month')} variant={activePreset === 'month' ? 'default' : 'outline'} className="text-xs">Últimos 30 dias</Button>
+            </div>
+          </div>
+          {/* Inputs de data */}
+          <div className="flex flex-wrap items-end gap-2 sm:gap-3">
+            <div className="flex flex-col gap-1 w-[calc(50%-4px)] sm:w-auto">
+              <Label className="text-xs text-muted-foreground">De</Label>
+              <Input
+                type="date"
+                className="w-full sm:w-[150px]"
+                value={dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : ''}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val) {
+                    const [y, m, d] = val.split('-').map(Number);
+                    const newFrom = startOfDay(new Date(y, m - 1, d));
+                    setDateRange(prev => ({ from: newFrom, to: prev?.to && prev.to >= newFrom ? prev.to : endOfDay(newFrom) }));
+                    setActivePreset(null);
+                  }
+                }}
+              />
+            </div>
+            <div className="flex flex-col gap-1 w-[calc(50%-4px)] sm:w-auto">
+              <Label className="text-xs text-muted-foreground">Até</Label>
+              <Input
+                type="date"
+                className="w-full sm:w-[150px]"
+                value={dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : ''}
+                min={dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : undefined}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val) {
+                    const [y, m, d] = val.split('-').map(Number);
+                    setDateRange(prev => ({ from: prev?.from, to: endOfDay(new Date(y, m - 1, d)) }));
+                    setActivePreset(null);
+                  }
+                }}
+              />
+            </div>
+            {dateRange?.from && dateRange?.to && (
+              <p className="text-xs text-muted-foreground pb-1 w-full sm:w-auto">
+                {format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })} → {format(dateRange.to, "dd/MM/yyyy", { locale: ptBR })}
+              </p>
+            )}
           </div>
         </div>
 
@@ -802,8 +828,8 @@ export default function DashboardPage() {
       </div>
 
       {/* ══════════ CHART + FECHAMENTO ══════════ */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-4">
+      <div className="grid gap-4 grid-cols-1 lg:grid-cols-7">
+        <Card className="lg:col-span-4">
           <CardHeader><CardTitle>Visão Geral de Vendas (Últimos 7 dias)</CardTitle></CardHeader>
           <CardContent className="pl-2">
             <ChartContainer config={chartConfig} className="h-[350px] w-full">
@@ -818,7 +844,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <div className="col-span-4 lg:col-span-3">
+        <div className="lg:col-span-3">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -859,8 +885,8 @@ export default function DashboardPage() {
       </div>
 
       {/* ══════════ PEDIDOS RECENTES + RANKING ══════════ */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-4">
+      <div className="grid gap-4 grid-cols-1 lg:grid-cols-7">
+        <Card className="lg:col-span-4">
             <CardHeader className="flex flex-row items-center justify-between">
                 <div>
                     <CardTitle>Pedidos Recentes</CardTitle>
@@ -875,7 +901,7 @@ export default function DashboardPage() {
             </CardContent>
         </Card>
 
-        <Card className="col-span-4 lg:col-span-3">
+        <Card className="lg:col-span-3">
             <CardHeader className="flex flex-row items-center justify-between">
                 <div>
                     <CardTitle className="text-lg flex items-center gap-2">

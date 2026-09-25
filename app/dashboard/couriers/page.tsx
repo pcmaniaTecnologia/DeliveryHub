@@ -169,49 +169,51 @@ export default function CouriersPage() {
           <CardDescription>Estes são os motoboys que podem receber os pedidos despachados.</CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>WhatsApp</TableHead>
-                <TableHead>PIN de Acesso</TableHead>
-                <TableHead>Valor/Entrega</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {couriers?.length === 0 ? (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                    Nenhum entregador cadastrado.
-                  </TableCell>
+                  <TableHead>Nome</TableHead>
+                  <TableHead>WhatsApp</TableHead>
+                  <TableHead>PIN de Acesso</TableHead>
+                  <TableHead>Valor/Entrega</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
-              ) : (
-                couriers?.map((courier) => (
-                  <TableRow key={courier.id}>
-                    <TableCell className="font-medium">{courier.name}</TableCell>
-                    <TableCell>{courier.phone}</TableCell>
-                    <TableCell><code className="bg-muted px-2 py-1 rounded">{courier.pinCode}</code></TableCell>
-                    <TableCell>R$ {courier.deliveryRate?.toFixed(2) || '0.00'}</TableCell>
-                    <TableCell>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${courier.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                            {courier.active ? 'Ativo' : 'Inativo'}
-                        </span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(courier)}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10" onClick={() => handleDelete(courier.id)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+              </TableHeader>
+              <TableBody>
+                {couriers?.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      Nenhum entregador cadastrado.
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                ) : (
+                  couriers?.map((courier) => (
+                    <TableRow key={courier.id}>
+                      <TableCell className="font-medium whitespace-nowrap">{courier.name}</TableCell>
+                      <TableCell className="whitespace-nowrap">{courier.phone}</TableCell>
+                      <TableCell><code className="bg-muted px-2 py-1 rounded">{courier.pinCode}</code></TableCell>
+                      <TableCell className="whitespace-nowrap">R$ {courier.deliveryRate?.toFixed(2) || '0.00'}</TableCell>
+                      <TableCell>
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${courier.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                              {courier.active ? 'Ativo' : 'Inativo'}
+                          </span>
+                      </TableCell>
+                      <TableCell className="text-right whitespace-nowrap">
+                        <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(courier)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10" onClick={() => handleDelete(courier.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
 

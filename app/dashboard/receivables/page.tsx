@@ -375,69 +375,71 @@ export default function ReceivablesPage() {
                                 <p className="text-muted-foreground">Não há notas pendentes ou fiados para receber.</p>
                             </div>
                         ) : (
-                            <table className="w-full text-sm">
-                                <thead className="bg-muted/50 border-b">
-                                    <tr>
-                                        <th className="px-4 py-3 text-left font-medium text-muted-foreground">Cliente</th>
-                                        <th className="px-4 py-3 text-left font-medium text-muted-foreground">Vencimento</th>
-                                        <th className="px-4 py-3 font-medium text-muted-foreground w-32">Status</th>
-                                        <th className="px-4 py-3 text-right font-medium text-muted-foreground">Valor</th>
-                                        <th className="px-4 py-3 text-right font-medium text-muted-foreground">Ações</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-border">
-                                    {filteredReceivables.map((receivable) => (
-                                        <tr key={receivable.id} className="hover:bg-muted/10 transition-colors">
-                                            <td className="px-4 py-3 font-medium">
-                                                <div>{receivable.customerName}</div>
-                                                <div className="flex gap-2 items-center text-xs text-muted-foreground mt-0.5">
-                                                    {receivable.customerPhone && (
-                                                        <span>{receivable.customerPhone}</span>
-                                                    )}
-                                                    {receivable.originOrderId && (
-                                                        <span>• Venda #{receivable.originOrderId.substring(0, 6).toUpperCase()}</span>
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td className="px-4 py-3 text-muted-foreground">
-                                                {receivable.dueDate ? format(receivable.dueDate?.toDate ? receivable.dueDate.toDate() : new Date(receivable.dueDate), 'dd/MM/yyyy') : 'N/A'}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {receivable.status === 'pago' ? (
-                                                    <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
-                                                        <CheckCircle2 className="h-3 w-3 mr-1" /> Pago
-                                                    </Badge>
-                                                ) : (
-                                                    (receivable.dueDate?.toDate ? receivable.dueDate.toDate() : new Date(receivable.dueDate)) < startOfDay(new Date()) ? (
-                                                        <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200">
-                                                            <AlertTriangle className="h-3 w-3 mr-1" /> Vencida
+                            <div className="overflow-x-auto min-w-full">
+                                <table className="w-full text-sm">
+                                    <thead className="bg-muted/50 border-b">
+                                        <tr>
+                                            <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Cliente</th>
+                                            <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Vencimento</th>
+                                            <th className="px-4 py-3 font-medium text-muted-foreground w-32 whitespace-nowrap">Status</th>
+                                            <th className="px-4 py-3 text-right font-medium text-muted-foreground whitespace-nowrap">Valor</th>
+                                            <th className="px-4 py-3 text-right font-medium text-muted-foreground whitespace-nowrap">Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-border">
+                                        {filteredReceivables.map((receivable) => (
+                                            <tr key={receivable.id} className="hover:bg-muted/10 transition-colors">
+                                                <td className="px-4 py-3 font-medium whitespace-nowrap">
+                                                    <div>{receivable.customerName}</div>
+                                                    <div className="flex gap-2 items-center text-xs text-muted-foreground mt-0.5">
+                                                        {receivable.customerPhone && (
+                                                            <span>{receivable.customerPhone}</span>
+                                                        )}
+                                                        {receivable.originOrderId && (
+                                                            <span>• Venda #{receivable.originOrderId.substring(0, 6).toUpperCase()}</span>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                                                    {receivable.dueDate ? format(receivable.dueDate?.toDate ? receivable.dueDate.toDate() : new Date(receivable.dueDate), 'dd/MM/yyyy') : 'N/A'}
+                                                </td>
+                                                <td className="px-4 py-3 whitespace-nowrap">
+                                                    {receivable.status === 'pago' ? (
+                                                        <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
+                                                            <CheckCircle2 className="h-3 w-3 mr-1" /> Pago
                                                         </Badge>
                                                     ) : (
-                                                        <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
-                                                            <Calendar className="h-3 w-3 mr-1" /> Pendente
-                                                        </Badge>
-                                                    )
-                                                )}
-                                            </td>
-                                            <td className="px-4 py-3 text-right font-bold">
-                                                R$ {(receivable.remainingAmount || 0).toFixed(2)}
-                                            </td>
-                                            <td className="px-4 py-3 text-right">
-                                                {receivable.status === 'pendente' && (
-                                                    <Button size="sm" onClick={() => openPayDialog(receivable)} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">
-                                                        <DollarSign className="h-4 w-4 mr-1" /> Quitar
-                                                    </Button>
-                                                )}
-                                                {receivable.status === 'pago' && (
-                                                    <Button size="sm" variant="outline" onClick={() => openRefundDialog(receivable)} className="w-full text-rose-600 border-rose-200 hover:bg-rose-50">
-                                                        Estornar
-                                                    </Button>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                                        (receivable.dueDate?.toDate ? receivable.dueDate.toDate() : new Date(receivable.dueDate)) < startOfDay(new Date()) ? (
+                                                            <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200">
+                                                                <AlertTriangle className="h-3 w-3 mr-1" /> Vencida
+                                                            </Badge>
+                                                        ) : (
+                                                            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                                                                <Calendar className="h-3 w-3 mr-1" /> Pendente
+                                                            </Badge>
+                                                        )
+                                                    )}
+                                                </td>
+                                                <td className="px-4 py-3 text-right font-bold whitespace-nowrap">
+                                                    R$ {(receivable.remainingAmount || 0).toFixed(2)}
+                                                </td>
+                                                <td className="px-4 py-3 text-right whitespace-nowrap">
+                                                    {receivable.status === 'pendente' && (
+                                                        <Button size="sm" onClick={() => openPayDialog(receivable)} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">
+                                                            <DollarSign className="h-4 w-4 mr-1" /> Quitar
+                                                        </Button>
+                                                    )}
+                                                    {receivable.status === 'pago' && (
+                                                        <Button size="sm" variant="outline" onClick={() => openRefundDialog(receivable)} className="w-full text-rose-600 border-rose-200 hover:bg-rose-50">
+                                                            Estornar
+                                                        </Button>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
                         )}
                     </ScrollArea>
                 </CardContent>

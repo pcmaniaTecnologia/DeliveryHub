@@ -350,7 +350,7 @@ export default function ReportsPage() {
                 </Card>
             </div>
 
-            {/* Inventory and Performance Section */}
+            {/* Courier + Top Products */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Courier Stats */}
                 <Card className="shadow-sm border-t-4 border-t-blue-500">
@@ -452,62 +452,62 @@ export default function ReportsPage() {
                         </div>
                     </CardContent>
                 </Card>
-
-                {/* Low Stock Products */}
-                <Card className="shadow-sm border-t-4 border-t-destructive">
-                    <CardHeader className="flex flex-row items-center justify-between">
-                        <div>
-                            <CardTitle className="text-lg flex items-center gap-2">
-                                <AlertCircle className="h-5 w-5 text-destructive" />
-                                Estoque Crítico (Zerados/Negativos)
-                            </CardTitle>
-                            <CardDescription>Produtos que precisam de reposição imediata.</CardDescription>
-                        </div>
-                        <div className="bg-destructive text-destructive-foreground px-2 py-1 rounded-full text-xs font-bold animate-pulse">
-                            {reportData?.lowStockProducts?.length || 0} itens
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="overflow-x-auto">
-                            <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead className="text-xs uppercase">Produto</TableHead>
-                                    <TableHead className="text-xs uppercase">Categoria</TableHead>
-                                    <TableHead className="text-xs uppercase text-right">Estoque</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {reportData?.lowStockProducts?.map((p) => (
-                                    <TableRow key={p.id}>
-                                        <TableCell className="text-xs font-bold text-destructive">{p.name}</TableCell>
-                                        <TableCell>
-                                            <div className="inline-flex items-center rounded-full border border-primary/20 text-primary bg-primary/5 px-2.5 py-0.5 text-[10px] font-semibold">
-                                                {p.categoryName}
-                                            </div>
-                                        </TableCell>
-                                        <TableCell className="text-right font-black text-xs text-destructive">
-                                            {p.stock}
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                                {(reportData?.lowStockProducts?.length ?? 0) === 0 && (
-                                    <TableRow>
-                                        <TableCell colSpan={3} className="text-center py-10 text-green-600 font-medium">
-                                            🎉 Parabéns! Todo o seu estoque está em dia.
-                                        </TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
-                        </div>
-                    </CardContent>
-                </Card>
             </div>
 
-            {/* Charts Section */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card className="shadow-sm">
+            {/* Low Stock — full width */}
+            <Card className="shadow-sm border-t-4 border-t-destructive">
+                <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                        <CardTitle className="text-lg flex items-center gap-2">
+                            <AlertCircle className="h-5 w-5 text-destructive" />
+                            Estoque Crítico (Zerados/Negativos)
+                        </CardTitle>
+                        <CardDescription>Produtos que precisam de reposição imediata.</CardDescription>
+                    </div>
+                    <div className="bg-destructive text-destructive-foreground px-2 py-1 rounded-full text-xs font-bold animate-pulse">
+                        {reportData?.lowStockProducts?.length || 0} itens
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    <div className="overflow-x-auto">
+                        <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead className="text-xs uppercase">Produto</TableHead>
+                                <TableHead className="text-xs uppercase">Categoria</TableHead>
+                                <TableHead className="text-xs uppercase text-right">Estoque</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {reportData?.lowStockProducts?.map((p) => (
+                                <TableRow key={p.id}>
+                                    <TableCell className="text-xs font-bold text-destructive">{p.name}</TableCell>
+                                    <TableCell>
+                                        <div className="inline-flex items-center rounded-full border border-primary/20 text-primary bg-primary/5 px-2.5 py-0.5 text-[10px] font-semibold">
+                                            {p.categoryName}
+                                        </div>
+                                    </TableCell>
+                                    <TableCell className="text-right font-black text-xs text-destructive">
+                                        {p.stock}
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                            {(reportData?.lowStockProducts?.length ?? 0) === 0 && (
+                                <TableRow>
+                                    <TableCell colSpan={3} className="text-center py-10 text-green-600 font-medium">
+                                        🎉 Parabéns! Todo o seu estoque está em dia.
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* Charts — 3 columns */}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                <Card className="shadow-sm md:col-span-2 xl:col-span-1">
                     <CardHeader>
                         <CardTitle className="text-lg">Faturamento Diário</CardTitle>
                         <CardDescription>Evolução financeira no período selecionado.</CardDescription>

@@ -1497,8 +1497,8 @@ export default function ComandasPage() {
                         <DialogDescription>Selecione o produto para venda rápida e impressão de ficha.</DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
-                        <div className="grid grid-cols-4 gap-4">
-                            <div className="col-span-3 space-y-2 relative">
+                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                            <div className="col-span-2 sm:col-span-3 space-y-2 relative">
                                 <Label>Produto</Label>
                                 <Input 
                                     placeholder="Pesquise o produto..."
@@ -1533,7 +1533,7 @@ export default function ComandasPage() {
                                 <Input 
                                     value={tokenSelectedProduct ? tokenSelectedProduct.price.toFixed(2) : "0.00"}
                                     disabled
-                                    className="bg-muted text-center px-1"
+                                    className="bg-muted text-center px-1 text-xs sm:text-sm"
                                 />
                             </div>
                         </div>

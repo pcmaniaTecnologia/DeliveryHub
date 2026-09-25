@@ -286,7 +286,7 @@ export default function OrdersPage() {
                         const isFicha = isFichaOrder(order);
                         return (
                         <TableRow key={order.id}>
-                          <TableCell className="font-medium">
+                          <TableCell className="font-medium whitespace-nowrap">
                             {order.deliveryType === 'Mesa' || order.tableNumber ? (
                                 <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">Mesa: {order.tableNumber}</Badge>
                             ) : (
@@ -294,7 +294,7 @@ export default function OrdersPage() {
                             )}
                           </TableCell>
                           <TableCell>
-                            <div className="flex items-center gap-2 flex-wrap">
+                            <div className="flex items-center gap-2 flex-wrap min-w-[120px]">
                               <span>{order.customerName || 'Anônimo'}</span>
                               {isFicha && (
                                 <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300 gap-1 text-[11px] py-0 px-1.5 font-bold">
@@ -314,32 +314,34 @@ export default function OrdersPage() {
                               {order.status}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-right">R${order.totalAmount.toFixed(2)}</TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-2">
+                          <TableCell className="text-right whitespace-nowrap font-medium">R${order.totalAmount.toFixed(2)}</TableCell>
+                          <TableCell className="text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1.5 sm:gap-2">
                               {isFicha ? (
                                 <Button 
                                   variant="default" 
-                                  className="h-9 px-3 gap-2 flex items-center bg-amber-600 hover:bg-amber-700 text-white font-medium" 
+                                  size="sm"
+                                  className="h-9 px-2.5 sm:px-3 gap-1.5 sm:gap-2 flex items-center bg-amber-600 hover:bg-amber-700 text-white font-medium" 
                                   onClick={() => handlePrintTokens(order)}
                                   title="Imprimir Fichas"
                                 >
                                   <Ticket className="h-4 w-4" />
-                                  <span translate="no">Imprimir Fichas</span>
+                                  <span className="hidden sm:inline" translate="no">Imprimir Fichas</span>
                                 </Button>
                               ) : (
                                 <Button 
                                   variant={(order.status === 'Novo' || order.status === 'Aguardando pagamento') ? 'default' : 'outline'} 
-                                  className="h-9 px-3 gap-2 flex items-center" 
+                                  size="sm"
+                                  className="h-9 px-2.5 sm:px-3 gap-1.5 sm:gap-2 flex items-center" 
                                   onClick={() => handlePrintOrder(order)}
                                   title={(order.status === 'Novo' || order.status === 'Aguardando pagamento') ? 'Imprimir e Iniciar Preparo' : 'Imprimir Pedido'}
                                 >
                                   <Printer className="h-4 w-4" />
-                                  <span translate="no">Imprimir</span>
+                                  <span className="hidden sm:inline" translate="no">Imprimir</span>
                                 </Button>
                               )}
                               <DropdownMenu>
-                                <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                                <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-9 w-9"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
                                   <DropdownMenuLabel>Ações</DropdownMenuLabel>
                                   <DropdownMenuItem onClick={() => setSelectedOrder(order)}>Ver Detalhes</DropdownMenuItem>

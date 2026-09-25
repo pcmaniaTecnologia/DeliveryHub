@@ -17,7 +17,7 @@ import { collection, doc, type Timestamp, query, where } from 'firebase/firestor
 import { useImpersonation } from '@/context/impersonation-context';
 
 import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { UserNav } from '@/components/user-nav';
 import { DashboardNav } from '@/components/dashboard-nav';
 import { LoadingScreen } from '@/components/LoadingScreen';
@@ -294,8 +294,8 @@ export default function DashboardLayout({
             </div>
           </div>
         </div>
-        <div className="flex flex-col">
-          <header className="flex h-14 items-center gap-4 border-b bg-background px-4 lg:h-[60px] lg:px-6">
+        <div className="flex flex-col min-w-0 w-full overflow-x-hidden">
+          <header className="flex h-14 items-center gap-2 sm:gap-4 border-b bg-background px-3 sm:px-4 lg:h-[60px] lg:px-6">
             <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
               <SheetTrigger asChild>
                 <Button
@@ -308,6 +308,9 @@ export default function DashboardLayout({
                 </Button>
               </SheetTrigger>
               <SheetContent side="left" className="flex flex-col p-0">
+                <SheetHeader className="sr-only">
+                  <SheetTitle>Menu de Navegação</SheetTitle>
+                </SheetHeader>
                 <div className="flex h-16 items-center border-b px-6">
                   <Link href="/dashboard" className="flex items-center">
                     <span className="text-xl font-black tracking-tighter text-primary">DeliveryHub</span>
@@ -329,10 +332,10 @@ export default function DashboardLayout({
               </Button>
             </div>
             
-            <div className="w-full flex-1 flex flex-col items-center justify-center text-[10px] sm:text-xs">
-              <div className="flex items-center gap-3 text-muted-foreground">
+            <div className="w-full flex-1 flex flex-col items-center justify-center text-[10px] sm:text-xs min-w-0">
+              <div className="flex items-center gap-2 sm:gap-3 text-muted-foreground truncate">
                 <span className="font-bold text-foreground tracking-tight hidden lg:inline">Suporte Técnico</span>
-                <a href="https://wa.me/5533987507606" target="_blank" rel="noopener noreferrer" className="hover:text-primary hover:underline transition-colors font-medium">
+                <a href="https://wa.me/5533987507606" target="_blank" rel="noopener noreferrer" className="hover:text-primary hover:underline transition-colors font-medium whitespace-nowrap">
                   (33) 9.8750-7606
                 </a>
                 <span className="hidden md:inline">|</span>
@@ -340,8 +343,8 @@ export default function DashboardLayout({
               </div>
             </div>
             
-            <div className="flex items-center gap-2">
-              <div className="flex sm:hidden items-center gap-2 mr-1">
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+              <div className="flex sm:hidden items-center gap-1">
                 <Button variant="outline" size="icon" onClick={handleInstallClick} className="h-8 w-8 bg-primary text-primary-foreground hover:bg-primary/90 border-0" title="Baixar App">
                   <Download className="h-4 w-4" />
                 </Button>
@@ -352,7 +355,7 @@ export default function DashboardLayout({
               <UserNav isAdmin={!!adminData} />
             </div>
           </header>
-          <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-8 lg:p-8 bg-muted/20">
+          <main className="flex flex-1 flex-col gap-4 p-3 sm:p-4 lg:gap-8 lg:p-8 bg-muted/20 min-w-0 w-full">
 
             {isImpersonating && (
               <div className="flex items-center justify-between bg-destructive text-destructive-foreground px-4 py-2 rounded-lg text-sm font-medium shadow">

@@ -234,12 +234,12 @@ export default function CouponsPage() {
                     control={form.control}
                     name="name"
                     render={({ field }) => (
-                      <FormItem className="grid grid-cols-4 items-center gap-4">
-                        <FormLabel className="text-right">Código</FormLabel>
+                      <FormItem className="grid grid-cols-1 sm:grid-cols-4 items-start sm:items-center gap-1.5 sm:gap-4">
+                        <FormLabel className="text-left sm:text-right">Código</FormLabel>
                         <FormControl>
-                          <Input placeholder="Ex: BEMVINDO10" className="col-span-3" {...field} />
+                          <Input placeholder="Ex: BEMVINDO10" className="col-span-1 sm:col-span-3" {...field} />
                         </FormControl>
-                        <FormMessage className="col-span-4 pl-[calc(25%+1rem)]" />
+                        <FormMessage className="col-span-1 sm:col-span-4 sm:pl-[calc(25%+1rem)]" />
                       </FormItem>
                     )}
                   />
@@ -247,11 +247,11 @@ export default function CouponsPage() {
                     control={form.control}
                     name="type"
                     render={({ field }) => (
-                      <FormItem className="grid grid-cols-4 items-center gap-4">
-                        <FormLabel className="text-right">Tipo</FormLabel>
+                      <FormItem className="grid grid-cols-1 sm:grid-cols-4 items-start sm:items-center gap-1.5 sm:gap-4">
+                        <FormLabel className="text-left sm:text-right">Tipo</FormLabel>
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                            <FormControl>
-                            <SelectTrigger className="col-span-3">
+                            <SelectTrigger className="col-span-1 sm:col-span-3">
                               <SelectValue placeholder="Selecione o tipo" />
                             </SelectTrigger>
                           </FormControl>
@@ -260,7 +260,7 @@ export default function CouponsPage() {
                             <SelectItem value="fixed">Valor Fixo (R$)</SelectItem>
                           </SelectContent>
                         </Select>
-                        <FormMessage className="col-span-4 pl-[calc(25%+1rem)]" />
+                        <FormMessage className="col-span-1 sm:col-span-4 sm:pl-[calc(25%+1rem)]" />
                       </FormItem>
                     )}
                   />
@@ -268,12 +268,12 @@ export default function CouponsPage() {
                     control={form.control}
                     name="value"
                     render={({ field }) => (
-                      <FormItem className="grid grid-cols-4 items-center gap-4">
-                        <FormLabel className="text-right">Valor</FormLabel>
+                      <FormItem className="grid grid-cols-1 sm:grid-cols-4 items-start sm:items-center gap-1.5 sm:gap-4">
+                        <FormLabel className="text-left sm:text-right">Valor</FormLabel>
                         <FormControl>
-                          <Input type="number" step="0.01" placeholder="10.00" className="col-span-3" {...field} />
+                          <Input type="number" step="0.01" placeholder="10.00" className="col-span-1 sm:col-span-3" {...field} />
                         </FormControl>
-                        <FormMessage className="col-span-4 pl-[calc(25%+1rem)]" />
+                        <FormMessage className="col-span-1 sm:col-span-4 sm:pl-[calc(25%+1rem)]" />
                       </FormItem>
                     )}
                   />
@@ -281,12 +281,12 @@ export default function CouponsPage() {
                     control={form.control}
                     name="validUntilDate"
                     render={({ field }) => (
-                      <FormItem className="grid grid-cols-4 items-center gap-4">
-                        <FormLabel className="text-right">Validade</FormLabel>
+                      <FormItem className="grid grid-cols-1 sm:grid-cols-4 items-start sm:items-center gap-1.5 sm:gap-4">
+                        <FormLabel className="text-left sm:text-right">Validade</FormLabel>
                         <FormControl>
-                          <Input type="date" className="col-span-3" {...field} value={field.value || ''} />
+                          <Input type="date" className="col-span-1 sm:col-span-3" {...field} value={field.value || ''} />
                         </FormControl>
-                        <FormMessage className="col-span-4 pl-[calc(25%+1rem)]" />
+                        <FormMessage className="col-span-1 sm:col-span-4 sm:pl-[calc(25%+1rem)]" />
                       </FormItem>
                     )}
                   />
@@ -294,25 +294,26 @@ export default function CouponsPage() {
                     control={form.control}
                     name="usageLimit"
                     render={({ field }) => (
-                      <FormItem className="grid grid-cols-4 items-center gap-4">
-                        <FormLabel className="text-right">Limite de uso</FormLabel>
+                      <FormItem className="grid grid-cols-1 sm:grid-cols-4 items-start sm:items-center gap-1.5 sm:gap-4">
+                        <FormLabel className="text-left sm:text-right">Limite de uso</FormLabel>
                         <FormControl>
-                          <Input type="number" placeholder="100" className="col-span-3" {...field} value={field.value || ''} />
+                          <Input type="number" placeholder="100" className="col-span-1 sm:col-span-3" {...field} value={field.value || ''} />
                         </FormControl>
-                        <FormMessage className="col-span-4 pl-[calc(25%+1rem)]" />
+                        <FormMessage className="col-span-1 sm:col-span-4 sm:pl-[calc(25%+1rem)]" />
                       </FormItem>
                     )}
                   />
-                  <DialogFooter>
+                  <DialogFooter className="flex-col sm:flex-row gap-2">
                      <DialogClose asChild>
-                      <Button type="button" variant="outline">Cancelar</Button>
+                      <Button type="button" variant="outline" className="w-full sm:w-auto">Cancelar</Button>
                     </DialogClose>
-                    <Button type="submit">Salvar Cupom</Button>
+                    <Button type="submit" className="w-full sm:w-auto">Salvar Cupom</Button>
                   </DialogFooter>
                 </form>
               </Form>
             </DialogContent>
           </Dialog>
+        <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -389,6 +390,7 @@ export default function CouponsPage() {
               )}
           </TableBody>
         </Table>
+        </div>
       </CardContent>
       <CardFooter>
         <div className="text-xs text-muted-foreground">
