@@ -5,13 +5,14 @@ import { useState, useMemo } from 'react';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, type Timestamp, query, where } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { 
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
     PieChart, Pie, Cell, Legend, AreaChart, Area 
 } from 'recharts';
-import { DollarSign, Truck, Store, ClipboardList, Wallet, TrendingUp, Calendar, AlertCircle, Package, BarChart3, PieChart as PieChartIcon, Activity, Bike, Ticket } from 'lucide-react';
+import { DollarSign, Truck, Store, ClipboardList, Wallet, TrendingUp, TrendingDown, Calendar, AlertCircle, Package, BarChart3, PieChart as PieChartIcon, Activity, Bike, Ticket, Sparkles, ArrowUpRight, CircleDollarSign } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format, startOfDay, endOfDay, isWithinInterval, subDays, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -49,6 +50,17 @@ type Product = {
 type Category = {
     id: string;
     name: string;
+}
+
+type Payable = {
+    id: string;
+    description: string;
+    amount: number;
+    category?: string;
+    status: 'pendente' | 'pago';
+    dueDate?: Timestamp;
+    createdAt?: Timestamp;
+    paidAt?: Timestamp;
 }
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
@@ -95,6 +107,13 @@ export default function ReportsPage() {
     }, [firestore, user?.uid]);
 
     const { data: categories } = useCollection<Category>(categoriesRef);
+
+    const payablesRef = useMemoFirebase(() => {
+        if (!firestore || !user?.uid) return null;
+        return collection(firestore, `companies/${user.uid}/payables`);
+    }, [firestore, user?.uid]);
+
+    const { data: payables, isLoading: isLoadingPayables } = useCollection<Payable>(payablesRef);
 
     const mapMethodName = (name: string) => {
         const n = (name || '').toLowerCase();
@@ -234,6 +253,71 @@ export default function ReportsPage() {
         });
         const courierData = Object.values(courierStats).sort((a, b) => b.totalFee - a.totalFee);
 
+        // Resultado operacional: vendas concluídas menos despesas efetivamente quitadas.
+        const paidExpenses = (payables || []).filter(payable => {
+            if (payable.status !== 'pago') return false;
+            const referenceDate = payable.paidAt?.toDate
+                ? payable.paidAt.toDate()
+                : payable.dueDate?.toDate
+                    ? payable.dueDate.toDate()
+                    : payable.createdAt?.toDate
+                        ? payable.createdAt.toDate()
+                        : null;
+            return referenceDate ? isWithinInterval(referenceDate, { start, end }) : false;
+        });
+
+        const totalExpenses = paidExpenses.reduce((sum, payable) => sum + (Number(payable.amount) || 0), 0);
+        const operatingResult = totalFaturamento - totalExpenses;
+        const operatingMargin = totalFaturamento > 0 ? (operatingResult / totalFaturamento) * 100 : 0;
+        const expenseRatio = totalFaturamento > 0 ? (totalExpenses / totalFaturamento) * 100 : 0;
+
+        const expensesByCategory = paidExpenses.reduce((acc, payable) => {
+            const category = payable.category || 'Sem categoria';
+            acc[category] = (acc[category] || 0) + (Number(payable.amount) || 0);
+            return acc;
+        }, {} as Record<string, number>);
+        const expenseCategories = Object.entries(expensesByCategory)
+            .map(([name, value]) => ({ name, value }))
+            .sort((a, b) => b.value - a.value);
+        const largestExpenseCategory = expenseCategories[0];
+        const bestSalesChannel = [...typeData].sort((a, b) => b.value - a.value)[0];
+        const bestProduct = topProducts[0];
+
+        let financialStatus: 'profit' | 'warning' | 'loss' | 'empty' = 'empty';
+        let financialHeadline = 'Ainda não há dados suficientes';
+        let financialMessage = 'Registre vendas e despesas pagas para receber uma análise financeira do período.';
+        const recommendations: string[] = [];
+
+        if (totalFaturamento > 0 && totalExpenses === 0) {
+            financialStatus = 'warning';
+            financialHeadline = 'Há vendas, mas nenhum gasto foi registrado';
+            financialMessage = `O sistema encontrou R$ ${totalFaturamento.toFixed(2)} em vendas, porém nenhuma despesa quitada. Cadastre todos os custos para que o resultado represente a realidade do negócio.`;
+            recommendations.push('Registre compras de estoque, aluguel, salários, impostos, taxas e demais despesas em Contas a Pagar.');
+            recommendations.push('Evite usar o faturamento como lucro: parte desse valor ainda precisa pagar os custos da operação.');
+        } else if (operatingResult < 0) {
+            financialStatus = 'loss';
+            financialHeadline = `Atenção: prejuízo de R$ ${Math.abs(operatingResult).toFixed(2)}`;
+            financialMessage = `Os gastos consumiram ${expenseRatio.toFixed(1)}% das vendas no período. É necessário reduzir custos ou elevar o faturamento para voltar ao positivo.`;
+            if (largestExpenseCategory) {
+                recommendations.push(`Revise primeiro “${largestExpenseCategory.name}”, sua maior categoria de gasto, com R$ ${largestExpenseCategory.value.toFixed(2)}.`);
+            }
+            recommendations.push(`Busque pelo menos R$ ${Math.abs(operatingResult).toFixed(2)} adicionais em margem ou redução de despesas para atingir o ponto de equilíbrio.`);
+            if (bestProduct) recommendations.push(`Priorize a divulgação de “${bestProduct.name}”, o produto mais vendido do período, e confira se o preço cobre todos os custos.`);
+        } else if (totalFaturamento > 0 && operatingMargin < 10) {
+            financialStatus = 'warning';
+            financialHeadline = `Resultado positivo, mas margem apertada: ${operatingMargin.toFixed(1)}%`;
+            financialMessage = `O negócio gerou R$ ${operatingResult.toFixed(2)} de resultado operacional. Uma pequena queda nas vendas ou alta nos gastos pode levar ao prejuízo.`;
+            if (largestExpenseCategory) recommendations.push(`Tente reduzir a categoria “${largestExpenseCategory.name}” e negocie seus principais custos recorrentes.`);
+            recommendations.push('Revise preços e descontos dos produtos com menor margem antes de aumentar o volume de vendas.');
+        } else if (totalFaturamento > 0) {
+            financialStatus = 'profit';
+            financialHeadline = `Parabéns! Resultado positivo de R$ ${operatingResult.toFixed(2)}`;
+            financialMessage = `A margem operacional estimada foi de ${operatingMargin.toFixed(1)}%. O negócio está positivo considerando as despesas quitadas cadastradas.`;
+            if (bestProduct) recommendations.push(`Aumente a visibilidade de “${bestProduct.name}”, seu produto líder, e crie combinações para elevar o valor médio de cada venda.`);
+            if (bestSalesChannel?.value > 0) recommendations.push(`O canal “${bestSalesChannel.name}” liderou o faturamento com R$ ${bestSalesChannel.value.toFixed(2)}. Reforce ações nesse canal sem abandonar os demais.`);
+            if (largestExpenseCategory) recommendations.push(`Mesmo com lucro, acompanhe “${largestExpenseCategory.name}”, hoje sua maior categoria de gasto.`);
+        }
+
         return {
             totalFaturamento,
             byType,
@@ -244,14 +328,51 @@ export default function ReportsPage() {
             recentOrders: filtered.sort((a,b) => b.orderDate.toMillis() - a.orderDate.toMillis()).slice(0, 10),
             topProducts,
             lowStockProducts,
-            courierData
+            courierData,
+            financial: {
+                totalExpenses,
+                operatingResult,
+                operatingMargin,
+                expenseRatio,
+                paidExpenseCount: paidExpenses.length,
+                status: financialStatus,
+                headline: financialHeadline,
+                message: financialMessage,
+                recommendations,
+                expenseCategories
+            }
         };
-    }, [orders, products, categories, startDate, endDate]);
+    }, [orders, products, categories, payables, startDate, endDate]);
 
-    if (isUserLoading || isLoading || isLoadingProducts) return <div className="p-8 text-center text-muted-foreground font-medium flex flex-col items-center gap-4">
+    if (isUserLoading || isLoading || isLoadingProducts || isLoadingPayables) return <div className="p-8 text-center text-muted-foreground font-medium flex flex-col items-center gap-4">
         <Activity className="h-8 w-8 animate-spin text-primary" />
         Gerando relatórios e analisando estoque...
     </div>;
+
+    const financial = reportData?.financial;
+    const financialTone = financial?.status === 'profit'
+        ? {
+            border: 'border-emerald-200',
+            background: 'bg-emerald-50/60',
+            icon: 'bg-emerald-100 text-emerald-700',
+            title: 'text-emerald-800',
+            result: 'text-emerald-600'
+        }
+        : financial?.status === 'loss'
+            ? {
+                border: 'border-rose-200',
+                background: 'bg-rose-50/60',
+                icon: 'bg-rose-100 text-rose-700',
+                title: 'text-rose-800',
+                result: 'text-rose-600'
+            }
+            : {
+                border: 'border-amber-200',
+                background: 'bg-amber-50/60',
+                icon: 'bg-amber-100 text-amber-700',
+                title: 'text-amber-800',
+                result: 'text-amber-600'
+            };
 
     return (
         <div className="space-y-6">
@@ -349,6 +470,87 @@ export default function ReportsPage() {
                     </CardContent>
                 </Card>
             </div>
+
+            {/* Intelligent Financial Analysis */}
+            <Card className={`overflow-hidden border-2 shadow-sm ${financialTone.border}`}>
+                <CardHeader className={`${financialTone.background} border-b ${financialTone.border}`}>
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="flex gap-3">
+                            <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${financialTone.icon}`}>
+                                <Sparkles className="h-5 w-5" />
+                            </div>
+                            <div>
+                                <CardTitle className={`text-xl ${financialTone.title}`}>Análise financeira inteligente</CardTitle>
+                                <CardDescription className="mt-1">
+                                    Vendas concluídas menos despesas quitadas no período selecionado.
+                                </CardDescription>
+                            </div>
+                        </div>
+                        <Badge variant="outline" className={`w-fit bg-background/80 px-3 py-1 ${financialTone.border} ${financialTone.title}`}>
+                            Margem: {financial?.operatingMargin.toFixed(1) || '0.0'}%
+                        </Badge>
+                    </div>
+                </CardHeader>
+                <CardContent className="space-y-6 p-5 sm:p-6">
+                    <div className="grid gap-3 sm:grid-cols-3">
+                        <div className="rounded-xl border bg-background p-4">
+                            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                <TrendingUp className="h-4 w-4 text-emerald-600" /> Ganhos
+                            </div>
+                            <p className="mt-2 text-2xl font-black text-emerald-600">R$ {(reportData?.totalFaturamento || 0).toFixed(2)}</p>
+                            <p className="mt-1 text-xs text-muted-foreground">Vendas concluídas</p>
+                        </div>
+                        <div className="rounded-xl border bg-background p-4">
+                            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                <TrendingDown className="h-4 w-4 text-rose-600" /> Gastos
+                            </div>
+                            <p className="mt-2 text-2xl font-black text-rose-600">R$ {(financial?.totalExpenses || 0).toFixed(2)}</p>
+                            <p className="mt-1 text-xs text-muted-foreground">{financial?.paidExpenseCount || 0} despesas quitadas</p>
+                        </div>
+                        <div className={`rounded-xl border p-4 ${financialTone.background} ${financialTone.border}`}>
+                            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                <CircleDollarSign className={`h-4 w-4 ${financialTone.result}`} /> Resultado
+                            </div>
+                            <p className={`mt-2 text-2xl font-black ${financialTone.result}`}>
+                                {(financial?.operatingResult || 0) < 0 ? '- ' : ''}R$ {Math.abs(financial?.operatingResult || 0).toFixed(2)}
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground">Estimativa operacional</p>
+                        </div>
+                    </div>
+
+                    <div className={`rounded-xl border p-4 ${financialTone.background} ${financialTone.border}`}>
+                        <div className="flex items-start gap-3">
+                            {financial?.status === 'loss'
+                                ? <TrendingDown className={`mt-0.5 h-5 w-5 shrink-0 ${financialTone.result}`} />
+                                : <ArrowUpRight className={`mt-0.5 h-5 w-5 shrink-0 ${financialTone.result}`} />}
+                            <div>
+                                <h3 className={`font-bold ${financialTone.title}`}>{financial?.headline}</h3>
+                                <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{financial?.message}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {(financial?.recommendations.length || 0) > 0 && (
+                        <div>
+                            <h3 className="mb-3 text-sm font-bold">O que fazer a seguir</h3>
+                            <div className="grid gap-3 lg:grid-cols-3">
+                                {financial?.recommendations.map((recommendation, index) => (
+                                    <div key={index} className="flex gap-3 rounded-xl border bg-muted/20 p-4 text-sm leading-relaxed">
+                                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                                            {index + 1}
+                                        </span>
+                                        <p>{recommendation}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                        Este resultado considera as vendas concluídas e as despesas marcadas como pagas no sistema. Para uma visão próxima do lucro líquido real, mantenha cadastrados custos de estoque, taxas, impostos, salários, aluguel e outras saídas.
+                    </p>
+                </CardContent>
+            </Card>
 
             {/* Courier + Top Products */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
