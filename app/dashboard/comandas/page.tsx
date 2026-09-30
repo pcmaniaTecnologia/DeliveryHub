@@ -432,6 +432,13 @@ export default function ComandasPage() {
             const price = tokenSelectedProduct.price;
             const orderTotal = price * tokenQuantity;
             const clientName = tokenCustomerName.trim();
+            
+            if (tokenPaymentMethod === 'Crediário' && (!clientName || clientName === '')) {
+                toast({ variant: 'destructive', title: 'Nome Obrigatório', description: 'Para vendas no crediário (ficha), informe o nome do cliente.' });
+                setIsProcessingToken(false);
+                return;
+            }
+
             const finalCustomerName = clientName || 'Cliente Balcão (Ficha)';
 
             const orderData = {
@@ -458,7 +465,25 @@ export default function ComandasPage() {
                 }]
             };
 
-            await addDocument(ordersRef, orderData);
+            const docRef = await addDocument(ordersRef, orderData);
+
+            if (tokenPaymentMethod === 'Crediário') {
+                const receivablesRef = collection(firestore, 'companies', effectiveCompanyId, 'receivables');
+                await addDocument(receivablesRef, {
+                    companyId: effectiveCompanyId,
+                    customerName: finalCustomerName,
+                    customerPhone: '',
+                    customerAddress: '',
+                    customerEmail: '',
+                    originalAmount: orderTotal,
+                    remainingAmount: orderTotal,
+                    status: 'pendente',
+                    dueDate: new Date(new Date().setMonth(new Date().getMonth() + 1)), // 1 mês
+                    createdAt: serverTimestamp(),
+                    originOrderId: docRef.id || '',
+                    notes: 'Ficha Rápida no Crediário'
+                });
+            }
 
             toast({ title: 'Fichas vendidas com sucesso!' });
 
@@ -698,6 +723,12 @@ export default function ComandasPage() {
             return;
         }
 
+        const hasCrediario = payments.some(p => p.method === 'Crediário');
+        if (hasCrediario && (!tableCustomerName || tableCustomerName.trim() === '')) {
+            toast({ variant: 'destructive', title: 'Nome Obrigatório', description: 'Para pagamento no crediário, informe o nome do cliente na mesa (Seção Detalhes).' });
+            return;
+        }
+
         try {
             const ordersRef = collection(firestore, 'companies', effectiveCompanyId, 'orders');
             const itemsBeingPaid = tableItems.filter(item => selectedItemsKeys.has(item.uniqueKey));
@@ -776,10 +807,33 @@ export default function ComandasPage() {
                 }
             }
 
+            // Handle Crediário Generation
+            if (hasCrediario) {
+                const crediarioAmount = payments.filter(p => p.method === 'Crediário').reduce((acc, p) => acc + p.amount, 0);
+                const receivablesRef = collection(firestore, 'companies', effectiveCompanyId, 'receivables');
+                
+                await addDocument(receivablesRef, {
+                    companyId: effectiveCompanyId,
+                    customerName: tableCustomerName.trim(),
+                    customerPhone: '',
+                    customerAddress: '',
+                    customerEmail: '',
+                    originalAmount: crediarioAmount,
+                    remainingAmount: crediarioAmount,
+                    status: 'pendente',
+                    dueDate: new Date(new Date().setMonth(new Date().getMonth() + 1)), // Vence em 1 mês por padrão
+                    createdAt: serverTimestamp(),
+                    originOrderId: mainOrderId || '',
+                    notes: `Comanda no Crediário - Mesa ${selectedTable.tableNumber}`
+                });
+            }
+
             // ── Registra venda no Caixa (se houver sessão aberta) ──
             try {
                 if (payments && payments.length > 0) {
                     for (const p of payments) {
+                        if (p.method === 'Crediário') continue; // Não entra no caixa agora
+
                         const result = await recordCashierSale(
                             firestore,
                             effectiveCompanyId,
@@ -795,14 +849,16 @@ export default function ComandasPage() {
                         }
                     }
                 } else {
-                    await recordCashierSale(
-                        firestore,
-                        effectiveCompanyId,
-                        totalPaidAmount,
-                        `Mesa ${selectedTable.tableNumber} — ${paymentSummary}`,
-                        mainOrderId,
-                        paymentSummary
-                    );
+                    if (paymentSummary !== 'Crediário') {
+                        await recordCashierSale(
+                            firestore,
+                            effectiveCompanyId,
+                            totalPaidAmount,
+                            `Mesa ${selectedTable.tableNumber} — ${paymentSummary}`,
+                            mainOrderId,
+                            paymentSummary
+                        );
+                    }
                 }
             } catch (cashierError) {
                 console.error('Error recording cashier sale:', cashierError);
@@ -1249,6 +1305,7 @@ export default function ComandasPage() {
                                                             <SelectItem value="Pix">Pix</SelectItem>
                                                             <SelectItem value="Cartão de Crédito">Crédito</SelectItem>
                                                             <SelectItem value="Cartão de Débito">Débito</SelectItem>
+                                                            <SelectItem value="Crediário">Crediário</SelectItem>
                                                         </SelectContent>
                                                     </Select>
                                                     <div className="relative w-32">
@@ -1564,6 +1621,7 @@ export default function ComandasPage() {
                                     {companyData?.paymentMethods?.credit !== false && <SelectItem value="Cartão de Crédito">Cartão de Crédito</SelectItem>}
                                     {companyData?.paymentMethods?.debit !== false && <SelectItem value="Cartão de Débito">Cartão de Débito</SelectItem>}
                                     {companyData?.paymentMethods?.pix !== false && <SelectItem value="PIX">PIX</SelectItem>}
+                                    {companyData?.paymentMethods?.crediario !== false && <SelectItem value="Crediário">Crediário</SelectItem>}
                                     {/* Caso antigo ou se não tiver config de paymentMethods */}
                                     {!companyData?.paymentMethods && <SelectItem value="Vale Refeição">Vale Refeição</SelectItem>}
                                 </SelectContent>
