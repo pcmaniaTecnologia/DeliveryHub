@@ -26,12 +26,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Switch } from '@/components/ui/switch';
 import { recordCashierSale } from '@/lib/finance-utils';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { format, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { DateRange } from 'react-day-picker';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar as CalendarUI } from '@/components/ui/calendar';
-import { cn } from '@/lib/utils';
+import { isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 
 type Payable = {
     id: string;
@@ -64,7 +59,8 @@ export default function PayablesPage() {
 
     const [activeTab, setActiveTab] = useState('a_vencer');
     const [searchQuery, setSearchQuery] = useState('');
-    const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+    const [dateFrom, setDateFrom] = useState('');
+    const [dateTo, setDateTo] = useState('');
     
     // Novo Lançamento
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -96,45 +92,85 @@ export default function PayablesPage() {
 
     const filteredPayables = useMemo(() => {
         if (!allPayables) return [];
-        
-        let filtered = allPayables.filter(p => 
-            p.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            p.category.toLowerCase().includes(searchQuery.toLowerCase())
-        );
+        const today = startOfDay(new Date());
 
-        if (activeTab === 'vencidas') {
-            filtered = filtered.filter(p => {
-                const due = p.dueDate?.toDate ? p.dueDate.toDate() : new Date(p.dueDate);
-                return p.status === 'pendente' && due < startOfDay(new Date());
-            });
-        } else if (activeTab === 'a_vencer') {
-            filtered = filtered.filter(p => {
-                const due = p.dueDate?.toDate ? p.dueDate.toDate() : new Date(p.dueDate);
-                return p.status === 'pendente' && due >= startOfDay(new Date());
-            });
-        } else if (activeTab === 'quitadas') {
-            filtered = filtered.filter(p => p.status === 'pago');
-        }
+        const toDate = (value: any): Date | null => {
+            if (!value) return null;
+            const parsed = value?.toDate ? value.toDate() : new Date(value);
+            return Number.isNaN(parsed.getTime()) ? null : parsed;
+        };
 
-        if (dateRange?.from) {
-            const fromDate = dateRange.from;
-            const toDate = dateRange.to || fromDate;
-            filtered = filtered.filter(p => {
-                const date = p.dueDate?.toDate ? p.dueDate.toDate() : new Date(p.dueDate);
-                return isWithinInterval(date, { start: startOfDay(fromDate), end: endOfDay(toDate) });
-            });
-        }
+        const parseInputDate = (value: string): Date | null => {
+            if (!value) return null;
+            const [year, month, day] = value.split('-').map(Number);
+            return new Date(year, month - 1, day);
+        };
+
+        const rangeStart = parseInputDate(dateFrom);
+        const rangeEnd = parseInputDate(dateTo);
+
+        let filtered = allPayables.filter(payable => {
+            const matchesSearch = payable.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                payable.category.toLowerCase().includes(searchQuery.toLowerCase());
+            if (!matchesSearch) return false;
+
+            const dueDate = toDate(payable.dueDate);
+
+            if (activeTab === 'vencidas') {
+                if (payable.status !== 'pendente' || !dueDate || dueDate >= today) return false;
+            } else if (activeTab === 'a_vencer') {
+                if (payable.status !== 'pendente' || !dueDate || dueDate < today) return false;
+            } else if (activeTab === 'quitadas' && payable.status !== 'pago') {
+                return false;
+            }
+
+            if (rangeStart || rangeEnd) {
+                const referenceDate = activeTab === 'quitadas'
+                    ? toDate(payable.paidAt) || toDate(payable.createdAt)
+                    : dueDate;
+                if (!referenceDate) return false;
+
+                const intervalStart = startOfDay(rangeStart || rangeEnd!);
+                const intervalEnd = endOfDay(rangeEnd || rangeStart!);
+                const start = intervalStart <= intervalEnd ? intervalStart : startOfDay(intervalEnd);
+                const end = intervalStart <= intervalEnd ? intervalEnd : endOfDay(intervalStart);
+
+                if (!isWithinInterval(referenceDate, { start, end })) return false;
+            }
+
+            return true;
+        });
 
         return filtered.sort((a, b) => {
             const timeA = a.dueDate?.toMillis?.() || (new Date(a.dueDate).getTime()) || 0;
             const timeB = b.dueDate?.toMillis?.() || (new Date(b.dueDate).getTime()) || 0;
             return (activeTab === 'a_vencer' || activeTab === 'vencidas') ? timeA - timeB : timeB - timeA;
         });
-    }, [allPayables, searchQuery, activeTab]);
+    }, [allPayables, searchQuery, activeTab, dateFrom, dateTo]);
 
-    const totalPending = useMemo(() => {
-        if (!allPayables) return 0;
-        return allPayables.filter(p => p.status === 'pendente').reduce((acc, p) => acc + (p.amount || 0), 0);
+    const filteredTotal = useMemo(() => {
+        return filteredPayables.reduce((acc, payable) => acc + (payable.amount || 0), 0);
+    }, [filteredPayables]);
+
+    const tabCounts = useMemo(() => {
+        const today = startOfDay(new Date());
+        return (allPayables || []).reduce((counts, payable) => {
+            if (payable.status === 'pago') {
+                counts.quitadas += 1;
+                return counts;
+            }
+
+            const dueDate = payable.dueDate?.toDate
+                ? payable.dueDate.toDate()
+                : payable.dueDate ? new Date(payable.dueDate) : null;
+
+            if (dueDate && !Number.isNaN(dueDate.getTime()) && dueDate < today) {
+                counts.vencidas += 1;
+            } else {
+                counts.a_vencer += 1;
+            }
+            return counts;
+        }, { a_vencer: 0, vencidas: 0, quitadas: 0 });
     }, [allPayables]);
 
     // Lógica para criar
@@ -325,11 +361,16 @@ export default function PayablesPage() {
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <Card className="bg-rose-500/5 border-rose-500/20">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-rose-700">Total a Pagar (Pendentes)</CardTitle>
+                        <CardTitle className="text-sm font-medium text-rose-700">
+                            {activeTab === 'quitadas' ? 'Total pago' : activeTab === 'vencidas' ? 'Total vencido' : 'Total a pagar'}
+                        </CardTitle>
                         <DollarSign className="h-4 w-4 text-rose-600" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-rose-600">R$ {totalPending.toFixed(2)}</div>
+                        <div className="text-2xl font-bold text-rose-600">R$ {filteredTotal.toFixed(2)}</div>
+                        <p className="text-xs text-muted-foreground">
+                            {filteredPayables.length} {filteredPayables.length === 1 ? 'conta listada' : 'contas listadas'}.
+                        </p>
                     </CardContent>
                 </Card>
             </div>
@@ -339,58 +380,73 @@ export default function PayablesPage() {
                     <div className="flex flex-col md:flex-row items-center justify-between gap-4">
                         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full md:w-auto">
                             <TabsList className="grid w-full grid-cols-3">
-                                <TabsTrigger value="a_vencer">A Vencer</TabsTrigger>
-                                <TabsTrigger value="vencidas">Vencidas</TabsTrigger>
-                                <TabsTrigger value="quitadas">Quitadas</TabsTrigger>
+                                <TabsTrigger value="a_vencer" className="gap-1.5">
+                                    A vencer <span className="rounded-full bg-background/80 px-1.5 text-[10px] tabular-nums">{tabCounts.a_vencer}</span>
+                                </TabsTrigger>
+                                <TabsTrigger value="vencidas" className="gap-1.5">
+                                    Vencidas <span className="rounded-full bg-background/80 px-1.5 text-[10px] tabular-nums">{tabCounts.vencidas}</span>
+                                </TabsTrigger>
+                                <TabsTrigger value="quitadas" className="gap-1.5">
+                                    Quitadas <span className="rounded-full bg-background/80 px-1.5 text-[10px] tabular-nums">{tabCounts.quitadas}</span>
+                                </TabsTrigger>
                             </TabsList>
                         </Tabs>
                         
-                        <div className="flex gap-2">
-                        <div className="relative flex-1">
-                            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                            <Input 
-                                placeholder="Buscar por descrição ou categoria..." 
-                                className="pl-9 h-10 rounded-xl"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                            />
-                        </div>
-                        <Popover>
-                            <PopoverTrigger asChild>
-                                <Button
-                                variant="outline"
-                                className={cn(
-                                    "h-10 px-4 rounded-xl justify-start text-left font-normal",
-                                    !dateRange && "text-muted-foreground"
-                                )}
-                                >
-                                <Calendar className="mr-2 h-4 w-4" />
-                                {dateRange?.from ? (
-                                    dateRange.to ? (
-                                    <>
-                                        {format(dateRange.from, "dd/MM")} - {format(dateRange.to, "dd/MM")}
-                                    </>
-                                    ) : (
-                                        format(dateRange.from, "dd/MM")
-                                    )
-                                ) : (
-                                    <span>Filtrar Vencimento</span>
-                                )}
-                                </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="end">
-                                <CalendarUI
-                                initialFocus
-                                mode="range"
-                                defaultMonth={dateRange?.from}
-                                selected={dateRange}
-                                onSelect={setDateRange}
-                                numberOfMonths={1}
-                                locale={ptBR}
+                        <div className="flex w-full flex-col gap-2 lg:w-auto lg:flex-row">
+                            <div className="relative min-w-0 flex-1 lg:w-72">
+                                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                                <Input 
+                                    placeholder="Buscar por descrição ou categoria" 
+                                    className="h-10 rounded-xl pl-9"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
                                 />
-                            </PopoverContent>
-                        </Popover>
-                    </div>
+                            </div>
+                            <div className="flex flex-col gap-2 rounded-xl border bg-background p-2 sm:flex-row sm:items-end">
+                                <div className="grid flex-1 grid-cols-2 gap-2">
+                                    <div className="space-y-1">
+                                        <Label htmlFor="payable-date-from" className="px-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                            De
+                                        </Label>
+                                        <Input
+                                            id="payable-date-from"
+                                            type="date"
+                                            value={dateFrom}
+                                            max={dateTo || undefined}
+                                            onChange={(event) => setDateFrom(event.target.value)}
+                                            className="h-9 min-w-0 rounded-lg px-2 text-xs sm:w-36"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label htmlFor="payable-date-to" className="px-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                            Até
+                                        </Label>
+                                        <Input
+                                            id="payable-date-to"
+                                            type="date"
+                                            value={dateTo}
+                                            min={dateFrom || undefined}
+                                            onChange={(event) => setDateTo(event.target.value)}
+                                            className="h-9 min-w-0 rounded-lg px-2 text-xs sm:w-36"
+                                        />
+                                    </div>
+                                </div>
+                                {(dateFrom || dateTo) && (
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-9 px-3 text-xs"
+                                        onClick={() => {
+                                            setDateFrom('');
+                                            setDateTo('');
+                                        }}
+                                    >
+                                        Limpar
+                                    </Button>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 </CardHeader>
                 <CardContent className="p-0">
@@ -404,8 +460,18 @@ export default function PayablesPage() {
                                 <div className="h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center mb-4">
                                     <CheckCircle2 className="h-10 w-10 text-primary" />
                                 </div>
-                                <h3 className="text-xl font-bold mb-2">Tudo limpo!</h3>
-                                <p className="text-muted-foreground">Nenhuma conta encontrada nesta categoria.</p>
+                                <h3 className="text-xl font-bold mb-2">
+                                    {activeTab === 'quitadas' ? 'Nenhuma conta quitada' : activeTab === 'vencidas' ? 'Tudo em dia!' : 'Nenhuma conta a vencer'}
+                                </h3>
+                                <p className="text-muted-foreground">
+                                    {dateFrom || dateTo || searchQuery
+                                        ? 'Nenhum resultado encontrado com os filtros informados.'
+                                        : activeTab === 'quitadas'
+                                            ? 'Os pagamentos concluídos aparecerão aqui.'
+                                            : activeTab === 'vencidas'
+                                                ? 'Não há despesas vencidas no momento.'
+                                                : 'Não há despesas pendentes com vencimento futuro.'}
+                                </p>
                             </div>
                         ) : (
                             <div className="divide-y">

@@ -198,6 +198,8 @@ export default function ComandasPage() {
 
     const [tableOccupants, setTableOccupants] = useState(1);
     const [tableCustomerName, setTableCustomerName] = useState('');
+    const [tableCustomerPhone, setTableCustomerPhone] = useState('');
+    const [tableCustomerAddress, setTableCustomerAddress] = useState('');
 
     useEffect(() => {
         if (selectedTable) {
@@ -207,9 +209,13 @@ export default function ComandasPage() {
             
             setTableOccupants(meta?.occupants || 1);
             setTableCustomerName(meta?.customerName || fallbackName);
+            setTableCustomerPhone('');
+            setTableCustomerAddress('');
         } else {
             setTableOccupants(1);
             setTableCustomerName('');
+            setTableCustomerPhone('');
+            setTableCustomerAddress('');
         }
     }, [companyData?.tableMetadata, selectedTable]);
 
@@ -396,6 +402,8 @@ export default function ComandasPage() {
     const [tokenProductSearch, setTokenProductSearch] = useState('');
     const [tokenSelectedProduct, setTokenSelectedProduct] = useState<{id: string, name: string, price: number} | null>(null);
     const [tokenCustomerName, setTokenCustomerName] = useState('');
+    const [tokenCustomerPhone, setTokenCustomerPhone] = useState('');
+    const [tokenCustomerAddress, setTokenCustomerAddress] = useState('');
     const [tokenQuantity, setTokenQuantity] = useState(1);
     const [tokenPaymentMethod, setTokenPaymentMethod] = useState('');
     const [isProcessingToken, setIsProcessingToken] = useState(false);
@@ -433,10 +441,23 @@ export default function ComandasPage() {
             const orderTotal = price * tokenQuantity;
             const clientName = tokenCustomerName.trim();
             
-            if (tokenPaymentMethod === 'Crediário' && (!clientName || clientName === '')) {
-                toast({ variant: 'destructive', title: 'Nome Obrigatório', description: 'Para vendas no crediário (ficha), informe o nome do cliente.' });
-                setIsProcessingToken(false);
-                return;
+            if (tokenPaymentMethod === 'Crediário') {
+                const nameParts = clientName.split(/\s+/).filter(Boolean);
+                if (nameParts.length < 2 || nameParts.some(part => part.length < 2)) {
+                    toast({ variant: 'destructive', title: 'Nome completo obrigatório', description: 'Informe o nome e o sobrenome do cliente para continuar no crediário.' });
+                    setIsProcessingToken(false);
+                    return;
+                }
+                if (tokenCustomerPhone.replace(/\D/g, '').length < 10) {
+                    toast({ variant: 'destructive', title: 'Contato obrigatório', description: 'Informe um telefone ou WhatsApp válido com DDD.' });
+                    setIsProcessingToken(false);
+                    return;
+                }
+                if (tokenCustomerAddress.trim().length < 5) {
+                    toast({ variant: 'destructive', title: 'Endereço obrigatório', description: 'Informe o endereço completo do cliente.' });
+                    setIsProcessingToken(false);
+                    return;
+                }
             }
 
             const finalCustomerName = clientName || 'Cliente Balcão (Ficha)';
@@ -472,8 +493,8 @@ export default function ComandasPage() {
                 await addDocument(receivablesRef, {
                     companyId: effectiveCompanyId,
                     customerName: finalCustomerName,
-                    customerPhone: '',
-                    customerAddress: '',
+                    customerPhone: tokenCustomerPhone.trim(),
+                    customerAddress: tokenCustomerAddress.trim(),
                     customerEmail: '',
                     originalAmount: orderTotal,
                     remainingAmount: orderTotal,
@@ -495,6 +516,8 @@ export default function ComandasPage() {
             setTokenProductSearch('');
             setTokenSelectedProduct(null);
             setTokenCustomerName('');
+            setTokenCustomerPhone('');
+            setTokenCustomerAddress('');
             setTokenQuantity(1);
             setTokenPaymentMethod('');
             setIsTokenSearchOpen(false);
@@ -681,6 +704,11 @@ export default function ComandasPage() {
     }, [payments]);
 
     const balanceRemaining = itemsToPayTotal - totalPaid;
+    const hasCrediarioSelected = newPaymentMethod === 'Crediário' || payments.some(payment => payment.method === 'Crediário');
+    const tableCustomerNameParts = tableCustomerName.trim().split(/\s+/).filter(Boolean);
+    const isTableCustomerNameValid = tableCustomerNameParts.length >= 2 && tableCustomerNameParts.every(part => part.length >= 2);
+    const isTableCustomerPhoneValid = tableCustomerPhone.replace(/\D/g, '').length >= 10;
+    const isTableCustomerAddressValid = tableCustomerAddress.trim().length >= 5;
 
     // Saldo em tempo real considerando o que está sendo digitado
     const typedAmount = parseFloat(newPaymentAmount.replace(',', '.')) || 0;
@@ -724,9 +752,19 @@ export default function ComandasPage() {
         }
 
         const hasCrediario = payments.some(p => p.method === 'Crediário');
-        if (hasCrediario && (!tableCustomerName || tableCustomerName.trim() === '')) {
-            toast({ variant: 'destructive', title: 'Nome Obrigatório', description: 'Para pagamento no crediário, informe o nome do cliente na mesa (Seção Detalhes).' });
-            return;
+        if (hasCrediario) {
+            if (!isTableCustomerNameValid) {
+                toast({ variant: 'destructive', title: 'Nome completo obrigatório', description: 'Informe o nome e o sobrenome do cliente para continuar no crediário.' });
+                return;
+            }
+            if (!isTableCustomerPhoneValid) {
+                toast({ variant: 'destructive', title: 'Contato obrigatório', description: 'Informe um telefone ou WhatsApp válido com DDD.' });
+                return;
+            }
+            if (!isTableCustomerAddressValid) {
+                toast({ variant: 'destructive', title: 'Endereço obrigatório', description: 'Informe o endereço completo do cliente para continuar no crediário.' });
+                return;
+            }
         }
 
         try {
@@ -815,8 +853,8 @@ export default function ComandasPage() {
                 await addDocument(receivablesRef, {
                     companyId: effectiveCompanyId,
                     customerName: tableCustomerName.trim(),
-                    customerPhone: '',
-                    customerAddress: '',
+                    customerPhone: tableCustomerPhone.trim(),
+                    customerAddress: tableCustomerAddress.trim(),
                     customerEmail: '',
                     originalAmount: crediarioAmount,
                     remainingAmount: crediarioAmount,
@@ -1168,11 +1206,14 @@ export default function ComandasPage() {
                         <div className="bg-primary/5 border-b p-4 grid grid-cols-2 gap-4">
                             <div className="space-y-1.5">
                                 <Label className="text-[10px] uppercase font-black text-muted-foreground tracking-widest flex items-center gap-1">
-                                    <User className="w-3 h-3" /> Nome do Cliente
+                                    <User className="w-3 h-3" /> Nome do Cliente {hasCrediarioSelected && <span className="text-destructive">*</span>}
                                 </Label>
                                 <Input 
-                                    placeholder="Ex: João da Silva" 
-                                    className="h-9 bg-white font-bold" 
+                                    placeholder={hasCrediarioSelected ? 'Nome e sobrenome' : 'Ex: João da Silva'}
+                                    autoComplete="name"
+                                    aria-required={hasCrediarioSelected}
+                                    aria-invalid={hasCrediarioSelected && !isTableCustomerNameValid}
+                                    className={`h-9 bg-white font-bold ${hasCrediarioSelected && !isTableCustomerNameValid ? 'border-destructive focus-visible:ring-destructive' : ''}`}
                                     value={tableCustomerName} 
                                     onChange={(e) => setTableCustomerName(e.target.value)}
                                     onBlur={() => handleUpdateTableMetadata(tableCustomerName)}
@@ -1206,6 +1247,46 @@ export default function ComandasPage() {
                                 </div>
                             </div>
                         </div>
+
+                        {isCheckoutMode && hasCrediarioSelected && (
+                            <div className="grid gap-3 border-b border-amber-200 bg-amber-50/70 p-4 sm:grid-cols-2">
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="table-customer-phone" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                                        Contato / WhatsApp <span className="text-destructive">*</span>
+                                    </Label>
+                                    <Input
+                                        id="table-customer-phone"
+                                        type="tel"
+                                        inputMode="tel"
+                                        autoComplete="tel"
+                                        aria-required="true"
+                                        aria-invalid={!isTableCustomerPhoneValid}
+                                        className={`h-10 bg-white ${!isTableCustomerPhoneValid ? 'border-destructive focus-visible:ring-destructive' : ''}`}
+                                        value={tableCustomerPhone}
+                                        onChange={(event) => setTableCustomerPhone(event.target.value)}
+                                        placeholder="(99) 99999-9999"
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="table-customer-address" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                                        Endereço completo <span className="text-destructive">*</span>
+                                    </Label>
+                                    <Input
+                                        id="table-customer-address"
+                                        autoComplete="street-address"
+                                        aria-required="true"
+                                        aria-invalid={!isTableCustomerAddressValid}
+                                        className={`h-10 bg-white ${!isTableCustomerAddressValid ? 'border-destructive focus-visible:ring-destructive' : ''}`}
+                                        value={tableCustomerAddress}
+                                        onChange={(event) => setTableCustomerAddress(event.target.value)}
+                                        placeholder="Rua, número, bairro e cidade"
+                                    />
+                                </div>
+                                <p className="text-xs text-amber-800 sm:col-span-2">
+                                    Para usar o crediário, preencha nome completo, contato e endereço do cliente.
+                                </p>
+                            </div>
+                        )}
                         
                         <div className="flex-1 overflow-y-auto pr-2 space-y-4 py-2">
                              {isCheckoutMode ? (
@@ -1595,13 +1676,56 @@ export default function ComandasPage() {
                             </div>
                         </div>
                         <div className="space-y-2">
-                            <Label>Nome do Cliente <span className="text-xs text-muted-foreground font-normal">(Opcional)</span></Label>
+                            <Label>
+                                Nome completo {tokenPaymentMethod === 'Crediário'
+                                    ? <span className="text-destructive">*</span>
+                                    : <span className="text-xs text-muted-foreground font-normal">(Opcional)</span>}
+                            </Label>
                             <Input 
-                                placeholder="Nome do cliente (opcional)"
+                                placeholder={tokenPaymentMethod === 'Crediário' ? 'Ex: Maria da Silva' : 'Nome do cliente (opcional)'}
+                                autoComplete="name"
+                                aria-required={tokenPaymentMethod === 'Crediário'}
+                                aria-invalid={tokenPaymentMethod === 'Crediário' && tokenCustomerName.trim().split(/\s+/).filter(Boolean).length < 2}
+                                className={tokenPaymentMethod === 'Crediário' && tokenCustomerName.trim().split(/\s+/).filter(Boolean).length < 2 ? 'border-destructive focus-visible:ring-destructive' : ''}
                                 value={tokenCustomerName}
                                 onChange={(e) => setTokenCustomerName(e.target.value)}
                             />
                         </div>
+                        {tokenPaymentMethod === 'Crediário' && (
+                            <div className="grid gap-4 rounded-xl border border-amber-200 bg-amber-50/70 p-3 sm:grid-cols-2">
+                                <div className="space-y-2">
+                                    <Label htmlFor="token-customer-phone">Contato / WhatsApp <span className="text-destructive">*</span></Label>
+                                    <Input
+                                        id="token-customer-phone"
+                                        type="tel"
+                                        inputMode="tel"
+                                        autoComplete="tel"
+                                        aria-required="true"
+                                        aria-invalid={tokenCustomerPhone.replace(/\D/g, '').length < 10}
+                                        className={tokenCustomerPhone.replace(/\D/g, '').length < 10 ? 'border-destructive focus-visible:ring-destructive' : ''}
+                                        value={tokenCustomerPhone}
+                                        onChange={(event) => setTokenCustomerPhone(event.target.value)}
+                                        placeholder="(99) 99999-9999"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="token-customer-address">Endereço completo <span className="text-destructive">*</span></Label>
+                                    <Input
+                                        id="token-customer-address"
+                                        autoComplete="street-address"
+                                        aria-required="true"
+                                        aria-invalid={tokenCustomerAddress.trim().length < 5}
+                                        className={tokenCustomerAddress.trim().length < 5 ? 'border-destructive focus-visible:ring-destructive' : ''}
+                                        value={tokenCustomerAddress}
+                                        onChange={(event) => setTokenCustomerAddress(event.target.value)}
+                                        placeholder="Rua, número, bairro e cidade"
+                                    />
+                                </div>
+                                <p className="text-xs text-amber-800 sm:col-span-2">
+                                    Estes dados são obrigatórios para registrar a ficha no crediário.
+                                </p>
+                            </div>
+                        )}
                         <div className="space-y-2">
                             <Label>Quantidade de Fichas</Label>
                             <div className="flex items-center gap-4">

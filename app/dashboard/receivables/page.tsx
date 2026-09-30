@@ -27,11 +27,6 @@ import { recordCashierSale } from '@/lib/finance-utils';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { format, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { DateRange } from 'react-day-picker';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar as CalendarUI } from '@/components/ui/calendar';
-import { cn } from '@/lib/utils';
 
 type Receivable = {
     id: string;
@@ -61,7 +56,8 @@ export default function ReceivablesPage() {
 
     const [searchQuery, setSearchQuery] = useState('');
     const [activeTab, setActiveTab] = useState('a_vencer');
-    const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+    const [dateFrom, setDateFrom] = useState('');
+    const [dateTo, setDateTo] = useState('');
     const [selectedReceivable, setSelectedReceivable] = useState<Receivable | null>(null);
     const [isPayDialogOpen, setIsPayDialogOpen] = useState(false);
     const [isRefundDialogOpen, setIsRefundDialogOpen] = useState(false);
@@ -86,26 +82,51 @@ export default function ReceivablesPage() {
 
     const filteredReceivables = useMemo(() => {
         if (!receivablesData) return [];
+        const today = startOfDay(new Date());
+
+        const toDate = (value: any): Date | null => {
+            if (!value) return null;
+            const parsed = value?.toDate ? value.toDate() : new Date(value);
+            return Number.isNaN(parsed.getTime()) ? null : parsed;
+        };
+
+        const parseInputDate = (value: string): Date | null => {
+            if (!value) return null;
+            const [year, month, day] = value.split('-').map(Number);
+            return new Date(year, month - 1, day);
+        };
+
+        const rangeStart = parseInputDate(dateFrom);
+        const rangeEnd = parseInputDate(dateTo);
+
         let filtered = receivablesData.filter(r => {
             const matchesSearch = r.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
                                   (r.customerPhone && r.customerPhone.includes(searchQuery));
             if (!matchesSearch) return false;
-            
+
+            const dueDate = toDate(r.dueDate);
+
             if (activeTab === 'vencidas') {
-                const due = r.dueDate?.toDate ? r.dueDate.toDate() : new Date(r.dueDate);
-                if (r.status !== 'pendente' || due >= startOfDay(new Date())) return false;
+                if (r.status !== 'pendente' || !dueDate || dueDate >= today) return false;
             } else if (activeTab === 'a_vencer') {
-                const due = r.dueDate?.toDate ? r.dueDate.toDate() : new Date(r.dueDate);
-                if (r.status !== 'pendente' || due < startOfDay(new Date())) return false;
+                if (r.status !== 'pendente' || !dueDate || dueDate < today) return false;
             } else if (activeTab === 'quitadas') {
                 if (r.status !== 'pago') return false;
             }
 
-            if (dateRange?.from) {
-                const fromDate = dateRange.from;
-                const date = r.createdAt?.toDate ? r.createdAt.toDate() : new Date();
-                const toDate = dateRange.to || fromDate;
-                if (!isWithinInterval(date, { start: startOfDay(fromDate), end: endOfDay(toDate) })) {
+            if (rangeStart || rangeEnd) {
+                const referenceDate = activeTab === 'quitadas'
+                    ? toDate(r.paidAt) || toDate(r.createdAt)
+                    : dueDate;
+
+                if (!referenceDate) return false;
+
+                const intervalStart = startOfDay(rangeStart || rangeEnd!);
+                const intervalEnd = endOfDay(rangeEnd || rangeStart!);
+                const start = intervalStart <= intervalEnd ? intervalStart : startOfDay(intervalEnd);
+                const end = intervalStart <= intervalEnd ? intervalEnd : endOfDay(intervalStart);
+
+                if (!isWithinInterval(referenceDate, { start, end })) {
                     return false;
                 }
             }
@@ -118,11 +139,37 @@ export default function ReceivablesPage() {
             const timeB = b.createdAt?.toMillis?.() || 0;
             return timeB - timeA;
         });
-    }, [receivablesData, searchQuery]);
+    }, [receivablesData, searchQuery, activeTab, dateFrom, dateTo]);
 
-    const totalPending = useMemo(() => {
-        return filteredReceivables.reduce((acc, r) => acc + (r.remainingAmount || 0), 0);
-    }, [filteredReceivables]);
+    const tabCounts = useMemo(() => {
+        const today = startOfDay(new Date());
+        return (receivablesData || []).reduce((counts, receivable) => {
+            if (receivable.status === 'pago') {
+                counts.quitadas += 1;
+                return counts;
+            }
+
+            const dueDate = receivable.dueDate?.toDate
+                ? receivable.dueDate.toDate()
+                : receivable.dueDate ? new Date(receivable.dueDate) : null;
+
+            if (dueDate && !Number.isNaN(dueDate.getTime()) && dueDate < today) {
+                counts.vencidas += 1;
+            } else {
+                counts.a_vencer += 1;
+            }
+            return counts;
+        }, { a_vencer: 0, vencidas: 0, quitadas: 0 });
+    }, [receivablesData]);
+
+    const filteredTotal = useMemo(() => {
+        return filteredReceivables.reduce((acc, receivable) => {
+            const amount = activeTab === 'quitadas'
+                ? receivable.amountReceived ?? receivable.originalAmount ?? receivable.remainingAmount
+                : receivable.remainingAmount;
+            return acc + (amount || 0);
+        }, 0);
+    }, [filteredReceivables, activeTab]);
 
     const openPayDialog = (receivable: Receivable) => {
         setSelectedReceivable(receivable);
@@ -289,13 +336,15 @@ export default function ReceivablesPage() {
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <Card className="bg-primary/5 border-primary/20">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Total a Receber</CardTitle>
+                        <CardTitle className="text-sm font-medium">
+                            {activeTab === 'quitadas' ? 'Total recebido' : activeTab === 'vencidas' ? 'Total vencido' : 'Total a receber'}
+                        </CardTitle>
                         <DollarSign className="h-4 w-4 text-primary" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-primary">R$ {totalPending.toFixed(2)}</div>
+                        <div className="text-2xl font-bold text-primary">R$ {filteredTotal.toFixed(2)}</div>
                         <p className="text-xs text-muted-foreground">
-                            Nas {filteredReceivables.length} contas pendentes listadas.
+                            {filteredReceivables.length} {filteredReceivables.length === 1 ? 'conta listada' : 'contas listadas'}.
                         </p>
                     </CardContent>
                 </Card>
@@ -306,58 +355,73 @@ export default function ReceivablesPage() {
                     <div className="flex flex-col md:flex-row items-center justify-between gap-4">
                         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full md:w-auto">
                             <TabsList className="grid w-full grid-cols-3">
-                                <TabsTrigger value="a_vencer">A Vencer</TabsTrigger>
-                                <TabsTrigger value="vencidas">Vencidas</TabsTrigger>
-                                <TabsTrigger value="quitadas">Quitadas</TabsTrigger>
+                                <TabsTrigger value="a_vencer" className="gap-1.5">
+                                    A vencer <span className="rounded-full bg-background/80 px-1.5 text-[10px] tabular-nums">{tabCounts.a_vencer}</span>
+                                </TabsTrigger>
+                                <TabsTrigger value="vencidas" className="gap-1.5">
+                                    Vencidas <span className="rounded-full bg-background/80 px-1.5 text-[10px] tabular-nums">{tabCounts.vencidas}</span>
+                                </TabsTrigger>
+                                <TabsTrigger value="quitadas" className="gap-1.5">
+                                    Quitadas <span className="rounded-full bg-background/80 px-1.5 text-[10px] tabular-nums">{tabCounts.quitadas}</span>
+                                </TabsTrigger>
                             </TabsList>
                         </Tabs>
                         
-                        <div className="flex gap-2 w-full md:w-auto">
-                        <div className="relative flex-1">
-                            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                            <Input 
-                                placeholder="Buscar cliente por nome ou telefone..." 
-                                className="pl-9 h-10 rounded-xl"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                            />
-                        </div>
-                        <Popover>
-                            <PopoverTrigger asChild>
-                                <Button
-                                variant="outline"
-                                className={cn(
-                                    "h-10 px-4 rounded-xl justify-start text-left font-normal",
-                                    !dateRange && "text-muted-foreground"
-                                )}
-                                >
-                                <Calendar className="mr-2 h-4 w-4" />
-                                {dateRange?.from ? (
-                                    dateRange.to ? (
-                                    <>
-                                        {format(dateRange.from, "dd/MM")} - {format(dateRange.to, "dd/MM")}
-                                    </>
-                                    ) : (
-                                        format(dateRange.from, "dd/MM")
-                                    )
-                                ) : (
-                                    <span>Filtrar Data</span>
-                                )}
-                                </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="end">
-                                <CalendarUI
-                                initialFocus
-                                mode="range"
-                                defaultMonth={dateRange?.from}
-                                selected={dateRange}
-                                onSelect={setDateRange}
-                                numberOfMonths={1}
-                                locale={ptBR}
+                        <div className="flex w-full flex-col gap-2 lg:w-auto lg:flex-row">
+                            <div className="relative min-w-0 flex-1 lg:w-72">
+                                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                                <Input 
+                                    placeholder="Buscar por nome ou telefone" 
+                                    className="h-10 rounded-xl pl-9"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
                                 />
-                            </PopoverContent>
-                        </Popover>
-                    </div>
+                            </div>
+                            <div className="flex flex-col gap-2 rounded-xl border bg-background p-2 sm:flex-row sm:items-end">
+                                <div className="grid flex-1 grid-cols-2 gap-2">
+                                    <div className="space-y-1">
+                                        <Label htmlFor="receivable-date-from" className="px-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                            De
+                                        </Label>
+                                        <Input
+                                            id="receivable-date-from"
+                                            type="date"
+                                            value={dateFrom}
+                                            max={dateTo || undefined}
+                                            onChange={(event) => setDateFrom(event.target.value)}
+                                            className="h-9 min-w-0 rounded-lg px-2 text-xs sm:w-36"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label htmlFor="receivable-date-to" className="px-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                            Até
+                                        </Label>
+                                        <Input
+                                            id="receivable-date-to"
+                                            type="date"
+                                            value={dateTo}
+                                            min={dateFrom || undefined}
+                                            onChange={(event) => setDateTo(event.target.value)}
+                                            className="h-9 min-w-0 rounded-lg px-2 text-xs sm:w-36"
+                                        />
+                                    </div>
+                                </div>
+                                {(dateFrom || dateTo) && (
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-9 px-3 text-xs"
+                                        onClick={() => {
+                                            setDateFrom('');
+                                            setDateTo('');
+                                        }}
+                                    >
+                                        Limpar
+                                    </Button>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 </CardHeader>
                 <CardContent className="p-0">
@@ -371,8 +435,18 @@ export default function ReceivablesPage() {
                                 <div className="h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center mb-4">
                                     <CheckCircle2 className="h-10 w-10 text-primary" />
                                 </div>
-                                <h3 className="text-xl font-bold mb-2">Tudo em dia!</h3>
-                                <p className="text-muted-foreground">Não há notas pendentes ou fiados para receber.</p>
+                                <h3 className="text-xl font-bold mb-2">
+                                    {activeTab === 'quitadas' ? 'Nenhuma conta quitada' : activeTab === 'vencidas' ? 'Tudo em dia!' : 'Nenhuma conta a vencer'}
+                                </h3>
+                                <p className="text-muted-foreground">
+                                    {dateFrom || dateTo || searchQuery
+                                        ? 'Nenhum resultado encontrado com os filtros informados.'
+                                        : activeTab === 'quitadas'
+                                            ? 'Os recebimentos concluídos aparecerão aqui.'
+                                            : activeTab === 'vencidas'
+                                                ? 'Não há contas vencidas no momento.'
+                                                : 'Não há contas pendentes com vencimento futuro.'}
+                                </p>
                             </div>
                         ) : (
                             <div className="overflow-x-auto min-w-full">
@@ -421,7 +495,9 @@ export default function ReceivablesPage() {
                                                     )}
                                                 </td>
                                                 <td className="px-4 py-3 text-right font-bold whitespace-nowrap">
-                                                    R$ {(receivable.remainingAmount || 0).toFixed(2)}
+                                                    R$ {(receivable.status === 'pago'
+                                                        ? receivable.amountReceived ?? receivable.originalAmount ?? receivable.remainingAmount
+                                                        : receivable.remainingAmount || 0).toFixed(2)}
                                                 </td>
                                                 <td className="px-4 py-3 text-right whitespace-nowrap">
                                                     {receivable.status === 'pendente' && (

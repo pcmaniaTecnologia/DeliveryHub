@@ -450,6 +450,13 @@ export default function POSPage() {
     const total = cart.reduce((sum, item) => sum + (item.finalPrice * item.quantity), 0);
     const totalWithDiscount = Math.max(0, total - parseFloat(discount || '0'));
     const change = Math.max(0, (parseFloat(amountReceived || '0')) - totalWithDiscount);
+    const hasCrediarioSelected = isMultiPayment
+        ? payments.some(payment => payment.method === 'Crediário')
+        : paymentMethod === 'Crediário';
+    const customerNameParts = customerName.trim().split(/\s+/).filter(Boolean);
+    const isFullCustomerNameValid = customerNameParts.length >= 2 && customerNameParts.every(part => part.length >= 2);
+    const isCustomerPhoneValid = customerPhone.replace(/\D/g, '').length >= 10;
+    const isCustomerAddressValid = customerAddress.trim().length >= 5;
 
     // Keyboard Shortcuts Logic
     useEffect(() => {
@@ -485,7 +492,7 @@ export default function POSPage() {
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isCheckoutOpen, cart.length, isSuccessOpen, isOptionsDialogOpen, customerName, customerPhone, paymentMethod, discount, amountReceived, isMultiPayment, payments]);
+    }, [isCheckoutOpen, cart.length, isSuccessOpen, isOptionsDialogOpen, customerName, customerPhone, customerAddress, paymentMethod, discount, amountReceived, isMultiPayment, payments]);
 
     const handleCheckout = async () => {
         if (!firestore || !user || cart.length === 0) return;
@@ -517,13 +524,19 @@ export default function POSPage() {
         // Validation for Crediário
         const hasCrediario = isMultiPayment ? payments.some(p => p.method === 'Crediário') : paymentMethod === 'Crediário';
         if (hasCrediario) {
-            if (!customerName || customerName.trim() === 'Consumidor') {
-                toast({ variant: 'destructive', title: 'Nome Obrigatório', description: 'Para vendas no crediário, informe o nome do cliente.' });
+            if (!isFullCustomerNameValid || customerName.trim().toLowerCase() === 'consumidor') {
+                toast({ variant: 'destructive', title: 'Nome completo obrigatório', description: 'Informe o nome e o sobrenome do cliente para continuar no crediário.' });
+                customerNameRef.current?.focus();
                 setIsSubmitting(false);
                 return;
             }
-            if (!customerAddress || customerAddress.trim() === '') {
-                toast({ variant: 'destructive', title: 'Endereço Obrigatório', description: 'Para vendas no crediário, informe o endereço do cliente.' });
+            if (!isCustomerPhoneValid) {
+                toast({ variant: 'destructive', title: 'Contato obrigatório', description: 'Informe um telefone ou WhatsApp válido com DDD.' });
+                setIsSubmitting(false);
+                return;
+            }
+            if (!isCustomerAddressValid) {
+                toast({ variant: 'destructive', title: 'Endereço obrigatório', description: 'Informe o endereço completo do cliente para continuar no crediário.' });
                 setIsSubmitting(false);
                 return;
             }
@@ -1121,79 +1134,125 @@ export default function POSPage() {
 
             {/* Checkout Dialog */}
             <Dialog open={isCheckoutOpen} onOpenChange={setIsCheckoutOpen}>
-                <DialogContent className="sm:max-w-[425px]">
-                    <DialogHeader>
-                        <DialogTitle>Finalizar Pagamento</DialogTitle>
-                        <DialogDescription>Selecione a forma de pagamento e identifique o cliente se necessário.</DialogDescription>
+                <DialogContent className="flex max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-3xl flex-col gap-0 overflow-hidden rounded-2xl border-0 p-0 shadow-2xl sm:max-h-[calc(100dvh-3rem)] sm:w-full">
+                    <DialogHeader className="shrink-0 border-b bg-muted/30 px-5 py-5 pr-12 text-left sm:px-7">
+                        <DialogTitle className="text-xl font-bold tracking-tight sm:text-2xl">Finalizar pagamento</DialogTitle>
+                        <DialogDescription className="max-w-xl text-sm leading-relaxed">
+                            Confirme os dados, escolha como o cliente vai pagar e conclua a venda.
+                        </DialogDescription>
                     </DialogHeader>
-                    <div className="grid gap-6 py-4">
-                        <div className="space-y-4">
-                            <Label>Identificação do Cliente (Opcional)</Label>
-                            <div className="grid gap-4">
+                    <div className="grid flex-1 gap-4 overflow-y-auto bg-muted/10 p-4 sm:p-6 md:grid-cols-[minmax(0,1fr)_260px] md:items-start">
+                        <section className="space-y-4 rounded-xl border bg-background p-4 shadow-sm sm:p-5">
+                            <div>
+                                <Label className="text-sm font-semibold">Dados do cliente</Label>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                    {hasCrediarioSelected
+                                        ? 'Nome completo, contato e endereço são obrigatórios no crediário.'
+                                        : 'Preenchimento opcional para as demais formas de pagamento.'}
+                                </p>
+                            </div>
+                            <div className="grid gap-4 sm:grid-cols-2">
                                 <div className="space-y-2">
-                                    <Label htmlFor="cust-name" className="text-xs text-muted-foreground">Nome [F2]</Label>
+                                    <Label htmlFor="cust-name" className="text-xs text-muted-foreground">
+                                        Nome completo [F2] {hasCrediarioSelected && <span className="text-destructive">*</span>}
+                                    </Label>
                                     <Input
                                         id="cust-name"
                                         ref={customerNameRef}
                                         value={customerName}
                                         onChange={e => setCustomerName(e.target.value)}
-                                        placeholder="Ex: Consumidor"
-                                        className={paymentMethod === 'Crediário' && !customerName ? 'border-destructive' : ''}
+                                        placeholder={hasCrediarioSelected ? 'Ex: Maria da Silva' : 'Ex: Consumidor'}
+                                        autoComplete="name"
+                                        aria-required={hasCrediarioSelected}
+                                        aria-invalid={hasCrediarioSelected && (!isFullCustomerNameValid || customerName.trim().toLowerCase() === 'consumidor')}
+                                        className={`h-11 ${hasCrediarioSelected && (!isFullCustomerNameValid || customerName.trim().toLowerCase() === 'consumidor') ? 'border-destructive focus-visible:ring-destructive' : ''}`}
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="cust-phone" className="text-xs text-muted-foreground">WhatsApp</Label>
-                                    <Input id="cust-phone" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} placeholder="(99) 99999-9999" />
+                                    <Label htmlFor="cust-phone" className="text-xs text-muted-foreground">
+                                        Contato / WhatsApp {hasCrediarioSelected && <span className="text-destructive">*</span>}
+                                    </Label>
+                                    <Input
+                                        className={`h-11 ${hasCrediarioSelected && !isCustomerPhoneValid ? 'border-destructive focus-visible:ring-destructive' : ''}`}
+                                        id="cust-phone"
+                                        type="tel"
+                                        inputMode="tel"
+                                        autoComplete="tel"
+                                        aria-required={hasCrediarioSelected}
+                                        aria-invalid={hasCrediarioSelected && !isCustomerPhoneValid}
+                                        value={customerPhone}
+                                        onChange={e => setCustomerPhone(e.target.value)}
+                                        placeholder="(99) 99999-9999"
+                                    />
                                 </div>
-                                {(paymentMethod === 'Crediário' || payments.some(p => p.method === 'Crediário')) && (
+                                {hasCrediarioSelected && (
                                     <>
                                         <div className="space-y-2">
-                                            <Label htmlFor="cust-address" className="text-xs text-muted-foreground">Endereço (Obrigatório para Crediário)</Label>
-                                            <Input id="cust-address" value={customerAddress} onChange={e => setCustomerAddress(e.target.value)} placeholder="Rua, Número, Bairro" />
+                                            <Label htmlFor="cust-address" className="text-xs text-muted-foreground">
+                                                Endereço completo <span className="text-destructive">*</span>
+                                            </Label>
+                                            <Input
+                                                className={`h-11 ${!isCustomerAddressValid ? 'border-destructive focus-visible:ring-destructive' : ''}`}
+                                                id="cust-address"
+                                                autoComplete="street-address"
+                                                aria-required="true"
+                                                aria-invalid={!isCustomerAddressValid}
+                                                value={customerAddress}
+                                                onChange={e => setCustomerAddress(e.target.value)}
+                                                placeholder="Rua, número, bairro e cidade"
+                                            />
                                         </div>
                                         <div className="space-y-2">
                                             <Label htmlFor="cust-email" className="text-xs text-muted-foreground">E-mail</Label>
-                                            <Input id="cust-email" type="email" value={customerEmail} onChange={e => setCustomerEmail(e.target.value)} placeholder="cliente@email.com" />
+                                            <Input className="h-11" id="cust-email" type="email" value={customerEmail} onChange={e => setCustomerEmail(e.target.value)} placeholder="cliente@email.com" />
                                         </div>
                                     </>
                                 )}
                             </div>
-                        </div>
+                        </section>
 
-                        <Separator />
+                        <Separator className="md:hidden" />
 
-                        <div className="space-y-4">
-                            <Label className="text-primary font-bold">Resumo Financeiro</Label>
-                            <div className="grid grid-cols-2 gap-4">
+                        <section className="space-y-4 rounded-xl border bg-background p-4 shadow-sm sm:p-5">
+                            <div>
+                                <Label className="text-sm font-semibold">Resumo da venda</Label>
+                                <p className="mt-1 text-xs text-muted-foreground">Revise o desconto antes de cobrar.</p>
+                            </div>
+                            <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-1">
                                 <div className="space-y-2">
                                     <Label htmlFor="discount" className="text-xs text-muted-foreground">Desconto (R$)</Label>
                                     <Input
                                         id="discount"
                                         type="number"
+                                        min="0"
+                                        step="0.01"
                                         value={discount}
                                         onChange={e => setDiscount(e.target.value)}
                                         placeholder="0.00"
-                                        className="border-primary/20"
+                                        className="h-11 border-border bg-muted/20 text-base"
                                     />
                                 </div>
-                                <div className="space-y-2 flex flex-col justify-end">
-                                    <div className="bg-primary/5 p-2 rounded border border-primary/10 text-right">
-                                        <p className="text-[10px] text-muted-foreground uppercase font-bold">Total a Pagar</p>
-                                        <p className="text-lg font-black text-primary">R$ {totalWithDiscount.toFixed(2)}</p>
+                                <div className="flex flex-col justify-end space-y-2">
+                                    <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-left md:text-right">
+                                        <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Total a pagar</p>
+                                        <p className="mt-1 text-2xl font-black tracking-tight text-primary">R$ {totalWithDiscount.toFixed(2)}</p>
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                        </section>
 
-                        <Separator />
+                        <Separator className="md:col-span-2" />
 
-                        <div className="space-y-4">
-                            <div className="flex items-center justify-between">
-                                <Label>Forma de Pagamento</Label>
+                        <section className="space-y-4 rounded-xl border bg-background p-4 shadow-sm sm:p-5 md:col-span-2">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                    <Label className="text-sm font-semibold">Forma de pagamento</Label>
+                                    <p className="mt-1 text-xs text-muted-foreground">Selecione uma opção para esta venda.</p>
+                                </div>
                                 <Button
-                                    variant="ghost"
+                                    variant="outline"
                                     size="sm"
-                                    className="text-[10px] h-7 px-2 border"
+                                    className="h-9 w-full text-xs font-semibold sm:w-auto"
                                     onClick={() => {
                                         setIsMultiPayment(!isMultiPayment);
                                         if (!isMultiPayment) {
@@ -1206,12 +1265,12 @@ export default function POSPage() {
                             </div>
 
                             {!isMultiPayment ? (
-                                <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod} className="grid grid-cols-2 gap-4">
+                                <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod} className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
                                     <div>
                                         <RadioGroupItem value="Dinheiro" id="cash" className="peer sr-only" />
                                         <Label
                                             htmlFor="cash"
-                                            className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                                            className="flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-muted bg-popover p-3 text-center transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:bg-primary/5 hover:shadow-sm peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10 peer-data-[state=checked]:text-primary peer-data-[state=checked]:shadow-sm"
                                         >
                                             <DollarSign className="mb-2 h-5 w-5" />
                                             <span className="text-xs">Dinheiro</span>
@@ -1221,7 +1280,7 @@ export default function POSPage() {
                                         <RadioGroupItem value="PIX" id="pix" className="peer sr-only" />
                                         <Label
                                             htmlFor="pix"
-                                            className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                                            className="flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-muted bg-popover p-3 text-center transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:bg-primary/5 hover:shadow-sm peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10 peer-data-[state=checked]:text-primary peer-data-[state=checked]:shadow-sm"
                                         >
                                             <Landmark className="mb-2 h-5 w-5" />
                                             <span className="text-xs">PIX</span>
@@ -1231,7 +1290,7 @@ export default function POSPage() {
                                         <RadioGroupItem value="Cartão de Crédito" id="credit" className="peer sr-only" />
                                         <Label
                                             htmlFor="credit"
-                                            className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                                            className="flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-muted bg-popover p-3 text-center transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:bg-primary/5 hover:shadow-sm peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10 peer-data-[state=checked]:text-primary peer-data-[state=checked]:shadow-sm"
                                         >
                                             <CreditCard className="mb-2 h-5 w-5" />
                                             <span className="text-xs">C. Crédito</span>
@@ -1241,7 +1300,7 @@ export default function POSPage() {
                                         <RadioGroupItem value="Cartão de Débito" id="debit" className="peer sr-only" />
                                         <Label
                                             htmlFor="debit"
-                                            className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                                            className="flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-muted bg-popover p-3 text-center transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:bg-primary/5 hover:shadow-sm peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10 peer-data-[state=checked]:text-primary peer-data-[state=checked]:shadow-sm"
                                         >
                                             <CreditCard className="mb-2 h-5 w-5" />
                                             <span className="text-xs">C. Débito</span>
@@ -1251,7 +1310,7 @@ export default function POSPage() {
                                         <RadioGroupItem value="Crediário" id="crediario" className="peer sr-only" />
                                         <Label
                                             htmlFor="crediario"
-                                            className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                                            className="flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-muted bg-popover p-3 text-center transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:bg-primary/5 hover:shadow-sm peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10 peer-data-[state=checked]:text-primary peer-data-[state=checked]:shadow-sm"
                                         >
                                             <User className="mb-2 h-5 w-5" />
                                             <span className="text-xs">Crediário</span>
@@ -1261,8 +1320,8 @@ export default function POSPage() {
                             ) : (
                                 <div className="space-y-3">
                                     {payments.map((p, idx) => (
-                                        <div key={idx} className="flex flex-col gap-2 p-3 border rounded-lg bg-muted/20">
-                                            <div className="flex items-center gap-2">
+                                        <div key={idx} className="rounded-xl border bg-muted/20 p-3">
+                                            <div className="grid grid-cols-[minmax(0,1fr)_100px_36px] items-center gap-2 sm:grid-cols-[minmax(0,1fr)_140px_36px]">
                                                 <select
                                                     className="flex-1 h-9 rounded-md border bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                                                     value={p.method}
@@ -1323,11 +1382,11 @@ export default function POSPage() {
                                     </div>
                                 </div>
                             )}
-                        </div>
+                        </section>
 
                     </div>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsCheckoutOpen(false)} disabled={isSubmitting}>Cancelar</Button>
+                    <DialogFooter className="shrink-0 gap-2 border-t bg-background p-4 sm:px-6 sm:py-4">
+                        <Button className="h-11 sm:min-w-28" variant="outline" onClick={() => setIsCheckoutOpen(false)} disabled={isSubmitting}>Cancelar</Button>
                         <Button
                             type="submit"
                             onClick={handleCheckout}
@@ -1336,7 +1395,7 @@ export default function POSPage() {
                                 cart.length === 0 ||
                                 (isMultiPayment && Math.abs(payments.reduce((acc, p) => acc + p.amount, 0) - totalWithDiscount) > 0.01)
                             }
-                            className="gap-2"
+                            className="h-11 gap-2 font-bold sm:min-w-52"
                         >
                             {isSubmitting ? 'Processando...' : <><CheckCircle2 className="h-4 w-4" /> Concluir Venda [F9]</>}
                         </Button>
