@@ -9,7 +9,7 @@ import { useCollection, useDoc, useFirestore, useMemoFirebase, useUser } from '@
 import { collection, doc, writeBatch, increment, deleteField } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus, Minus, Pizza, Ham, GlassWater, Cake, Sandwich, LeafyGreen, IceCream, UtensilsCrossed, type LucideIcon, Search, X, Clock, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { Plus, Minus, Pizza, Ham, GlassWater, Cake, Sandwich, LeafyGreen, IceCream, UtensilsCrossed, type LucideIcon, Search, X, Clock, ThumbsUp, ThumbsDown, ArrowUpRight, MapPin } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import { useCart, type SelectedVariant } from '@/context/cart-context';
@@ -190,7 +190,7 @@ const ProductDetailDialog = ({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-lg p-0 overflow-hidden">
+            <DialogContent className="menu-product-dialog sm:max-w-lg p-0 overflow-hidden rounded-3xl">
                 {/* Always include DialogTitle for accessibility */}
                 <DialogHeader className="sr-only">
                     <DialogTitle>{product.name}</DialogTitle>
@@ -402,88 +402,33 @@ const ProductCard = ({ product, userVote, onVote }: { product: Product, userVote
         product.imageUrl || (product.imageUrls && product.imageUrls.length > 0 ? product.imageUrls[0] : null)
     , [product]);
 
+    const isSoldOut = product.stockControlEnabled && product.blockIfOutOfStock !== false && (Number(product.stock) || 0) <= 0;
     return (
         <>
-            <div
-                className="group relative flex cursor-pointer overflow-hidden rounded-[2rem] border-2 border-transparent bg-card p-3 shadow-md transition-all duration-500 hover:border-primary/30 hover:shadow-2xl hover:-translate-y-1"
-                onClick={() => setIsDetailOpen(true)}
-            >
-                {product.stockControlEnabled && product.blockIfOutOfStock !== false && (Number(product.stock) || 0) <= 0 && (
-                    <div className="absolute inset-0 z-20 border-4 border-destructive/50 bg-background/50 backdrop-blur-[2px] rounded-[2rem] flex items-center justify-center">
-                         <div className="bg-destructive text-destructive-foreground px-6 py-2 rounded-full font-black text-lg shadow-xl rotate-12 uppercase tracking-widest">Esgotado</div>
-                    </div>
-                )}
-                
-                <div className="flex flex-1 flex-col justify-between p-3 pr-4">
-                    <div>
-                        <h3 className="text-lg font-black leading-tight text-foreground group-hover:text-primary transition-colors">{product.name}</h3>
-                        <p className="mt-2 line-clamp-2 text-sm text-muted-foreground font-medium">{product.description}</p>
-                    </div>
-                    <div className="pt-4">
-                        <div className="flex items-center justify-between">
-                            <div className="flex flex-col">
-                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">A partir de</span>
-                                <div className="flex items-center gap-2">
-                                    <span className="text-2xl font-black text-primary">R$ {product.price.toFixed(2)}</span>
-                                    {product.isSoldByWeight && (
-                                        <Badge variant="outline" className="text-[10px] py-0 px-2 rounded-full border-primary/30 text-primary bg-primary/5">por Kg</Badge>
-                                    )}
-                                </div>
-                            </div>
+            <Card className="menu-product-card group flex h-full flex-col overflow-hidden border shadow-sm">
+                <button type="button" className="relative block aspect-[16/10] w-full overflow-hidden bg-muted text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary" onClick={() => setIsDetailOpen(true)} aria-label={'Ver detalhes de ' + product.name}>
+                    {imageUrl ? <Image src={imageUrl} alt={product.name} fill sizes="(max-width: 639px) 100vw, (max-width: 1023px) 50vw, 33vw" className={'object-cover transition-transform duration-500 motion-safe:group-hover:scale-105 ' + (isSoldOut ? 'grayscale opacity-60' : '')} unoptimized /> : <div className="menu-product-placeholder flex h-full items-center justify-center"><UtensilsCrossed className="h-14 w-14 text-primary/40" strokeWidth={1} /></div>}
+                    <span className="absolute bottom-3 left-3 rounded-full bg-white/95 px-3 py-1 text-xs font-semibold text-slate-800 shadow-sm">{isSoldOut ? 'Esgotado' : product.isSoldByWeight ? 'Vendido por kg' : 'Confira os detalhes'}</span>
+                    <span className="absolute right-3 top-3 grid h-9 w-9 place-items-center rounded-full bg-white/90 text-slate-800"><ArrowUpRight className="h-4 w-4" /></span>
+                </button>
+                <div className="flex flex-1 flex-col p-5">
+                    <h3 className="text-lg font-bold leading-snug tracking-tight">{product.name}</h3>
+                    <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-muted-foreground">{product.description}</p>
+                    {onVote && <ProductVotingBar upvotes={product.upvotes} downvotes={product.downvotes} userVote={userVote} onVote={onVote} />}
+                    <div className="mt-auto flex flex-wrap items-end justify-between gap-3 pt-5">
+                        <div>
+                            <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{product.variants?.length ? 'A partir de' : 'Preço'}{product.isSoldByWeight ? ' / kg' : ''}</p>
+                            <p className="mt-0.5 text-xl font-bold tracking-tight text-foreground">{product.price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
                         </div>
-                        {onVote && (
-                            <ProductVotingBar 
-                                upvotes={product.upvotes} 
-                                downvotes={product.downvotes} 
-                                userVote={userVote} 
-                                onVote={onVote} 
-                            />
-                        )}
+                        <Button size="sm" className="h-10 rounded-full px-4 font-semibold" onClick={() => setIsDetailOpen(true)} disabled={isSoldOut} aria-label={'Escolher ' + product.name}><Plus className="h-4 w-4" />{isSoldOut ? 'Esgotado' : 'Escolher'}</Button>
                     </div>
                 </div>
-
-                {imageUrl ? (
-                    <div className="relative h-36 w-36 shrink-0 overflow-hidden rounded-3xl bg-muted/20 shadow-inner group-hover:shadow-primary/20 transition-all duration-500">
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent z-10" />
-                        <div className="absolute bottom-2 right-2 z-20 bg-background/90 backdrop-blur-md rounded-full p-1.5 text-primary shadow-sm group-hover:scale-110 group-hover:bg-primary group-hover:text-white transition-all">
-                            <Plus className="h-5 w-5" strokeWidth={3} />
-                        </div>
-                        <Image
-                            src={imageUrl}
-                            alt={product.name}
-                            fill
-                            style={{ objectFit: 'cover' }}
-                            className={`transition-transform duration-500 group-hover:scale-110 ${product.stockControlEnabled && product.blockIfOutOfStock !== false && (Number(product.stock) || 0) <= 0 ? 'grayscale opacity-40' : ''}`}
-                            unoptimized
-                        />
-                        {product.stockControlEnabled && product.blockIfOutOfStock !== false && (Number(product.stock) || 0) <= 0 && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-black/60">
-                                <span className="text-[10px] font-black text-white uppercase tracking-widest -rotate-12 border border-white px-1">INDISPONÍVEL</span>
-                            </div>
-                        )}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
-                        <div className="absolute bottom-1 right-1 flex h-8 w-8 translate-x-4 translate-y-4 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md transition-transform duration-300 group-hover:translate-x-0 group-hover:translate-y-0">
-                            <Plus className="h-5 w-5" />
-                        </div>
-                    </div>
-                ) : (
-                    <div className="flex shrink-0 flex-col justify-end">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
-                            <Plus className="h-5 w-5" />
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            <ProductDetailDialog
-                product={product}
-                open={isDetailOpen}
-                onOpenChange={setIsDetailOpen}
-                onAddToCart={addToCart}
-            />
+            </Card>
+            <ProductDetailDialog product={product} open={isDetailOpen} onOpenChange={setIsDetailOpen} onAddToCart={addToCart} />
         </>
     );
 };
+
 
 export default function MenuPage() {
   const params = useParams();
@@ -638,7 +583,7 @@ export default function MenuPage() {
   const isLoading = isLoadingCompany || isLoadingProducts || isLoadingCategories;
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto max-w-6xl px-4 py-5 sm:py-8">
       {isLoading ? (
         <header className="mb-10 text-center space-y-4 pt-4">
              <Skeleton className="h-24 w-24 rounded-full mx-auto" />
@@ -646,34 +591,25 @@ export default function MenuPage() {
              <Skeleton className="h-5 w-1/3 mx-auto" />
         </header>
       ) : company ? (
-        <header className="mb-10 text-center relative overflow-hidden rounded-[3rem] bg-gradient-to-br from-primary/10 via-background to-primary/5 p-8 shadow-sm border border-primary/10 mx-auto max-w-4xl mt-4">
-            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03] mix-blend-overlay pointer-events-none" />
-            <div className="absolute -top-24 -right-24 w-64 h-64 bg-primary/20 rounded-full blur-[80px] pointer-events-none" />
-            <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-secondary/20 rounded-full blur-[80px] pointer-events-none" />
-            
-            {company.logoUrl && (
-                <div className="relative mx-auto mb-6 h-32 w-32">
-                    <div className="absolute inset-0 bg-primary/20 rounded-full blur-xl animate-pulse" />
-                    <div className="relative h-full w-full overflow-hidden rounded-full border-[6px] border-background shadow-2xl">
-                        <Image src={company.logoUrl} alt={`${company.name} logo`} fill className="object-cover" unoptimized />
-                    </div>
-                </div>
+        <header className="menu-brand-hero relative mb-7 overflow-hidden rounded-[1.75rem] border px-5 py-8 text-center sm:rounded-[2rem] sm:py-10">
+          <div className="relative mx-auto flex max-w-2xl flex-col items-center">
+            {company.logoUrl ? (
+              <div className="menu-logo-frame relative mb-5 h-36 w-36 overflow-hidden rounded-[2rem] bg-white p-3 sm:h-44 sm:w-44">
+                <Image src={company.logoUrl} alt={'Logo de ' + (company.name || 'empresa')} fill priority sizes="(max-width: 639px) 144px, 176px" className="object-contain p-3" unoptimized />
+              </div>
+            ) : (
+              <div className="menu-logo-frame mb-5 grid h-28 w-28 place-items-center rounded-[2rem] bg-white text-primary">
+                <UtensilsCrossed className="h-12 w-12" strokeWidth={1.5} />
+              </div>
             )}
-          <h1 className="relative text-5xl font-black tracking-tighter text-foreground sm:text-6xl bg-clip-text text-transparent bg-gradient-to-r from-primary via-foreground to-primary/80 pb-2 drop-shadow-sm">{company.name}</h1>
-          <p className="relative mt-2 text-lg font-medium text-muted-foreground max-w-xl mx-auto">{company.address}</p>
-          {company.seoDescription && <p className="relative mt-2 text-muted-foreground max-w-xl mx-auto">{company.seoDescription}</p>}
-          
-          {company.averagePrepTime && (
-            <div className="relative mt-6 inline-flex items-center gap-3 rounded-full bg-background/80 backdrop-blur-md px-6 py-3 shadow-sm border border-primary/20">
-                <div className="flex items-center justify-center bg-primary/10 rounded-full p-2 text-primary">
-                    <Clock className="h-5 w-5"/>
-                </div>
-                <div className="flex flex-col items-start">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground leading-none">Tempo Médio</span>
-                    <span className="text-sm font-black text-foreground">~{company.averagePrepTime} min</span>
-                </div>
+            <span className="mb-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">Cardápio online</span>
+            <h1 className="w-full break-words text-3xl font-bold leading-tight tracking-tight text-foreground sm:text-4xl">{company.name || 'Bem-vindo ao nosso cardápio'}</h1>
+            <p className="mt-3 max-w-lg text-sm leading-relaxed text-muted-foreground">{company.seoDescription || 'Escolha seus favoritos e faça seu pedido do seu jeito.'}</p>
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-3 text-xs text-muted-foreground">
+              {company.averagePrepTime ? <span className="flex items-center gap-1.5 rounded-full border bg-card px-3 py-2"><Clock className="h-4 w-4 text-primary" />Preparo: ~{company.averagePrepTime} min</span> : null}
+              {company.address && <span className="flex max-w-full items-center gap-1.5 rounded-full border bg-card px-3 py-2"><MapPin className="h-4 w-4 shrink-0 text-primary" />{company.address}</span>}
             </div>
-          )}
+          </div>
         </header>
       ) : (
          <header className="mb-12 text-center">
@@ -682,21 +618,22 @@ export default function MenuPage() {
         </header>
       )}
 
-      <div className="space-y-12 pb-24">
+      <div id="menu-products" className="space-y-8 pb-28 scroll-mt-24">
         {/* Search Bar */}
         {!isLoading && (
-            <div className="max-w-2xl mx-auto mb-8 sticky top-20 z-10 md:static px-2">
+            <div className="max-w-2xl mx-auto">
                 <div className="relative group">
                     <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-6 w-6 text-muted-foreground group-focus-within:text-primary transition-colors" />
                     <Input 
-                        placeholder="Buscar pratos ou bebidas..." 
-                        className="pl-14 pr-12 h-16 text-lg rounded-[2rem] border-2 border-primary/10 bg-white/80 dark:bg-black/60 backdrop-blur-xl shadow-lg transition-all focus:border-primary focus:shadow-primary/20 focus:ring-4 focus:ring-primary/10" 
+                        aria-label="Buscar pratos ou bebidas" placeholder="O que você está com vontade de pedir?"
+                        className="pl-14 pr-12 h-14 text-base rounded-2xl border bg-card shadow-sm focus-visible:ring-primary"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                     />
                     {searchQuery && (
                         <button 
                             onClick={() => setSearchQuery('')}
+                            aria-label="Limpar busca"
                             className="absolute right-5 top-1/2 -translate-y-1/2 h-8 w-8 flex items-center justify-center rounded-full bg-muted hover:bg-muted-foreground/20 transition-colors"
                         >
                             <X className="h-5 w-5 text-foreground" />
@@ -708,13 +645,13 @@ export default function MenuPage() {
 
         {/* Sticky Category Navbar */}
         {!isLoading && Object.keys(productsByCategory).length > 0 && (
-            <div className="sticky top-0 z-20 -mx-4 mb-10 overflow-x-auto bg-background/60 px-4 py-4 backdrop-blur-2xl border-b border-primary/10 shadow-sm sm:mx-0 sm:rounded-b-[2rem] sm:px-6 scrollbar-hide">
+            <div className="sticky top-16 z-20 -mx-4 overflow-x-auto border-b bg-background/95 px-4 py-3 backdrop-blur-xl sm:mx-0 sm:rounded-2xl sm:border sm:px-4">
                 <div className="flex gap-3 pb-1">
                     {Object.keys(productsByCategory).map(cat => (
                         <a 
                             key={cat} 
                             href={`#cat-${cat.replace(/\s+/g, '-')}`} 
-                            className="whitespace-nowrap rounded-full bg-card border border-primary/10 px-6 py-2.5 text-sm font-bold text-foreground transition-all hover:bg-primary hover:text-primary-foreground hover:shadow-lg hover:-translate-y-0.5 hover:border-primary active:scale-95"
+                            className="whitespace-nowrap rounded-full bg-card border px-5 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-primary hover:text-primary-foreground focus-visible:ring-2 focus-visible:ring-primary"
                         >
                            {cat}
                         </a>
@@ -727,7 +664,7 @@ export default function MenuPage() {
             Object.keys(Array.from({length: 3})).map((key) => (
                 <div key={key} className="space-y-6">
                     <Skeleton className="h-8 w-1/4" />
-                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
+                    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
                        {Array.from({length: 4}).map((_, i) => (
                            <Card key={i} className="flex p-4 gap-4 h-36">
                                <div className="flex-1 space-y-3">
@@ -745,14 +682,15 @@ export default function MenuPage() {
           Object.entries(productsByCategory).map(([category, productList], idx) => {
             const Icon = getCategoryIcon(category);
             return (
-                <section key={category} id={`cat-${category.replace(/\s+/g, '-')}`} className="scroll-mt-24">
+                <section key={category} id={`cat-${category.replace(/\s+/g, '-')}`} className="scroll-mt-40">
                     <div className="flex items-center gap-3 mb-6 px-1">
                         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
                             <Icon className="h-6 w-6" />
                         </div>
-                        <h2 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">{category}</h2>
+                        <h2 className="text-2xl font-bold tracking-tight text-foreground">{category}</h2>
+                        <span className="ml-auto rounded-full border bg-card px-3 py-1 text-xs text-muted-foreground">{productList.length} opções</span>
                     </div>
-                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
+                    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
                         {productList.map((product, pIdx) => {
                             const currentVote = userVotes[product.id] || null;
                             return (

@@ -4,6 +4,50 @@
 
 /* Visual do painel; o cardápio público mantém seu tema próprio. */
 @layer components {
+  .menu-storefront,
+  .menu-product-dialog {
+    --background: 40 30% 98%;
+    --foreground: 222 30% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 30% 15%;
+    --muted: 35 20% 94%;
+    --muted-foreground: 215 14% 42%;
+    --border: 35 15% 89%;
+    --input: 35 15% 87%;
+    color: hsl(var(--foreground));
+    font-family: var(--font-inter), sans-serif;
+  }
+  .menu-brand-hero {
+    background: radial-gradient(ellipse at top, hsl(var(--primary) / 10%), transparent 65%), hsl(var(--card));
+    box-shadow: 0 8px 28px rgb(20 35 51 / 4%);
+  }
+  .menu-logo-frame {
+    border: 1px solid hsl(var(--primary) / 15%);
+    box-shadow: 0 8px 28px rgb(20 35 51 / 10%), 0 0 0 6px hsl(var(--primary) / 5%);
+  }
+  .menu-product-card {
+    border-radius: 22px;
+    box-shadow: 0 4px 18px rgb(20 35 51 / 4%);
+    transition: box-shadow 200ms ease, border-color 200ms ease;
+  }
+  .menu-product-card:hover {
+    border-color: hsl(var(--primary) / 35%);
+    box-shadow: 0 10px 30px rgb(20 35 51 / 9%);
+  }
+  .menu-product-placeholder {
+    background: radial-gradient(circle at center, hsl(var(--primary) / 10%), hsl(var(--muted)));
+  }
+  .dark .menu-storefront,
+  .dark .menu-product-dialog {
+    --background: 222 30% 10%;
+    --foreground: 210 20% 96%;
+    --card: 222 25% 14%;
+    --card-foreground: 210 20% 96%;
+    --muted: 222 20% 20%;
+    --muted-foreground: 215 18% 72%;
+    --border: 222 20% 24%;
+    --input: 222 20% 28%;
+  }
   .management-shell,
   .workspace-mobile-menu {
     --background: 210 25% 98%;

@@ -15,6 +15,7 @@ import { useParams, useSearchParams } from 'next/navigation';
 
 type CompanyData = {
     themeColors?: string;
+    name?: string;
 };
 
 export default function MenuLayout({
@@ -80,15 +81,15 @@ export default function MenuLayout({
 
   return (
     <CartProvider companyId={companyId}>
-        <div className="min-h-screen bg-background">
-        <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm md:px-6">
-            <nav className="flex w-full items-center justify-between text-lg font-medium">
+        <div className="menu-storefront min-h-screen bg-background">
+        <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background/95 px-4 backdrop-blur-xl md:px-6">
+            <nav className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 text-lg font-medium">
             <Link
                 href={`/menu/${companyId}`}
                 className="flex items-center gap-2 text-lg font-semibold"
             >
                 <Package2 className="h-6 w-6 text-primary" />
-                <span className="sr-only">Menu</span>
+                <span className="max-w-[180px] truncate text-sm font-bold tracking-tight sm:max-w-sm">{companyData?.name || 'Cardápio'}</span>
             </Link>
             <CustomerAuthDialog companyId={companyId} />
             </nav>
