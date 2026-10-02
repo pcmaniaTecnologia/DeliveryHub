@@ -2,7 +2,7 @@
 'use client';
 
 import { useState } from 'react';
-import { MoreHorizontal, Info, Trash2, MessageCircle, Megaphone, Send, Search } from 'lucide-react';
+import { MoreHorizontal, Info, Trash2, MessageCircle, Megaphone, Send, Search, BookOpen } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -331,6 +331,12 @@ export default function ManageCompaniesPage() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Opções da Empresa</DropdownMenuLabel>
+                                <DropdownMenuItem asChild>
+                                    <a href={`/menu/${encodeURIComponent(company.id)}`} target="_blank" rel="noopener noreferrer">
+                                        <BookOpen className="mr-2 h-4 w-4" />
+                                        Ver Cardápio
+                                    </a>
+                                </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => {
                                     setSelectedCompanyForPlan(company);
                                     setIsPlanDialogOpen(true);
