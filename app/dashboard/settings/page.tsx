@@ -114,6 +114,9 @@ type CompanySettingsData = {
     name?: string;
     phone?: string;
     themeColors?: string;
+    searchIndexingEnabled?: boolean;
+    seoDescription?: string;
+    address?: string;
     logoUrl?: string;
     soundNotificationEnabled?: boolean;
     closedMessage?: string;
@@ -486,6 +489,9 @@ export default function SettingsPage() {
   const { data: planData, isLoading: isLoadingPlan } = useDoc<Plan>(planRef);
 
   const [storeName, setStoreName] = useState('');
+  const [searchIndexingEnabled, setSearchIndexingEnabled] = useState(true);
+  const [seoDescription, setSeoDescription] = useState('');
+  const [address, setAddress] = useState('');
   const [phone, setPhone] = useState('');
   const [primaryColor, setPrimaryColor] = useState('#29ABE2');
   const [accentColor, setAccentColor] = useState('#29E2D1');
@@ -526,6 +532,9 @@ export default function SettingsPage() {
   useEffect(() => {
     if (companyData) {
       setStoreName(companyData.name || '');
+      setSearchIndexingEnabled(companyData.searchIndexingEnabled !== false);
+      setSeoDescription(companyData.seoDescription || '');
+      setAddress(companyData.address || '');
       setPhone(companyData.phone || '');
       setLogoUrl(companyData.logoUrl || '');
       setSoundNotificationEnabled(companyData.soundNotificationEnabled ?? true);
@@ -622,6 +631,9 @@ export default function SettingsPage() {
 
         const updatedData = {
             name: storeName,
+            searchIndexingEnabled,
+            seoDescription: seoDescription.trim(),
+            address: address.trim(),
             phone: phone,
             logoUrl: finalLogoUrl,
             themeColors: themeColors,
@@ -978,6 +990,30 @@ export default function SettingsPage() {
                     <Copy className="h-4 w-4" />
                   </Button>
                 </div>
+              </div>
+              <Separator />
+              <div className="space-y-4 rounded-lg border p-4">
+                <div>
+                  <h3 className="text-base font-semibold">Presença no Google</h3>
+                  <p className="text-sm text-muted-foreground">Ajude os buscadores a encontrar seu cardápio. A exibição e a posição nos resultados dependem do Google.</p>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <Label htmlFor="search-indexing">Permitir que buscadores indexem o cardápio</Label>
+                  <Switch id="search-indexing" checked={searchIndexingEnabled} onCheckedChange={setSearchIndexingEnabled} disabled={isLoading} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="seo-description">Descrição da empresa</Label>
+                  <Textarea id="seo-description" value={seoDescription} onChange={e => setSeoDescription(e.target.value)} maxLength={300} placeholder="Ex.: Pizzas artesanais com delivery em Campinas. Confira nosso cardápio e faça seu pedido." disabled={isLoading} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="business-address">Endereço público da empresa</Label>
+                  <Input id="business-address" value={address} onChange={e => setAddress(e.target.value)} placeholder="Rua, número, bairro, cidade e estado" disabled={isLoading} />
+                  <p className="text-xs text-muted-foreground">Este endereço será exibido no cardápio. Informe apenas um endereço que deseja tornar público.</p>
+                </div>
+                <Button asChild variant="outline">
+                  <a href="https://www.google.com/business/" target="_blank" rel="noopener noreferrer">Cadastrar ou gerenciar Perfil da Empresa no Google</a>
+                </Button>
+                <p className="text-xs text-muted-foreground">No Perfil da Empresa, adicione o link do cardápio acima. Salve as alterações desta página para atualizar as informações nas buscas; a atualização pelo Google pode levar tempo.</p>
               </div>
               {comandasEnabled && (
                 <>

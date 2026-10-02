@@ -281,21 +281,26 @@ export default function DashboardLayout({
   return (
     <NotificationProvider companyData={companyData}>
       <SoundPlayer />
-      <div className="grid min-h-screen w-full lg:grid-cols-[280px_1fr]">
-        <div className="hidden border-r bg-background lg:block">
+      <div className="management-shell grid min-h-screen w-full lg:grid-cols-[256px_1fr]">
+        <div className="workspace-sidebar sticky top-0 hidden h-screen border-r lg:block">
           <div className="flex h-full max-h-screen flex-col gap-2">
-            <div className="flex h-16 items-center border-b px-6">
+            <div className="workspace-brand flex h-20 items-center gap-3 border-b px-6">
               <Link href="/dashboard" className="flex items-center">
-                <span className="text-xl font-black tracking-tighter text-primary">DeliveryHub</span>
+                <span className="text-xl font-bold tracking-tight text-white">DeliveryHub</span>
               </Link>
             </div>
-            <div className="flex-1 pt-2 overflow-y-auto">
+            <div className="flex-1 py-5 overflow-y-auto">
               <DashboardNav newOrdersCount={newOrdersCount} isAdmin={!!adminData} comandasEnabled={companyData?.comandasEnabled ?? true} />
+            </div>
+            <div className="mx-4 mb-4 rounded-xl border border-white/10 bg-white/5 p-3">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Sua empresa</p>
+              <p className="mt-1 truncate text-sm font-semibold text-slate-100" title={companyData?.name}>{companyData?.name || 'DeliveryHub'}</p>
+              <Link href="/dashboard/settings" className="mt-2 inline-block text-xs text-sky-300 hover:text-sky-200">Gerenciar configurações →</Link>
             </div>
           </div>
         </div>
         <div className="flex flex-col min-w-0 w-full overflow-x-hidden">
-          <header className="flex h-14 items-center gap-2 sm:gap-4 border-b bg-background px-3 sm:px-4 lg:h-[60px] lg:px-6">
+          <header className="workspace-header sticky top-0 z-30 flex min-h-16 flex-wrap items-center gap-2 border-b px-3 py-3 sm:gap-3 sm:px-5 lg:px-8">
             <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
               <SheetTrigger asChild>
                 <Button
@@ -307,7 +312,7 @@ export default function DashboardLayout({
                   <span className="sr-only">Alternar menu de navegação</span>
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left" className="flex flex-col p-0">
+              <SheetContent side="left" className="workspace-mobile-menu workspace-sidebar flex flex-col p-0">
                 <SheetHeader className="sr-only">
                   <SheetTitle>Menu de Navegação</SheetTitle>
                 </SheetHeader>
@@ -332,7 +337,7 @@ export default function DashboardLayout({
               </Button>
             </div>
             
-            <div className="w-full flex-1 flex flex-col items-center justify-center text-[10px] sm:text-xs min-w-0">
+            <div className="hidden min-w-0 flex-1 flex-col items-center justify-center text-xs xl:flex">
               <div className="flex items-center gap-2 sm:gap-3 text-muted-foreground truncate">
                 <span className="font-bold text-foreground tracking-tight hidden lg:inline">Suporte Técnico</span>
                 <a href="https://wa.me/5533987507606" target="_blank" rel="noopener noreferrer" className="hover:text-primary hover:underline transition-colors font-medium whitespace-nowrap">
@@ -343,7 +348,7 @@ export default function DashboardLayout({
               </div>
             </div>
             
-            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            <div className="ml-auto flex items-center gap-1.5 sm:gap-2 shrink-0">
               <div className="flex sm:hidden items-center gap-1">
                 <Button variant="outline" size="icon" onClick={handleInstallClick} className="h-8 w-8 bg-primary text-primary-foreground hover:bg-primary/90 border-0" title="Baixar App">
                   <Download className="h-4 w-4" />
@@ -355,7 +360,7 @@ export default function DashboardLayout({
               <UserNav isAdmin={!!adminData} />
             </div>
           </header>
-          <main className="flex flex-1 flex-col gap-4 p-3 sm:p-4 lg:gap-8 lg:p-8 bg-muted/20 min-w-0 w-full">
+          <main className="workspace-content flex flex-1 flex-col gap-5 p-3 sm:p-5 lg:gap-7 lg:p-8 min-w-0 w-full">
 
             {isImpersonating && (
               <div className="flex items-center justify-between bg-destructive text-destructive-foreground px-4 py-2 rounded-lg text-sm font-medium shadow">

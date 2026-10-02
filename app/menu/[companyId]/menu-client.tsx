@@ -1,0 +1,780 @@
+
+
+
+'use client';
+
+import React, { useMemo, useState, useEffect } from 'react';
+import Image from 'next/image';
+import { useCollection, useDoc, useFirestore, useMemoFirebase, useUser } from '@/firebase';
+import { collection, doc, writeBatch, increment, deleteField } from 'firebase/firestore';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Plus, Minus, Pizza, Ham, GlassWater, Cake, Sandwich, LeafyGreen, IceCream, UtensilsCrossed, type LucideIcon, Search, X, Clock, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Input } from '@/components/ui/input';
+import { useCart, type SelectedVariant } from '@/context/cart-context';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { useToast } from '@/hooks/use-toast';
+import { Textarea } from '@/components/ui/textarea';
+import { useParams } from 'next/navigation';
+import { Badge } from '@/components/ui/badge';
+
+
+type Company = {
+    name: string;
+    logoUrl?: string;
+    address?: string;
+    seoDescription?: string;
+    averagePrepTime?: number;
+};
+
+type VariantItem = {
+  name: string;
+  price: number;
+};
+
+type VariantGroup = {
+  name: string;
+  min: number;
+  max: number;
+  items: VariantItem[];
+};
+
+export type Product = {
+    id: string;
+    name: string;
+    description: string;
+    price: number;
+    categoryId: string;
+    category?: string;
+    isActive: boolean;
+    imageUrl?: string;
+    imageUrls?: string[];
+    variants?: VariantGroup[];
+    ingredients?: string;
+    sortOrder?: number;
+    stockControlEnabled?: boolean;
+    blockIfOutOfStock?: boolean;
+    stock?: number;
+    isSoldByWeight?: boolean;
+    upvotes?: number;
+    downvotes?: number;
+};
+
+type Category = {
+    id: string;
+    name: string;
+    companyId: string;
+    sortOrder?: number;
+};
+
+// Function to get an icon for a category
+const getCategoryIcon = (categoryName: string): LucideIcon => {
+    const normalizedName = categoryName.toLowerCase();
+    
+    const iconMap: { [key: string]: LucideIcon } = {
+        'pizzas': Pizza,
+        'hambúrgueres': Ham,
+        'burgers': Ham,
+        'bebidas': GlassWater,
+        'refrigerantes': GlassWater,
+        'sucos': GlassWater,
+        'sobremesas': Cake,
+        'doces': Cake,
+        'lanches': Sandwich,
+        'sanduíches': Sandwich,
+        'saladas': LeafyGreen,
+        'açaí': IceCream,
+        'porções': UtensilsCrossed,
+        'entradas': UtensilsCrossed,
+    };
+
+    const foundKey = Object.keys(iconMap).find(key => normalizedName.includes(key));
+    
+    return foundKey ? iconMap[foundKey] : UtensilsCrossed;
+};
+
+
+const ProductDetailDialog = ({
+    product,
+    open,
+    onOpenChange,
+    onAddToCart,
+}: {
+    product: Product;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    onAddToCart: (product: Product, quantity: number, notes?: string, variants?: SelectedVariant[]) => void;
+}) => {
+    const [selectedVariants, setSelectedVariants] = useState<SelectedVariant[]>([]);
+    const [notes, setNotes] = useState('');
+    const [quantity, setQuantity] = useState(1);
+    const [weight, setWeight] = useState('1.000');
+    const { toast } = useToast();
+
+    const imageUrl = product.imageUrl || (product.imageUrls && product.imageUrls.length > 0 ? product.imageUrls[0] : null);
+
+    const handleSelection = (groupName: string, itemName: string, price: number, isSingleChoice: boolean) => {
+        const group = product.variants?.find(v => v.name === groupName);
+        if (!group) return;
+        const isCurrentlySelected = selectedVariants.some(v => v.groupName === groupName && v.itemName === itemName);
+        const groupItemsSelectedCount = selectedVariants.filter(v => v.groupName === groupName).length;
+        if (isSingleChoice) {
+            setSelectedVariants(prev => [...prev.filter(v => v.groupName !== groupName), { groupName, itemName, price }]);
+        } else {
+            if (isCurrentlySelected) {
+                setSelectedVariants(prev => prev.filter(v => !(v.groupName === groupName && v.itemName === itemName)));
+            } else {
+                if (groupItemsSelectedCount >= group.max) {
+                    toast({ variant: 'destructive', title: 'Limite atingido', description: `Máximo de ${group.max} opção(ões) para "${groupName}".` });
+                } else {
+                    setSelectedVariants(prev => [...prev, { groupName, itemName, price }]);
+                }
+            }
+        }
+    };
+
+    const isSelected = (groupName: string, itemName: string) =>
+        selectedVariants.some(v => v.groupName === groupName && v.itemName === itemName);
+
+    const unitPrice = useMemo(() => {
+        const optionsPrice = selectedVariants.reduce((total, v) => total + v.price, 0);
+        return product.price + optionsPrice;
+    }, [product.price, selectedVariants]);
+
+    const finalPrice = product.isSoldByWeight 
+        ? unitPrice * (parseFloat(weight.replace(',', '.')) || 0)
+        : unitPrice * quantity;
+
+    const handleConfirm = () => {
+        for (const group of product.variants || []) {
+            const selectedCount = selectedVariants.filter(v => v.groupName === group.name).length;
+            if (selectedCount < group.min) {
+                toast({ variant: 'destructive', title: 'Seleção Incompleta', description: `Selecione pelo menos ${group.min} opção(ões) para "${group.name}".` });
+                return;
+            }
+        }
+        if (product.isSoldByWeight) {
+            const w = parseFloat(weight.replace(',', '.'));
+            if (isNaN(w) || w <= 0) {
+                toast({ variant: 'destructive', title: 'Peso Inválido', description: 'Por favor, insira um peso válido.' });
+                return;
+            }
+            onAddToCart(product, w, notes, selectedVariants);
+        } else {
+            onAddToCart(product, quantity, notes, selectedVariants);
+        }
+        onOpenChange(false);
+    };
+
+    useEffect(() => {
+        if (open) {
+            setSelectedVariants([]);
+            setNotes('');
+            setQuantity(1);
+            setWeight('1.000');
+        }
+    }, [open, product]);
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-lg p-0 overflow-hidden">
+                {/* Always include DialogTitle for accessibility */}
+                <DialogHeader className="sr-only">
+                    <DialogTitle>{product.name}</DialogTitle>
+                </DialogHeader>
+
+                {/* Product Image Banner */}
+                {imageUrl ? (
+                    <div className="relative h-52 w-full bg-muted">
+                        <Image src={imageUrl} alt={product.name} fill style={{ objectFit: 'cover' }} unoptimized />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                        <div className="absolute bottom-3 left-4 right-4">
+                            <h2 className="text-xl font-bold text-white drop-shadow">{product.name}</h2>
+                            <p className="text-sm text-white/80 mt-0.5">R$ {product.price.toFixed(2)}</p>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="px-5 pt-2">
+                        <p className="text-xl font-bold">{product.name}</p>
+                    </div>
+                )}
+
+                <ScrollArea className="max-h-[55vh]">
+                    <div className="space-y-4 px-5 py-4">
+                        {/* Description */}
+                        {product.description && (
+                            <p className="text-sm text-muted-foreground leading-relaxed">{product.description}</p>
+                        )}
+
+                        {/* Ingredients */}
+                        {product.ingredients && (
+                            <div className="rounded-lg bg-muted/50 p-3">
+                                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Ingredientes</p>
+                                <p className="text-sm text-foreground">{product.ingredients}</p>
+                            </div>
+                        )}
+
+                        {/* Variants/Add-ons */}
+                        {product.variants?.map((group) => {
+                            const isSingleChoice = group.max === 1 && group.min === 1;
+                            return (
+                                <div key={group.name} className="space-y-2">
+                                    <Separator />
+                                    <div className="flex items-center justify-between">
+                                        <h4 className="font-semibold">{group.name}</h4>
+                                        {group.min > 0 && <span className="text-xs bg-primary/10 text-primary rounded-full px-2 py-0.5 font-medium">Obrigatório</span>}
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                        {group.min > 0 && group.max > group.min
+                                            ? `Selecione de ${group.min} a ${group.max} opções`
+                                            : group.min > 0 && group.max === group.min
+                                            ? `Selecione ${group.min} ${group.min > 1 ? 'opções' : 'opção'}`
+                                            : `Selecione até ${group.max} ${group.max > 1 ? 'opções' : 'opção'}`}
+                                    </p>
+                                    {isSingleChoice ? (
+                                        <RadioGroup onValueChange={(value) => handleSelection(group.name, value.split(';')[0], parseFloat(value.split(';')[1]), true)}>
+                                            {group.items.map(item => (
+                                                <div key={item.name} className="flex items-center justify-between rounded-lg border px-3 py-2 has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5 transition-colors">
+                                                    <div className="flex items-center gap-2">
+                                                        <RadioGroupItem value={`${item.name};${item.price}`} id={`${group.name}-${item.name}`} />
+                                                        <Label htmlFor={`${group.name}-${item.name}`} className="cursor-pointer font-normal">{item.name}</Label>
+                                                    </div>
+                                                    {item.price > 0 && <span className="text-sm font-medium text-primary">+ R$ {item.price.toFixed(2)}</span>}
+                                                </div>
+                                            ))}
+                                        </RadioGroup>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            {group.items.map(item => (
+                                                <div key={item.name} className="flex items-center justify-between rounded-lg border px-3 py-2 has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5 transition-colors">
+                                                    <div className="flex items-center gap-2">
+                                                        <Checkbox
+                                                            id={`${group.name}-${item.name}`}
+                                                            checked={isSelected(group.name, item.name)}
+                                                            onCheckedChange={() => handleSelection(group.name, item.name, item.price, false)}
+                                                        />
+                                                        <Label htmlFor={`${group.name}-${item.name}`} className="cursor-pointer font-normal">{item.name}</Label>
+                                                    </div>
+                                                    {item.price > 0 && <span className="text-sm font-medium text-primary">+ R$ {item.price.toFixed(2)}</span>}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+
+                        {/* Notes */}
+                        <Separator />
+                        
+                        {product.isSoldByWeight && (
+                            <div className="bg-primary/5 rounded-xl p-4 border border-primary/10 space-y-3">
+                                <Label className="text-primary font-bold">Informar Peso (Kg)</Label>
+                                <div className="relative">
+                                    <Input 
+                                        type="text" 
+                                        className="h-14 text-2xl font-black text-center pr-12" 
+                                        value={weight}
+                                        onChange={(e) => setWeight(e.target.value)}
+                                        placeholder="1.000"
+                                    />
+                                    <span className="absolute right-4 top-1/2 -translate-y-1/2 font-bold text-muted-foreground">Kg</span>
+                                </div>
+                                <p className="text-[10px] text-muted-foreground text-center">Ex: 0.500 para 500 gramas</p>
+                            </div>
+                        )}
+
+                        <div className="space-y-2 pb-2">
+                            <Label htmlFor="notes" className="font-semibold">Alguma observação?</Label>
+                            <Textarea
+                                id="notes"
+                                placeholder="Ex: sem cebola, ponto da carne bem passado…"
+                                value={notes}
+                                onChange={(e) => setNotes(e.target.value)}
+                                className="resize-none"
+                                rows={2}
+                            />
+                        </div>
+                    </div>
+                </ScrollArea>
+
+                {/* Footer: Quantity + Add to Cart */}
+                <div className="flex items-center gap-3 border-t px-5 py-4 bg-background">
+                    {/* Quantity selector or Weight text */}
+                    {!product.isSoldByWeight ? (
+                        <div className="flex items-center gap-2 rounded-lg border px-2 py-1">
+                            <button
+                                className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-foreground disabled:opacity-30 transition-colors"
+                                onClick={() => setQuantity(q => Math.max(1, q - 1))}
+                                disabled={quantity <= 1}
+                            >
+                                <Minus className="h-4 w-4" />
+                            </button>
+                            <span className="w-5 text-center font-bold text-base">{quantity}</span>
+                            <button
+                                className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-foreground transition-colors"
+                                onClick={() => setQuantity(q => q + 1)}
+                            >
+                                <Plus className="h-4 w-4" />
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center px-1">
+                            <span className="text-[10px] uppercase font-bold text-muted-foreground leading-none">Peso</span>
+                            <span className="text-sm font-black">{(parseFloat(weight.replace(',', '.')) || 0).toFixed(3)}kg</span>
+                        </div>
+                    )}
+                    {/* Add to cart button */}
+                    {product.stockControlEnabled && product.blockIfOutOfStock !== false && (Number(product.stock) || 0) <= 0 ? (
+                        <Button className="flex-1 h-11 text-base font-semibold" disabled variant="destructive">
+                            Esgotado
+                        </Button>
+                    ) : (
+                        <Button className="flex-1 h-11 text-base font-semibold" onClick={handleConfirm}>
+                            Adicionar · R$ {finalPrice.toFixed(2)}
+                        </Button>
+                    )}
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+};
+
+
+const ProductVotingBar = ({ 
+    upvotes = 0, 
+    downvotes = 0, 
+    userVote, 
+    onVote 
+}: { 
+    upvotes?: number;
+    downvotes?: number;
+    userVote?: 'up' | 'down' | null;
+    onVote: (type: 'up' | 'down') => void;
+}) => {
+    const total = upvotes + downvotes;
+    const upPercentage = total === 0 ? 50 : (upvotes / total) * 100;
+    
+    return (
+        <div className="flex items-center gap-2 mt-3 w-full max-w-[200px]" onClick={(e) => e.stopPropagation()}>
+            <button 
+                className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-semibold transition-colors ${userVote === 'up' ? 'bg-green-500/10 text-green-600' : 'text-muted-foreground hover:bg-muted'}`}
+                onClick={(e) => { e.stopPropagation(); onVote('up'); }}
+            >
+                <ThumbsUp className="h-3.5 w-3.5" />
+                <span>{upvotes}</span>
+            </button>
+            
+            <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden flex">
+                <div className="bg-green-500 h-full transition-all" style={{ width: `${upPercentage}%` }} />
+                <div className="bg-red-500 h-full transition-all" style={{ width: `${100 - upPercentage}%` }} />
+            </div>
+
+            <button 
+                className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-semibold transition-colors ${userVote === 'down' ? 'bg-destructive/10 text-destructive' : 'text-muted-foreground hover:bg-muted'}`}
+                onClick={(e) => { e.stopPropagation(); onVote('down'); }}
+            >
+                <span>{downvotes}</span>
+                <ThumbsDown className="h-3.5 w-3.5" />
+            </button>
+        </div>
+    );
+};
+
+const ProductCard = ({ product, userVote, onVote }: { product: Product, userVote?: 'up' | 'down' | null, onVote?: (type: 'up' | 'down') => void }) => {
+    const { addToCart } = useCart();
+    const [isDetailOpen, setIsDetailOpen] = useState(false);
+
+    const imageUrl = useMemo(() =>
+        product.imageUrl || (product.imageUrls && product.imageUrls.length > 0 ? product.imageUrls[0] : null)
+    , [product]);
+
+    return (
+        <>
+            <div
+                className="group relative flex cursor-pointer overflow-hidden rounded-[2rem] border-2 border-transparent bg-card p-3 shadow-md transition-all duration-500 hover:border-primary/30 hover:shadow-2xl hover:-translate-y-1"
+                onClick={() => setIsDetailOpen(true)}
+            >
+                {product.stockControlEnabled && product.blockIfOutOfStock !== false && (Number(product.stock) || 0) <= 0 && (
+                    <div className="absolute inset-0 z-20 border-4 border-destructive/50 bg-background/50 backdrop-blur-[2px] rounded-[2rem] flex items-center justify-center">
+                         <div className="bg-destructive text-destructive-foreground px-6 py-2 rounded-full font-black text-lg shadow-xl rotate-12 uppercase tracking-widest">Esgotado</div>
+                    </div>
+                )}
+                
+                <div className="flex flex-1 flex-col justify-between p-3 pr-4">
+                    <div>
+                        <h3 className="text-lg font-black leading-tight text-foreground group-hover:text-primary transition-colors">{product.name}</h3>
+                        <p className="mt-2 line-clamp-2 text-sm text-muted-foreground font-medium">{product.description}</p>
+                    </div>
+                    <div className="pt-4">
+                        <div className="flex items-center justify-between">
+                            <div className="flex flex-col">
+                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">A partir de</span>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-2xl font-black text-primary">R$ {product.price.toFixed(2)}</span>
+                                    {product.isSoldByWeight && (
+                                        <Badge variant="outline" className="text-[10px] py-0 px-2 rounded-full border-primary/30 text-primary bg-primary/5">por Kg</Badge>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                        {onVote && (
+                            <ProductVotingBar 
+                                upvotes={product.upvotes} 
+                                downvotes={product.downvotes} 
+                                userVote={userVote} 
+                                onVote={onVote} 
+                            />
+                        )}
+                    </div>
+                </div>
+
+                {imageUrl ? (
+                    <div className="relative h-36 w-36 shrink-0 overflow-hidden rounded-3xl bg-muted/20 shadow-inner group-hover:shadow-primary/20 transition-all duration-500">
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent z-10" />
+                        <div className="absolute bottom-2 right-2 z-20 bg-background/90 backdrop-blur-md rounded-full p-1.5 text-primary shadow-sm group-hover:scale-110 group-hover:bg-primary group-hover:text-white transition-all">
+                            <Plus className="h-5 w-5" strokeWidth={3} />
+                        </div>
+                        <Image
+                            src={imageUrl}
+                            alt={product.name}
+                            fill
+                            style={{ objectFit: 'cover' }}
+                            className={`transition-transform duration-500 group-hover:scale-110 ${product.stockControlEnabled && product.blockIfOutOfStock !== false && (Number(product.stock) || 0) <= 0 ? 'grayscale opacity-40' : ''}`}
+                            unoptimized
+                        />
+                        {product.stockControlEnabled && product.blockIfOutOfStock !== false && (Number(product.stock) || 0) <= 0 && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+                                <span className="text-[10px] font-black text-white uppercase tracking-widest -rotate-12 border border-white px-1">INDISPONÍVEL</span>
+                            </div>
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+                        <div className="absolute bottom-1 right-1 flex h-8 w-8 translate-x-4 translate-y-4 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md transition-transform duration-300 group-hover:translate-x-0 group-hover:translate-y-0">
+                            <Plus className="h-5 w-5" />
+                        </div>
+                    </div>
+                ) : (
+                    <div className="flex shrink-0 flex-col justify-end">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+                            <Plus className="h-5 w-5" />
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            <ProductDetailDialog
+                product={product}
+                open={isDetailOpen}
+                onOpenChange={setIsDetailOpen}
+                onAddToCart={addToCart}
+            />
+        </>
+    );
+};
+
+export default function MenuPage() {
+  const params = useParams();
+  const companyId = params?.companyId as string;
+  const firestore = useFirestore();
+  const { user } = useUser();
+  const { toast } = useToast();
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Fetch company data
+  const companyRef = useMemoFirebase(() => {
+    if (!firestore || !companyId) return null;
+    return doc(firestore, 'companies', companyId);
+  }, [firestore, companyId]);
+  const { data: company, isLoading: isLoadingCompany } = useDoc<Company>(companyRef);
+
+  // Fetch products
+  const productsRef = useMemoFirebase(() => {
+    if (!firestore || !companyId) return null;
+    return collection(firestore, 'companies', companyId, 'products');
+  }, [firestore, companyId]);
+  const { data: products, isLoading: isLoadingProducts } = useCollection<Product>(productsRef);
+
+  // Fetch categories
+  const categoriesRef = useMemoFirebase(() => {
+    if (!firestore || !companyId) return null;
+    return collection(firestore, 'companies', companyId, 'categories');
+  }, [firestore, companyId]);
+  const { data: categories, isLoading: isLoadingCategories } = useCollection<Category>(categoriesRef);
+
+  // Fetch user votes
+  const userVotesRef = useMemoFirebase(() => {
+    if (!firestore || !companyId || !user) return null;
+    return doc(firestore, 'companies', companyId, 'userVotes', user.uid);
+  }, [firestore, companyId, user]);
+  const { data: userVotesDoc } = useDoc<{ votes: Record<string, 'up' | 'down'> }>(userVotesRef);
+  const userVotes = userVotesDoc?.votes || {};
+
+  const handleVote = async (productId: string, currentVote: 'up' | 'down' | null, newVote: 'up' | 'down') => {
+    if (!firestore) return;
+
+    if (!user || user.isAnonymous) {
+        toast({
+            title: 'Acesso Restrito',
+            description: 'Por favor, faça login ou cadastre-se para avaliar este lanche.',
+            variant: 'destructive',
+        });
+        alert('Acesso Restrito: Por favor, faça login na sua conta para avaliar os lanches.');
+        return;
+    }
+    
+    const batch = writeBatch(firestore);
+    const productRef = doc(firestore, 'companies', companyId, 'products', productId);
+    const userVotesDocRef = doc(firestore, 'companies', companyId, 'userVotes', user.uid);
+    
+    const productUpdates: any = {};
+    const userVotesUpdates: any = {};
+
+    if (currentVote === newVote) {
+        // Remove vote
+        if (newVote === 'up') productUpdates.upvotes = increment(-1);
+        if (newVote === 'down') productUpdates.downvotes = increment(-1);
+        userVotesUpdates[`votes.${productId}`] = deleteField();
+    } else {
+        // Change or add vote
+        if (newVote === 'up') {
+            productUpdates.upvotes = increment(1);
+            if (currentVote === 'down') productUpdates.downvotes = increment(-1);
+        } else {
+            productUpdates.downvotes = increment(1);
+            if (currentVote === 'up') productUpdates.upvotes = increment(-1);
+        }
+        userVotesUpdates[`votes.${productId}`] = newVote;
+    }
+    
+    batch.update(productRef, productUpdates);
+    batch.set(userVotesDocRef, userVotesUpdates, { merge: true });
+    
+    try {
+        await batch.commit();
+    } catch (error) {
+        console.error("Error committing vote:", error);
+    }
+  };
+
+  const productsByCategory = useMemo(() => {
+    if (!products || !categories) return {};
+
+    const activeProducts = products.filter(p => {
+        const matchesActive = p.isActive;
+        if (!matchesActive) return false;
+        
+        if (!searchQuery.trim()) return true;
+        
+        const queryNorm = searchQuery.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        const nameNorm = p.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        const descNorm = (p.description || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        
+        return nameNorm.includes(queryNorm) || descNorm.includes(queryNorm);
+    });
+
+    const categoriesById = new Map(categories.map(c => [c.id, c.name]));
+
+    const grouped = activeProducts.reduce((acc, product) => {
+        const categoryName = categoriesById.get(product.categoryId) || 'Outros';
+        if (!acc[categoryName]) {
+            acc[categoryName] = [];
+        }
+        acc[categoryName].push(product);
+        return acc;
+    }, {} as { [key: string]: Product[] });
+    
+    // Filtramos para manter apenas categorias que possuem produtos após a busca
+    const filteredGrouped = Object.fromEntries(
+        Object.entries(grouped).filter(([_, items]) => items.length > 0)
+    );
+
+    const sortedCategoriesList = [...categories].sort((a, b) => {
+        if (a.sortOrder !== undefined && b.sortOrder !== undefined) return a.sortOrder - b.sortOrder;
+        if (a.sortOrder !== undefined) return -1;
+        if (b.sortOrder !== undefined) return 1;
+        return a.name.localeCompare(b.name);
+    });
+
+    const categoryOrder = sortedCategoriesList.map(c => c.name);
+
+    const sortedCategoryNames = Object.keys(filteredGrouped).sort((a, b) => {
+        const indexA = categoryOrder.indexOf(a);
+        const indexB = categoryOrder.indexOf(b);
+        if (a === 'Outros') return 1;
+        if (b === 'Outros') return -1;
+        if (indexA > -1 && indexB > -1) return indexA - indexB;
+        if (indexA > -1) return -1;
+        if (indexB > -1) return 1;
+        return a.localeCompare(b);
+    });
+
+    const finalGrouped: { [key: string]: Product[] } = {};
+    for (const name of sortedCategoryNames) {
+        finalGrouped[name] = filteredGrouped[name].sort((a, b) => {
+            if (a.sortOrder !== undefined && b.sortOrder !== undefined) return a.sortOrder - b.sortOrder;
+            if (a.sortOrder !== undefined) return -1;
+            if (b.sortOrder !== undefined) return 1;
+            return a.name.localeCompare(b.name);
+        });
+    }
+    
+    return finalGrouped;
+
+  }, [products, categories, searchQuery]);
+
+  const isLoading = isLoadingCompany || isLoadingProducts || isLoadingCategories;
+
+  return (
+    <div className="container mx-auto px-4 py-8">
+      {isLoading ? (
+        <header className="mb-10 text-center space-y-4 pt-4">
+             <Skeleton className="h-24 w-24 rounded-full mx-auto" />
+             <Skeleton className="h-10 w-1/2 mx-auto" />
+             <Skeleton className="h-5 w-1/3 mx-auto" />
+        </header>
+      ) : company ? (
+        <header className="mb-10 text-center relative overflow-hidden rounded-[3rem] bg-gradient-to-br from-primary/10 via-background to-primary/5 p-8 shadow-sm border border-primary/10 mx-auto max-w-4xl mt-4">
+            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03] mix-blend-overlay pointer-events-none" />
+            <div className="absolute -top-24 -right-24 w-64 h-64 bg-primary/20 rounded-full blur-[80px] pointer-events-none" />
+            <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-secondary/20 rounded-full blur-[80px] pointer-events-none" />
+            
+            {company.logoUrl && (
+                <div className="relative mx-auto mb-6 h-32 w-32">
+                    <div className="absolute inset-0 bg-primary/20 rounded-full blur-xl animate-pulse" />
+                    <div className="relative h-full w-full overflow-hidden rounded-full border-[6px] border-background shadow-2xl">
+                        <Image src={company.logoUrl} alt={`${company.name} logo`} fill className="object-cover" unoptimized />
+                    </div>
+                </div>
+            )}
+          <h1 className="relative text-5xl font-black tracking-tighter text-foreground sm:text-6xl bg-clip-text text-transparent bg-gradient-to-r from-primary via-foreground to-primary/80 pb-2 drop-shadow-sm">{company.name}</h1>
+          <p className="relative mt-2 text-lg font-medium text-muted-foreground max-w-xl mx-auto">{company.address}</p>
+          {company.seoDescription && <p className="relative mt-2 text-muted-foreground max-w-xl mx-auto">{company.seoDescription}</p>}
+          
+          {company.averagePrepTime && (
+            <div className="relative mt-6 inline-flex items-center gap-3 rounded-full bg-background/80 backdrop-blur-md px-6 py-3 shadow-sm border border-primary/20">
+                <div className="flex items-center justify-center bg-primary/10 rounded-full p-2 text-primary">
+                    <Clock className="h-5 w-5"/>
+                </div>
+                <div className="flex flex-col items-start">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground leading-none">Tempo Médio</span>
+                    <span className="text-sm font-black text-foreground">~{company.averagePrepTime} min</span>
+                </div>
+            </div>
+          )}
+        </header>
+      ) : (
+         <header className="mb-12 text-center">
+            <h1 className="text-4xl font-bold tracking-tight text-destructive">Loja não encontrada.</h1>
+            <p className="mt-3 text-lg text-muted-foreground">O link do cardápio pode estar incorreto.</p>
+        </header>
+      )}
+
+      <div className="space-y-12 pb-24">
+        {/* Search Bar */}
+        {!isLoading && (
+            <div className="max-w-2xl mx-auto mb-8 sticky top-20 z-10 md:static px-2">
+                <div className="relative group">
+                    <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-6 w-6 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                    <Input 
+                        placeholder="Buscar pratos ou bebidas..." 
+                        className="pl-14 pr-12 h-16 text-lg rounded-[2rem] border-2 border-primary/10 bg-white/80 dark:bg-black/60 backdrop-blur-xl shadow-lg transition-all focus:border-primary focus:shadow-primary/20 focus:ring-4 focus:ring-primary/10" 
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                    {searchQuery && (
+                        <button 
+                            onClick={() => setSearchQuery('')}
+                            className="absolute right-5 top-1/2 -translate-y-1/2 h-8 w-8 flex items-center justify-center rounded-full bg-muted hover:bg-muted-foreground/20 transition-colors"
+                        >
+                            <X className="h-5 w-5 text-foreground" />
+                        </button>
+                    )}
+                </div>
+            </div>
+        )}
+
+        {/* Sticky Category Navbar */}
+        {!isLoading && Object.keys(productsByCategory).length > 0 && (
+            <div className="sticky top-0 z-20 -mx-4 mb-10 overflow-x-auto bg-background/60 px-4 py-4 backdrop-blur-2xl border-b border-primary/10 shadow-sm sm:mx-0 sm:rounded-b-[2rem] sm:px-6 scrollbar-hide">
+                <div className="flex gap-3 pb-1">
+                    {Object.keys(productsByCategory).map(cat => (
+                        <a 
+                            key={cat} 
+                            href={`#cat-${cat.replace(/\s+/g, '-')}`} 
+                            className="whitespace-nowrap rounded-full bg-card border border-primary/10 px-6 py-2.5 text-sm font-bold text-foreground transition-all hover:bg-primary hover:text-primary-foreground hover:shadow-lg hover:-translate-y-0.5 hover:border-primary active:scale-95"
+                        >
+                           {cat}
+                        </a>
+                    ))}
+                </div>
+            </div>
+        )}
+
+        {isLoading ? (
+            Object.keys(Array.from({length: 3})).map((key) => (
+                <div key={key} className="space-y-6">
+                    <Skeleton className="h-8 w-1/4" />
+                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
+                       {Array.from({length: 4}).map((_, i) => (
+                           <Card key={i} className="flex p-4 gap-4 h-36">
+                               <div className="flex-1 space-y-3">
+                                   <Skeleton className="h-5 w-3/4" />
+                                   <Skeleton className="h-4 w-full" />
+                                   <Skeleton className="h-4 w-1/4 mt-4" />
+                               </div>
+                               <Skeleton className="h-28 w-28 rounded-xl shrink-0" />
+                           </Card>
+                       ))}
+                    </div>
+                </div>
+            ))
+        ) : Object.keys(productsByCategory).length > 0 ? (
+          Object.entries(productsByCategory).map(([category, productList], idx) => {
+            const Icon = getCategoryIcon(category);
+            return (
+                <section key={category} id={`cat-${category.replace(/\s+/g, '-')}`} className="scroll-mt-24">
+                    <div className="flex items-center gap-3 mb-6 px-1">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                            <Icon className="h-6 w-6" />
+                        </div>
+                        <h2 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">{category}</h2>
+                    </div>
+                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
+                        {productList.map((product, pIdx) => {
+                            const currentVote = userVotes[product.id] || null;
+                            return (
+                                <ProductCard 
+                                    key={product.id} 
+                                    product={product} 
+                                    userVote={currentVote}
+                                    onVote={(type) => handleVote(product.id, currentVote, type)}
+                                />
+                            );
+                        })}
+                    </div>
+                </section>
+            )
+          })
+        ) : (
+            <div className="text-center py-16">
+                <p className="text-xl text-muted-foreground">Nenhum produto encontrado.</p>
+                <p className="mt-2 text-sm">Parece que ainda não há produtos ativos neste cardápio.</p>
+            </div>
+        )}
+      </div>
+    </div>
+  );
+}

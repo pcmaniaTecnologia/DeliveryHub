@@ -2,6 +2,96 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Visual do painel; o cardápio público mantém seu tema próprio. */
+@layer components {
+  .management-shell,
+  .workspace-mobile-menu {
+    --background: 210 25% 98%;
+    --foreground: 222 35% 16%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 35% 16%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 35% 16%;
+    --secondary: 214 25% 94%;
+    --secondary-foreground: 222 35% 16%;
+    --muted: 214 25% 94%;
+    --muted-foreground: 215 16% 43%;
+    --accent: 210 30% 94%;
+    --accent-foreground: 222 35% 16%;
+    --border: 214 25% 90%;
+    --input: 214 25% 88%;
+    --radius: 0.8rem;
+    color: hsl(var(--foreground));
+    background: hsl(var(--background));
+    font-family: var(--font-inter), sans-serif;
+  }
+
+  .workspace-sidebar {
+    background: linear-gradient(165deg, #17263d 0%, #101c2e 65%, #15263a 100%);
+    color: #e2e8f0;
+    border-color: rgb(255 255 255 / 8%);
+  }
+
+  .workspace-brand { border-color: rgb(255 255 255 / 8%); }
+  .workspace-brand-icon {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+    box-shadow: 0 5px 18px hsl(var(--primary) / 25%);
+  }
+
+  .workspace-nav-link { color: #b6c4d6; }
+  .workspace-nav-link:hover { color: #fff; background: rgb(255 255 255 / 6%); }
+  .workspace-nav-link.is-active {
+    color: #fff;
+    background: rgb(255 255 255 / 11%);
+    box-shadow: inset 3px 0 0 hsl(var(--primary));
+  }
+  .workspace-nav-link.is-active > svg { color: #7dd3fc; }
+  .workspace-nav-link:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 2px; }
+  .workspace-header {
+    background: hsl(var(--card) / 94%);
+    backdrop-filter: blur(16px);
+    box-shadow: 0 2px 12px rgb(15 23 42 / 3%);
+  }
+  .workspace-content {
+    background-image: radial-gradient(ellipse at top right, hsl(var(--primary) / 5%), transparent 55%);
+  }
+  .management-shell .bg-card {
+    border-radius: 16px;
+    box-shadow: 0 3px 14px rgb(15 23 42 / 4%);
+  }
+  .workspace-metrics .bg-card {
+    overflow: hidden;
+    border-top: 3px solid hsl(var(--primary) / 45%);
+  }
+  .workspace-metrics .text-2xl { font-variant-numeric: tabular-nums; letter-spacing: -0.04em; }
+  .management-shell table thead { background: hsl(var(--muted) / 65%); }
+  .management-shell table th { font-size: 0.75rem; font-weight: 600; }
+  .management-shell input, .management-shell textarea { background-color: hsl(var(--card)); }
+
+  .dark .management-shell, .dark .workspace-mobile-menu {
+    --background: 222 35% 10%;
+    --foreground: 210 20% 96%;
+    --card: 222 30% 14%;
+    --card-foreground: 210 20% 96%;
+    --popover: 222 30% 14%;
+    --popover-foreground: 210 20% 96%;
+    --muted: 222 25% 20%;
+    --muted-foreground: 215 20% 70%;
+    --secondary: 222 25% 20%;
+    --secondary-foreground: 210 20% 96%;
+    --accent: 222 25% 20%;
+    --accent-foreground: 210 20% 96%;
+    --border: 222 22% 23%;
+    --input: 222 22% 28%;
+  }
+}
+
 body {
   font-family: Arial, Helvetica, sans-serif;
 }

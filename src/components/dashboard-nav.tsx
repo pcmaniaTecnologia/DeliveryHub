@@ -26,15 +26,17 @@ export function DashboardNav({ newOrdersCount = 0, isAdmin = false, comandasEnab
   const adminNavItem = { href: '/admin', label: 'Painel Do Administrador', icon: ShieldCheck };
 
   return (
-    <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
+    <nav className="workspace-navigation grid items-start gap-1 px-3 text-sm font-medium">
+      <p className="px-3 pb-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Menu principal</p>
       {navItems.map((item) => (
         <Link
           key={item.label}
           href={item.href}
           className={cn(
-            'flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary',
-            { 'bg-muted text-primary': pathname === item.href }
+            'workspace-nav-link flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 transition-colors',
+            { 'is-active': pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href + '/')) }
           )}
+          aria-current={pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href + '/')) ? 'page' : undefined}
           onClick={onNavItemClick}
         >
           <item.icon className="h-4 w-4" />
@@ -44,12 +46,12 @@ export function DashboardNav({ newOrdersCount = 0, isAdmin = false, comandasEnab
       ))}
       {isAdmin && (
         <>
-            <Separator className="my-2" />
+            <Separator className="my-3 bg-white/10" />
             <Link
                 href={adminNavItem.href}
                 className={cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-2 text-destructive transition-all hover:bg-destructive/10',
-                     pathname.startsWith(adminNavItem.href) && 'bg-destructive/10'
+                    'workspace-nav-link flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors',
+                     pathname.startsWith(adminNavItem.href) && 'is-active'
                 )}
                 onClick={onNavItemClick}
             >

@@ -728,7 +728,7 @@ export default function DashboardPage() {
       <div>
         <div className="flex flex-col gap-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <h2 className="text-3xl font-bold tracking-tight">Painel</h2>
+            <div><p className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-primary">Visão geral</p><h2 className="text-3xl font-bold tracking-tight">Seu negócio em números</h2><p className="mt-1 text-sm text-muted-foreground">Acompanhe os pedidos, as vendas e os resultados da sua empresa.</p></div>
             {/* Botões de atalho */}
             <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
               <Button size="sm" onClick={() => handlePresetChange('today')} variant={activePreset === 'today' ? 'default' : 'outline'} className="text-xs">Hoje</Button>
@@ -781,7 +781,7 @@ export default function DashboardPage() {
         </div>
 
         {/* KPI Cards */}
-        <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-5 mt-4">
+        <div className="workspace-metrics grid gap-3 grid-cols-1 min-[420px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 mt-5">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total de Vendas {dateRangeLabel}</CardTitle>

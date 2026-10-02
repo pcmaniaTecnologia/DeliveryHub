@@ -30,14 +30,15 @@ function AdminNav() {
     ];
 
     return (
-        <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
+        <nav className="workspace-navigation grid items-start gap-1 px-3 py-5 text-sm font-medium">
         {navItems.map((item) => (
             <Link
             key={item.label}
             href={item.href}
+            aria-current={pathname === item.href || (item.href !== '/admin' && pathname.startsWith(item.href + '/')) ? 'page' : undefined}
             className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary',
-                pathname.startsWith(item.href) && 'bg-muted text-primary'
+                'workspace-nav-link flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 transition-colors',
+                (pathname === item.href || (item.href !== '/admin' && pathname.startsWith(item.href + '/'))) && 'is-active'
             )}
             >
             <item.icon className="h-4 w-4" />
@@ -121,13 +122,13 @@ export default function AdminLayout({
 
 
   return (
-    <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
-      <div className="hidden border-r bg-background md:block">
+    <div className="management-shell grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[256px_1fr]">
+      <div className="workspace-sidebar sticky top-0 hidden h-screen border-r md:block">
         <div className="flex h-full max-h-screen flex-col gap-2">
-          <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
+          <div className="workspace-brand flex h-20 items-center border-b px-5 lg:px-6">
             <Link href="/admin" className="flex items-center gap-2 font-semibold">
-              <ShieldCheck className="h-6 w-6 text-destructive" />
-              <span className="">AdminHub</span>
+              <ShieldCheck className="h-6 w-6 text-sky-400" />
+              <span className="text-xl font-bold tracking-tight text-white">AdminHub</span>
             </Link>
           </div>
           <div className="flex-1">
@@ -135,8 +136,8 @@ export default function AdminLayout({
           </div>
         </div>
       </div>
-      <div className="flex flex-col">
-        <header className="flex h-14 items-center gap-4 border-b bg-background px-4 lg:h-[60px] lg:px-6">
+      <div className="flex min-w-0 flex-col">
+        <header className="workspace-header sticky top-0 z-30 flex h-16 items-center gap-4 border-b px-4 lg:px-8">
           <Sheet>
             <SheetTrigger asChild>
               <Button
@@ -148,11 +149,11 @@ export default function AdminLayout({
                 <span className="sr-only">Alternar menu</span>
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="flex flex-col p-0">
+            <SheetContent side="left" className="workspace-mobile-menu workspace-sidebar flex flex-col p-0">
                <div className="flex h-14 items-center border-b px-4">
                  <Link href="/admin" className="flex items-center gap-2 font-semibold">
-                   <ShieldCheck className="h-6 w-6 text-destructive" />
-                   <span className="">AdminHub</span>
+                   <ShieldCheck className="h-6 w-6 text-sky-400" />
+                   <span className="text-xl font-bold tracking-tight text-white">AdminHub</span>
                  </Link>
               </div>
               <div className="mt-5 flex-1">
@@ -163,7 +164,7 @@ export default function AdminLayout({
           <div className="w-full flex-1" />
           <UserNav isAdmin={!!adminData} />
         </header>
-        <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8 bg-muted/20">
+        <main className="workspace-content flex min-w-0 flex-1 flex-col gap-5 p-4 md:gap-7 md:p-8">
           {children}
         </main>
       </div>
