@@ -271,7 +271,7 @@ export default function POSPage() {
         setIsOptionsDialogOpen(true);
     };
 
-    const addToCart = (product: Product, weight?: number, variants: SelectedVariant[] = [], notes: string = '') => {
+    const addToCart = (product: Product, weight?: number, variants: SelectedVariant[] = [], notes: string = '', optionsConfirmed = false) => {
         if (product.stockControlEnabled && product.blockIfOutOfStock !== false && (product.stock || 0) <= 0) {
             toast({
                 variant: 'destructive',
@@ -282,7 +282,7 @@ export default function POSPage() {
         }
 
         const needsOptions = (product.variants && product.variants.length > 0) || product.isSoldByWeight;
-        const isBypassingOptions = weight !== undefined || variants.length > 0 || notes !== '';
+        const isBypassingOptions = optionsConfirmed || weight !== undefined || variants.length > 0 || notes !== '';
 
         if (needsOptions && !isBypassingOptions) {
             openOptionsDialog(product);
@@ -404,7 +404,7 @@ export default function POSPage() {
             }
         }
 
-        addToCart(selectedProductForOptions, weightToPass, selectedVariants, itemNotes);
+        addToCart(selectedProductForOptions, weightToPass, selectedVariants, itemNotes, true);
         setIsOptionsDialogOpen(false);
         setSelectedProductForOptions(null);
     };
