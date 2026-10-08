@@ -3,6 +3,9 @@
 
 'use client';
 
+import { logoAdjustmentStyle, type LogoAdjustments } from '@/lib/logo-adjustments';
+import { resolveLogoUrl } from '@/lib/logo-url';
+
 import React, { useMemo, useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useCollection, useDoc, useFirestore, useMemoFirebase, useUser } from '@/firebase';
@@ -35,6 +38,7 @@ import { Badge } from '@/components/ui/badge';
 type Company = {
     name: string;
     logoUrl?: string;
+    logoAdjustments?: LogoAdjustments;
     address?: string;
     seoDescription?: string;
     averagePrepTime?: number;
@@ -431,6 +435,7 @@ const ProductCard = ({ product, userVote, onVote }: { product: Product, userVote
 
 
 export default function MenuPage() {
+  const [failedLogoUrl, setFailedLogoUrl] = useState<string | null>(null);
   const params = useParams();
   const companyId = params?.companyId as string;
   const firestore = useFirestore();
@@ -593,9 +598,9 @@ export default function MenuPage() {
       ) : company ? (
         <header className="menu-brand-hero relative mb-7 overflow-hidden rounded-[1.75rem] border px-5 py-8 text-center sm:rounded-[2rem] sm:py-10">
           <div className="relative mx-auto flex max-w-2xl flex-col items-center">
-            {company.logoUrl ? (
+            {company.logoUrl && company.logoUrl !== failedLogoUrl ? (
               <div className="menu-logo-frame relative mb-5 h-36 w-36 overflow-hidden rounded-[2rem] bg-white p-3 sm:h-44 sm:w-44">
-                <Image src={company.logoUrl} alt={'Logo de ' + (company.name || 'empresa')} fill priority sizes="(max-width: 639px) 144px, 176px" className="object-contain p-3" unoptimized />
+                <Image src={resolveLogoUrl(company.logoUrl)} alt={'Logo de ' + (company.name || 'empresa')} fill priority sizes="(max-width: 639px) 144px, 176px" className="object-contain p-3" style={logoAdjustmentStyle(company.logoAdjustments)} onError={() => setFailedLogoUrl(company.logoUrl || null)} unoptimized />
               </div>
             ) : (
               <div className="menu-logo-frame mb-5 grid h-28 w-28 place-items-center rounded-[2rem] bg-white text-primary">

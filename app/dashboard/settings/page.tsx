@@ -1,6 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { LogoAdjustmentEditor } from '@/components/logo-adjustment-editor';
+import { resolveLogoUrl } from '@/lib/logo-url';
+import { defaultLogoAdjustments, normalizeLogoAdjustments, type LogoAdjustments } from '@/lib/logo-adjustments';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -118,6 +121,7 @@ type CompanySettingsData = {
     seoDescription?: string;
     address?: string;
     logoUrl?: string;
+    logoAdjustments?: LogoAdjustments;
     soundNotificationEnabled?: boolean;
     closedMessage?: string;
     averagePrepTime?: number;
@@ -496,6 +500,7 @@ export default function SettingsPage() {
   const [primaryColor, setPrimaryColor] = useState('#29ABE2');
   const [accentColor, setAccentColor] = useState('#29E2D1');
   const [logoUrl, setLogoUrl] = useState('');
+  const [logoAdjustments, setLogoAdjustments] = useState<LogoAdjustments>(defaultLogoAdjustments);
   const [soundNotificationEnabled, setSoundNotificationEnabled] = useState(true);
   const [closedMessage, setClosedMessage] = useState('');
   const [averagePrepTime, setAveragePrepTime] = useState(30);
@@ -537,6 +542,7 @@ export default function SettingsPage() {
       setAddress(companyData.address || '');
       setPhone(companyData.phone || '');
       setLogoUrl(companyData.logoUrl || '');
+      setLogoAdjustments(normalizeLogoAdjustments(companyData.logoAdjustments));
       setSoundNotificationEnabled(companyData.soundNotificationEnabled ?? true);
       setClosedMessage(companyData.closedMessage || '');
       setAveragePrepTime(companyData.averagePrepTime || 30);
@@ -601,26 +607,36 @@ export default function SettingsPage() {
     setIsSaving(true);
 
     try {
-        let finalLogoUrl = logoUrl;
+        let finalLogoUrl = logoUrl.trim();
 
-        // Tentar extrair imagem real se for link do Google
-        if (finalLogoUrl && (
-            finalLogoUrl.includes('photos.app.goo.gl') || 
-            finalLogoUrl.includes('photos.google.com') || 
-            finalLogoUrl.includes('drive.google.com') ||
-            finalLogoUrl.includes('images.app.goo.gl')
-        )) {
+        if (finalLogoUrl) {
             try {
-                const res = await fetch(`/api/extract-og-image?url=${encodeURIComponent(finalLogoUrl)}`);
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data.imageUrl) {
-                        finalLogoUrl = data.imageUrl;
-                        setLogoUrl(finalLogoUrl); // Atualiza o estado para o usuário ver
-                    }
-                }
-            } catch (e) {
-                console.error('Erro ao extrair imagem:', e);
+                const parsed = new URL(finalLogoUrl);
+                if (!['https:', 'http:'].includes(parsed.protocol)) throw new Error('Invalid protocol');
+                await new Promise<void>((resolve, reject) => {
+                    const image = new window.Image();
+                    const timeout = window.setTimeout(() => {
+                        image.onload = null;
+                        image.onerror = null;
+                        reject(new Error('Image timeout'));
+                    }, 15000);
+                    image.onload = () => {
+                        window.clearTimeout(timeout);
+                        resolve();
+                    };
+                    image.onerror = () => {
+                        window.clearTimeout(timeout);
+                        reject(new Error('Image unavailable'));
+                    };
+                    image.src = resolveLogoUrl(finalLogoUrl);
+                });
+            } catch {
+                toast({
+                    variant: 'destructive',
+                    title: 'A logo não carregou',
+                    description: 'No Google Fotos, confira se o link compartilhado abre sem login. No Drive, permita acesso a qualquer pessoa com o link.',
+                });
+                return;
             }
         }
 
@@ -636,6 +652,7 @@ export default function SettingsPage() {
             address: address.trim(),
             phone: phone,
             logoUrl: finalLogoUrl,
+            logoAdjustments: normalizeLogoAdjustments(logoAdjustments),
             themeColors: themeColors,
             soundNotificationEnabled: soundNotificationEnabled,
             closedMessage: closedMessage,
@@ -956,6 +973,7 @@ export default function SettingsPage() {
               <div className="space-y-2">
                 <Label htmlFor="logoUrl">URL da Logo (Link da imagem)</Label>
                 <Input id="logoUrl" placeholder="Ex: https://imgur.com/sua-logo.png" value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} disabled={isLoading} />
+                {logoUrl.trim() && <LogoAdjustmentEditor url={logoUrl.trim()} value={logoAdjustments} onChange={setLogoAdjustments} disabled={isLoading || isSaving} />}
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">Cole o link direto da imagem (deve terminar em .png, .jpg ou ser um link direto do Google Fotos/Imgur).</p>
                   <p className="text-[10px] text-primary font-medium italic">Dica Google Fotos: Abra a imagem, clique com o botão direito e selecione "Copiar endereço da imagem".</p>
