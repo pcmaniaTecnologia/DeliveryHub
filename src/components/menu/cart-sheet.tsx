@@ -10,6 +10,7 @@ import {
   SheetTrigger,
   SheetFooter,
 } from '@/components/ui/sheet';
+import { createCartOrder } from '@/lib/create-cart-order';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -18,7 +19,6 @@ import { useCart, type CartItem } from '@/context/cart-context';
 import { ShoppingCart, Minus, Plus, Trash2, CreditCard, DollarSign, Landmark, MapPin, User } from 'lucide-react';
 import {
   useFirestore,
-  addDocument,
   useDoc,
   useMemoFirebase,
   useCollection,
@@ -114,6 +114,7 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [whatsappLink, setWhatsappLink] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submissionInFlight = useRef(false);
 
   const companyRef = useMemoFirebase(() => {
     if (!firestore || !companyId) return null;
@@ -280,6 +281,7 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
   const finalTotal = Math.max(0, totalPrice - discountAmount) + deliveryFee;
 
   const handlePlaceOrder = async () => {
+    if (submissionInFlight.current || cartItems.length === 0) return;
     if (!firestore || !companyId) return;
 
     if (!companyData) {
@@ -387,6 +389,7 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
         return;
     }
     
+    submissionInFlight.current = true;
     setIsSubmitting(true);
     try {
         const ordersRef = collection(firestore, 'companies', companyId, 'orders');
@@ -435,14 +438,18 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
     };
     
     
-        const docRef = await addDocument(ordersRef, orderData);
+        const { reference: docRef, created } = await createCartOrder(ordersRef, orderData, cartItems);
+        // The order is confirmed before optional services or WhatsApp navigation.
+        setIsOrderFinished(true);
+        clearCart();
+        setIsCheckoutOpen(false);
         
         // Decrementar estoque em background
         const stockItems = cartItems
             .filter(item => item.product.stockControlEnabled)
             .map(item => ({ productId: item.product.id, quantity: item.quantity }));
 
-        if (stockItems.length > 0) {
+        if (created && stockItems.length > 0) {
             fetch('/api/stock/decrement', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -505,7 +512,7 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
             }
 
             // Disparar via API do DeliveryHub (Z-API) em background
-            await fetch("/api/whatsapp", {
+            void fetch("/api/whatsapp", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json"
@@ -527,12 +534,9 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
                     pagamento: orderData.paymentMethod,
                     endereco: fullAddress
                 })
-            });
+            }).catch(err => console.error("Erro ao enviar WhatsApp:", err));
         }
 
-        setIsOrderFinished(true);
-        clearCart();
-        setIsCheckoutOpen(false);
         setIsMultiPayment(false);
         setMultiPayments([]);
         setSelectedPayment('');
@@ -544,6 +548,7 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
             : error?.message || 'Ocorreu um erro inesperado. Tente novamente.';
         toast({ variant: 'destructive', title: 'Erro ao enviar pedido', description: msg });
     } finally {
+        submissionInFlight.current = false;
         setIsSubmitting(false);
     }
   };

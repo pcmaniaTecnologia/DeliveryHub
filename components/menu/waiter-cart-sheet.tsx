@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Sheet,
@@ -10,13 +10,14 @@ import {
   SheetTrigger,
   SheetFooter,
 } from '@/components/ui/sheet';
+import { createCartOrder } from '@/lib/create-cart-order';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useCart, type CartItem } from '@/context/cart-context';
 import { Trash2, LogOut, ShieldCheck, Minus, Plus, ShoppingCart } from 'lucide-react';
-import { useFirestore, addDocument, useUser } from '@/firebase';
+import { useFirestore, useUser } from '@/firebase';
 import { collection, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -73,6 +74,8 @@ export default function WaiterCartSheet({ companyId }: { companyId: string}) {
   const { toast } = useToast();
   const router = useRouter();
   
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submissionInFlight = useRef(false);
   const [isOrderFinished, setIsOrderFinished] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   
@@ -113,6 +116,7 @@ export default function WaiterCartSheet({ companyId }: { companyId: string}) {
   const finalTotal = totalPrice; // No delivery fee for tables
 
   const handlePlaceOrder = async () => {
+    if (submissionInFlight.current || cartItems.length === 0) return;
     if (!firestore || !companyId || !waiterSession) return;
 
     if (!tableNumber.trim()) {
@@ -151,8 +155,10 @@ export default function WaiterCartSheet({ companyId }: { companyId: string}) {
         totalAmount: Number(finalTotal) || 0,
     };
     
+    submissionInFlight.current = true;
+    setIsSubmitting(true);
     try {
-        await addDocument(ordersRef, orderData);
+        await createCartOrder(ordersRef, orderData, cartItems);
         setIsOrderFinished(true);
         clearCart();
         setIsCheckoutOpen(false);
@@ -160,6 +166,9 @@ export default function WaiterCartSheet({ companyId }: { companyId: string}) {
         setCustomerName('');
     } catch (error) {
         toast({ variant: 'destructive', title: 'Erro ao lançar comanda' });
+    } finally {
+        submissionInFlight.current = false;
+        setIsSubmitting(false);
     }
   };
 
@@ -210,7 +219,7 @@ export default function WaiterCartSheet({ companyId }: { companyId: string}) {
                         <div className="space-y-1 text-sm w-full">
                             <div className="flex justify-between font-bold text-xl pt-1"><span>Total do Pedido</span><span className="text-primary">R$ {finalTotal.toFixed(2)}</span></div>
                         </div>
-                        <Button className="w-full h-14 text-xl shadow-md mt-2" onClick={handlePlaceOrder}>Enviar para a Cozinha</Button>
+                        <Button className="w-full h-14 text-xl shadow-md mt-2" onClick={handlePlaceOrder} disabled={isSubmitting}>{isSubmitting ? 'Processando...' : 'Enviar para a Cozinha'}</Button>
                         <Button variant="ghost" className="w-full mt-1" onClick={() => setIsCheckoutOpen(false)}>Voltar aos Itens</Button>
                     </SheetFooter>
                 </>

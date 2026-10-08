@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Sheet,
   SheetContent,
@@ -9,6 +9,7 @@ import {
   SheetTrigger,
   SheetFooter,
 } from '@/components/ui/sheet';
+import { createCartOrder } from '@/lib/create-cart-order';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -17,7 +18,6 @@ import { useCart, type CartItem } from '@/context/cart-context';
 import { ShoppingCart, Minus, Plus, Trash2, CreditCard, DollarSign, Landmark } from 'lucide-react';
 import {
   useFirestore,
-  addDocument,
   useDoc,
   useMemoFirebase,
   useCollection,
@@ -105,6 +105,7 @@ export default function CartSheet({ companyId }: { companyId: string}) {
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [whatsappLink, setWhatsappLink] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submissionInFlight = useRef(false);
 
   const companyRef = useMemoFirebase(() => {
     if (!firestore || !companyId) return null;
@@ -212,6 +213,7 @@ export default function CartSheet({ companyId }: { companyId: string}) {
   const finalTotal = Math.max(0, totalPrice - discountAmount) + deliveryFee;
 
   const handlePlaceOrder = async () => {
+    if (submissionInFlight.current || cartItems.length === 0) return;
     if (!firestore || !companyId || !companyData) return;
 
     // Helper functions to prevent Firebase 'undefined' or 'NaN' errors
@@ -291,6 +293,7 @@ export default function CartSheet({ companyId }: { companyId: string}) {
         }
     }
     
+    submissionInFlight.current = true;
     setIsSubmitting(true);
     const ordersRef = collection(firestore, 'companies', companyId, 'orders');
     const street = (addressStreet || 'Rua não informada').trim();
@@ -349,7 +352,11 @@ export default function CartSheet({ companyId }: { companyId: string}) {
     }
 
     try {
-        const docRef = await addDocument(ordersRef, orderData);
+        const { reference: docRef, created } = await createCartOrder(ordersRef, orderData, cartItems);
+        // The order is confirmed before optional services or WhatsApp navigation.
+        setIsOrderFinished(true);
+        clearCart();
+        setIsCheckoutOpen(false);
 
         // ── Baixa de estoque via API (server-side) ────────────────────────
         // O cliente anônimo não tem permissão para escrever em /products,
@@ -358,25 +365,25 @@ export default function CartSheet({ companyId }: { companyId: string}) {
             .filter(item => item.product.stockControlEnabled)
             .map(item => ({ productId: item.product.id, quantity: item.quantity }));
 
-        if (stockItems.length > 0) {
-            await fetch('/api/stock/decrement', {
+        if (created && stockItems.length > 0) {
+            void fetch('/api/stock/decrement', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ companyId, items: stockItems }),
-            });
+            }).catch(err => console.error('Erro ao baixar estoque:', err));
         }
         // ─────────────────────────────────────────────────────────────────
 
         // Atualiza perfil do usuário se estiver logado
         if (user && !user.isAnonymous) {
-            await setDoc(doc(firestore, 'users', user.uid), {
+            void setDoc(doc(firestore, 'users', user.uid), {
                 name: customerName,
                 phone: customerPhone,
                 addressStreet: addressStreet,
                 addressNumber: addressNumber,
                 addressNeighborhood: addressNeighborhood,
                 updatedAt: serverTimestamp()
-            }, { merge: true });
+            }, { merge: true }).catch(err => console.error("Erro ao salvar perfil:", err));
         }
 
         const rawCompanyPhone = companyData.phone?.replace(/\D/g, '') || '';
@@ -407,13 +414,12 @@ export default function CartSheet({ companyId }: { companyId: string}) {
             console.warn("Loja sem número de WhatsApp configurado.");
         }
 
-        setIsOrderFinished(true);
-        clearCart();
-        setIsCheckoutOpen(false);
+
     } catch (error: any) {
         console.error("Erro ao finalizar pedido:", error);
         toast({ variant: 'destructive', title: 'Erro ao enviar pedido', description: error?.message || 'Verifique sua conexão ou tente novamente.' });
     } finally {
+        submissionInFlight.current = false;
         setIsSubmitting(false);
     }
   };
