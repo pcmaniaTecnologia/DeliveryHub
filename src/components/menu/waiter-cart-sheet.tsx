@@ -10,6 +10,7 @@ import {
   SheetTrigger,
   SheetFooter,
 } from '@/components/ui/sheet';
+import { getOrderErrorMessage } from '@/lib/order-error';
 import { createCartOrder } from '@/lib/create-cart-order';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -217,7 +218,7 @@ export default function WaiterCartSheet({ companyId }: { companyId: string}) {
         if (!urlTable) setTableNumber('');
         setCustomerName('');
     } catch (error) {
-        toast({ variant: 'destructive', title: 'Erro ao lançar comanda' });
+        toast({ variant: 'destructive', title: 'Erro ao lançar comanda', description: getOrderErrorMessage(error) });
     } finally {
         submissionInFlight.current = false;
         setIsSubmitting(false);

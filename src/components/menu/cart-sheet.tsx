@@ -10,6 +10,7 @@ import {
   SheetTrigger,
   SheetFooter,
 } from '@/components/ui/sheet';
+import { getOrderErrorMessage } from '@/lib/order-error';
 import { createCartOrder } from '@/lib/create-cart-order';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -115,6 +116,19 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
   const [whatsappLink, setWhatsappLink] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submissionInFlight = useRef(false);
+  const [showHelpHighlight, setShowHelpHighlight] = useState(false);
+
+  useEffect(() => {
+    const highlightCart = (event: Event) => setShowHelpHighlight((event as CustomEvent<boolean>).detail === true);
+    window.addEventListener('deliveryhub:order-help-offer', highlightCart);
+    return () => window.removeEventListener('deliveryhub:order-help-offer', highlightCart);
+  }, []);
+
+  useEffect(() => {
+    const openCart = () => { setIsSheetOpen(true); setIsCheckoutOpen(false); };
+    window.addEventListener('deliveryhub:open-cart', openCart);
+    return () => window.removeEventListener('deliveryhub:open-cart', openCart);
+  }, []);
 
   const companyRef = useMemoFirebase(() => {
     if (!firestore || !companyId) return null;
@@ -543,9 +557,7 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
         setCashAmount('');
     } catch (error: any) {
         console.error('Erro ao enviar pedido:', error);
-        const msg = error?.code === 'permission-denied'
-            ? 'Permissão negada pelo servidor. Contate o suporte.'
-            : error?.message || 'Ocorreu um erro inesperado. Tente novamente.';
+        const msg = getOrderErrorMessage(error);
         toast({ variant: 'destructive', title: 'Erro ao enviar pedido', description: msg });
     } finally {
         submissionInFlight.current = false;
@@ -585,7 +597,11 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
     <>
       <Sheet open={isSheetOpen} onOpenChange={(open) => { setIsSheetOpen(open); if(!open) setIsCheckoutOpen(false); }}>
         <SheetTrigger asChild>
-          <Button className="fixed bottom-6 right-6 z-20 h-16 w-16 rounded-full shadow-lg">
+          <Button
+            aria-label="Abrir meu carrinho"
+            onClick={() => setShowHelpHighlight(false)}
+            className={`fixed bottom-6 right-6 z-20 h-16 w-16 rounded-full shadow-lg ${showHelpHighlight && totalItems > 0 ? 'cart-help-attention ring-4 ring-primary/30' : ''}`}
+          >
             <ShoppingCart className="h-8 w-8" />
             {totalItems > 0 && <Badge variant="destructive" className="absolute -top-1 -right-1 h-6 w-6 justify-center rounded-full">{totalItems}</Badge>}
           </Button>

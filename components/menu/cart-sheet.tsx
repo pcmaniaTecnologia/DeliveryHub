@@ -9,6 +9,7 @@ import {
   SheetTrigger,
   SheetFooter,
 } from '@/components/ui/sheet';
+import { getOrderErrorMessage } from '@/lib/order-error';
 import { createCartOrder } from '@/lib/create-cart-order';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -397,7 +398,7 @@ export default function CartSheet({ companyId, tableNumber: propTableNumber }: {
 
     } catch (error: any) {
         console.error("Erro ao finalizar pedido:", error);
-        toast({ variant: 'destructive', title: 'Erro ao enviar pedido', description: error?.message || 'Tente novamente.' });
+        toast({ variant: 'destructive', title: 'Erro ao enviar pedido', description: getOrderErrorMessage(error) });
     } finally {
         submissionInFlight.current = false;
         setIsSubmitting(false);

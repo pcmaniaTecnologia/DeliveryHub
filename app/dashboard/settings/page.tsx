@@ -1068,7 +1068,7 @@ export default function SettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Horário de Funcionamento</CardTitle>
-              <CardDescription>Defina os horários de abertura.</CardDescription>
+              <CardDescription>Defina os horários no fuso de Brasília. Um turno de 00:00 a 01:50 vale para a madrugada do dia selecionado. Se o fechamento for antes da abertura (ex.: 18:00 a 02:00), o turno termina no dia seguinte. Após alterar, clique em Salvar Horários.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {weekDays.map(({ key, label }, index) => {

@@ -2,6 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
+@keyframes cart-help-attention {
+  0%, 60%, 100% { transform: translateY(0); }
+  15%, 40% { transform: translateY(-10px); }
+  28%, 52% { transform: translateY(-3px); }
+}
+
+.cart-help-attention {
+  animation: cart-help-attention 2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cart-help-attention { animation: none; }
+}
+
 /* Visual do painel; o cardápio público mantém seu tema próprio. */
 @layer components {
   .menu-storefront,

@@ -9,6 +9,7 @@ import { Package2 } from 'lucide-react';
 import Link from 'next/link';
 import { CartProvider } from '@/context/cart-context';
 import CartSheet from '@/components/menu/cart-sheet';
+import OrderHelp from '@/components/menu/order-help';
 import { CustomerAuthDialog } from '@/components/menu/customer-auth-dialog';
 import { useParams, useSearchParams } from 'next/navigation';
 
@@ -96,6 +97,7 @@ export default function MenuLayout({
         </header>
         <main>{children}</main>
             {companyId && <CartSheet companyId={companyId} tableNumber={tableNumber} />}
+            {companyId && (process.env.NODE_ENV === 'development' || searchParams?.get('assistente') === 'teste') && <OrderHelp key={companyId} companyId={companyId} />}
             <footer className="mt-12 border-t py-6">
                 <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
                     <p>&copy; {new Date().getFullYear()} DeliveryHub. Todos os direitos reservados.</p>

@@ -1,5 +1,16 @@
 import { cache } from 'react';
-import { adminDb } from '@/lib/firebase-admin';
+import { getApps, initializeApp } from 'firebase/app';
+import { doc, getDoc, getFirestore } from 'firebase/firestore/lite';
+import { firebaseConfig } from '@/firebase/config';
+
+// Menu metadata only needs a public document read, authorized by Firestore rules.
+// Use a separate app so it never inherits a customer's authentication session.
+function getPublicFirestore() {
+  const appName = 'public-company-seo';
+  const app = getApps().find(app => app.name === appName)
+    ?? initializeApp(firebaseConfig, appName);
+  return getFirestore(app);
+}
 
 export type PublicCompany = {
   name?: string;
@@ -12,9 +23,10 @@ export type PublicCompany = {
 };
 
 export const getPublicCompany = cache(async (id: string): Promise<PublicCompany | null> => {
+  if (!id || id.includes('/')) return null;
   try {
-    const snapshot = await adminDb.collection('companies').doc(id).get();
-    return snapshot.exists ? snapshot.data() as PublicCompany : null;
+    const snapshot = await getDoc(doc(getPublicFirestore(), 'companies', id));
+    return snapshot.exists() ? snapshot.data() as PublicCompany : null;
   } catch (error) {
     console.error('Não foi possível carregar informações públicas da empresa:', error);
     return null;

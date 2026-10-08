@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail } from 'firebase/auth';
 import { doc, setDoc, collection, query, where, getDocs, onSnapshot } from 'firebase/firestore';
@@ -12,6 +12,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import { RegistrationAssistant } from '@/components/menu/registration-assistant';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -29,6 +30,16 @@ export function CustomerAuthDialog({ companyId }: { companyId?: string }) {
   const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [registrationPending, setRegistrationPending] = useState(false);
+  const [accountCreated, setAccountCreated] = useState(false);
+  const registrationBusy = useRef(false);
+  const [accessTab, setAccessTab] = useState('login');
+
+  useEffect(() => {
+    const openRegistration = () => { setAccessTab('register'); setIsOpen(true); };
+    window.addEventListener('deliveryhub:register', openRegistration);
+    return () => window.removeEventListener('deliveryhub:register', openRegistration);
+  }, []);
 
   // Form states for login/register
   const [email, setEmail] = useState('');
@@ -131,6 +142,8 @@ export function CustomerAuthDialog({ companyId }: { companyId?: string }) {
     setIsLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
+      setRegistrationPending(false);
+      setAccountCreated(false);
       toast({ title: 'Login realizado com sucesso!' });
       setIsOpen(false);
       resetForm();
@@ -163,11 +176,20 @@ export function CustomerAuthDialog({ companyId }: { companyId?: string }) {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!auth || !firestore) return;
+    if (!auth || !firestore || registrationBusy.current) return;
+    if (!name.trim() || !/^\d{10,11}$/.test(phone.replace(/\D/g, '')) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) || password.length < 6) {
+      toast({ variant: 'destructive', title: 'Confira os dados do cadastro', description: 'Informe nome, telefone com DDD, e-mail válido e senha com pelo menos 6 caracteres.' });
+      return;
+    }
+    registrationBusy.current = true;
+    setRegistrationPending(true);
     setIsLoading(true);
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      await setDoc(doc(firestore, 'users', userCredential.user.uid), {
+      const registeredUser = accountCreated && auth.currentUser && !auth.currentUser.isAnonymous
+        ? auth.currentUser
+        : (await createUserWithEmailAndPassword(auth, email.trim(), password)).user;
+      setAccountCreated(true);
+      await setDoc(doc(firestore, 'users', registeredUser.uid), {
         name,
         phone,
         addressStreet: street,
@@ -177,7 +199,9 @@ export function CustomerAuthDialog({ companyId }: { companyId?: string }) {
         email,
         createdAt: new Date()
       });
-      toast({ title: 'Cadastro realizado com sucesso!' });
+      setRegistrationPending(false);
+      setAccountCreated(false);
+      toast({ title: 'Cadastro realizado com sucesso!', description: 'Agora você pode continuar seu pedido.' });
       setIsOpen(false);
       resetForm();
     } catch (error: any) {
@@ -202,6 +226,7 @@ export function CustomerAuthDialog({ companyId }: { companyId?: string }) {
         });
       }
     } finally {
+      registrationBusy.current = false;
       setIsLoading(false);
     }
   };
@@ -314,7 +339,7 @@ export function CustomerAuthDialog({ companyId }: { companyId?: string }) {
     );
   };
 
-  if (user && !user.isAnonymous) {
+  if (user && !user.isAnonymous && !registrationPending) {
     return (
       <div className="flex items-center gap-2">
         <Button 
@@ -541,7 +566,7 @@ export function CustomerAuthDialog({ companyId }: { companyId?: string }) {
 
   // Not logged in UI (Login/Register)
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { setIsOpen(open); if(!open) resetForm(); }}>
+    <Dialog open={isOpen} onOpenChange={(open) => { setIsOpen(open); if(!open && !registrationPending) resetForm(); }}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="gap-2 rounded-full">
           <User className="h-4 w-4" />
@@ -556,10 +581,10 @@ export function CustomerAuthDialog({ companyId }: { companyId?: string }) {
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="login" className="w-full mt-4">
+        <Tabs value={accessTab} onValueChange={setAccessTab} className="w-full mt-4">
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="login">Entrar</TabsTrigger>
-            <TabsTrigger value="register">Cadastrar</TabsTrigger>
+            <TabsTrigger value="login" disabled={isLoading || accountCreated}>Entrar</TabsTrigger>
+            <TabsTrigger value="register" disabled={isLoading}>Cadastrar</TabsTrigger>
           </TabsList>
           
           <TabsContent value="login">
@@ -589,50 +614,10 @@ export function CustomerAuthDialog({ companyId }: { companyId?: string }) {
           </TabsContent>
           
           <TabsContent value="register">
-            <form onSubmit={handleRegister} className="space-y-4 py-4 max-h-[60vh] overflow-y-auto px-1">
-              <div className="space-y-2">
-                <Label htmlFor="name">Nome Completo *</Label>
-                <Input id="name" required value={name} onChange={(e) => setName(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="phone">WhatsApp *</Label>
-                <Input id="phone" required value={phone} onChange={handlePhoneChange} placeholder="(99) 99999-9999" maxLength={15} />
-              </div>
-              
-              <div className="text-sm font-semibold mt-4">Endereço Padrão (Opcional)</div>
-              <div className="space-y-2">
-                <Label htmlFor="street">Rua</Label>
-                <Input id="street" value={street} onChange={(e) => setStreet(e.target.value)} />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="number">Número</Label>
-                  <Input id="number" value={number} onChange={(e) => setNumber(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="neighborhood">Bairro</Label>
-                  <Input id="neighborhood" value={neighborhood} onChange={(e) => setNeighborhood(e.target.value)} />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="complement">Complemento</Label>
-                <Input id="complement" placeholder="Ex: Apto 12, Bloco B (Opcional)" value={complement} onChange={(e) => setComplement(e.target.value)} />
-              </div>
-
-              <div className="text-sm font-semibold mt-4">Acesso</div>
-              <div className="space-y-2">
-                <Label htmlFor="email-reg">E-mail *</Label>
-                <Input id="email-reg" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password-reg">Senha *</Label>
-                <Input id="password-reg" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} minLength={6} />
-              </div>
-              
-              <Button type="submit" className="w-full mt-6" disabled={isLoading}>
-                {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Criar Conta'}
-              </Button>
-            </form>
+            <RegistrationAssistant name={name} phone={phone} email={email} password={password}
+              setName={setName} setEmail={setEmail} setPassword={setPassword}
+              onPhoneChange={handlePhoneChange} onSubmit={handleRegister}
+              loading={isLoading} accountCreated={accountCreated} />
           </TabsContent>
         </Tabs>
       </DialogContent>

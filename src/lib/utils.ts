@@ -39,67 +39,41 @@ export function hexToHsl(hex: string): { h: number; s: number; l: number } | nul
 /**
  * Verifica se a loja está aberta com base no JSON de horários.
  */
-export function isStoreOpen(businessHoursStr?: string): { isOpen: boolean; message?: string } {
+export function isStoreOpen(businessHoursStr?: string, now: Date = new Date()): { isOpen: boolean; message?: string } {
   if (!businessHoursStr) return { isOpen: true };
-  
   try {
     const hours = JSON.parse(businessHoursStr);
-    const now = new Date();
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Sao_Paulo', weekday: 'long',
+      hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+    }).formatToParts(now);
+    const dayName = parts.find(part => part.type === 'weekday')!.value.toLowerCase();
+    const currentTime = Number(parts.find(part => part.type === 'hour')!.value) * 60
+      + Number(parts.find(part => part.type === 'minute')!.value);
     const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-    const dayName = days[now.getDay()];
-    const config = hours[dayName];
-
-    if (!config || !config.isOpen) {
-      return { isOpen: false };
-    }
-
-    const currentTime = now.getHours() * 60 + now.getMinutes();
-
-    const checkSlot = (open?: string, close?: string) => {
-        if (!open || !close) return false;
-        
-        const openParts = open.split(':');
-        const closeParts = close.split(':');
-        if (openParts.length !== 2 || closeParts.length !== 2) return false;
-
-        const openH = parseInt(openParts[0], 10);
-        const openM = parseInt(openParts[1], 10);
-        const closeH = parseInt(closeParts[0], 10);
-        const closeM = parseInt(closeParts[1], 10);
-
-        if (isNaN(openH) || isNaN(openM) || isNaN(closeH) || isNaN(closeM)) return false;
-
-        const openMinutes = openH * 60 + openM;
-        const closeMinutes = closeH * 60 + closeM;
-
-        if (closeMinutes < openMinutes) {
-            // Horário passa da meia-noite
-            return currentTime >= openMinutes || currentTime < closeMinutes;
-        } else {
-            return currentTime >= openMinutes && currentTime < closeMinutes;
-        }
+    const previousDay = days[(days.indexOf(dayName) + 6) % 7];
+    const minutes = (value: unknown): number | null => {
+      if (typeof value !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(value)) return null;
+      const [hour, minute] = value.split(':').map(Number);
+      return hour * 60 + minute;
     };
-
-    if (config.slots && config.slots.length > 0) {
-        // Nova estrutura com múltiplos horários
-        for (const slot of config.slots) {
-            if (checkSlot(slot.openTime, slot.closeTime)) {
-                return { isOpen: true };
-            }
-        }
-        return { isOpen: false };
-    } else if (config.openTime && config.closeTime) {
-        // Estrutura legada de horário único
-        if (checkSlot(config.openTime, config.closeTime)) {
-            return { isOpen: true };
-        }
-        return { isOpen: false };
-    }
-
-    return { isOpen: false };
+    const matches = (config: any, previous: boolean) => {
+      if (!config?.isOpen) return false;
+      const slots = Array.isArray(config.slots) && config.slots.length
+        ? config.slots : [{ openTime: config.openTime, closeTime: config.closeTime }];
+      return slots.some((slot: any) => {
+        const opening = minutes(slot?.openTime), closing = minutes(slot?.closeTime);
+        if (opening === null || closing === null) return false;
+        // An overnight shift starts on its configured day and ends the next day.
+        if (previous) return closing < opening && currentTime < closing;
+        if (closing < opening) return currentTime >= opening;
+        return currentTime >= opening && currentTime < closing;
+      });
+    };
+    return { isOpen: matches(hours?.[dayName], false) || matches(hours?.[previousDay], true) };
   } catch (e) {
-    console.error("Erro ao validar horário:", e);
-    return { isOpen: true }; 
+    console.error('Erro ao validar horário:', e);
+    return { isOpen: true };
   }
 }
 
