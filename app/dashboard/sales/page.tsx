@@ -1502,15 +1502,15 @@ export default function POSPage() {
 
             {/* Options Entry Dialog */}
             <Dialog open={isOptionsDialogOpen} onOpenChange={setIsOptionsDialogOpen}>
-                <DialogContent className="sm:max-w-[450px] max-h-[90vh] flex flex-col p-0 overflow-hidden">
-                    <DialogHeader className="px-5 pt-5 pb-2">
+                <DialogContent className="sm:max-w-[450px] max-h-[90dvh] flex flex-col p-0 overflow-hidden">
+                    <DialogHeader className="shrink-0 px-5 pt-5 pb-2">
                         <DialogTitle>{selectedProductForOptions?.name}</DialogTitle>
                         <DialogDescription>
                             {selectedProductForOptions?.isSoldByWeight ? 'Produto vendido por peso.' : 'Selecione as opções do produto.'}
                         </DialogDescription>
                     </DialogHeader>
 
-                    <ScrollArea className="flex-1 px-5">
+                    <div className="min-h-0 flex-auto overflow-y-auto overscroll-contain px-5" style={{ scrollbarGutter: 'stable' }}>
                         <div className="py-2 flex flex-col gap-6">
                             {/* Variants Section */}
                             {selectedProductForOptions?.variants?.map(group => {
@@ -1616,8 +1616,8 @@ export default function POSPage() {
                                 />
                             </div>
                         </div>
-                    </ScrollArea>
-                    <div className="p-5 border-t bg-background">
+                    </div>
+                    <div className="shrink-0 p-5 border-t bg-background">
                         <div className="flex justify-between items-center mb-4">
                             <span className="text-sm text-muted-foreground font-medium">Total Estimado</span>
                             <span className="text-xl font-bold text-primary">
