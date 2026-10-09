@@ -81,16 +81,15 @@ export default function ReportsPage() {
 
     const ordersRef = useMemoFirebase(() => {
         if (!firestore || !user?.uid) return null;
-        try {
-            const start = parseISO(startDate);
-            return query(
-                collection(firestore, `companies/${user.uid}/orders`),
-                where('orderDate', '>=', start)
-            );
-        } catch {
-            return collection(firestore, `companies/${user.uid}/orders`);
-        }
-    }, [firestore, user?.uid, startDate]);
+        const start = startOfDay(parseISO(startDate));
+        const end = endOfDay(parseISO(endDate));
+        if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || start > end) return null;
+        return query(
+            collection(firestore, `companies/${user.uid}/orders`),
+            where('orderDate', '>=', start),
+            where('orderDate', '<=', end)
+        );
+    }, [firestore, user?.uid, startDate, endDate]);
 
     const { data: orders, isLoading } = useCollection<Order>(ordersRef);
 

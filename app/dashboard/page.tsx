@@ -177,17 +177,6 @@ export default function DashboardPage() {
   const { data: openSessions } = useCollection<CashSession>(openSessionRef);
   const currentCashSession = openSessions?.[0] ?? null;
 
-  // ── Cashier Transactions ────────────────────────────────────────────────
-  const transactionsRef = useMemoFirebase(() => {
-    if (!firestore || !user?.uid) return null;
-    let collRef = collection(firestore, `companies/${user.uid}/cashier_transactions`);
-    if (currentCashSession) {
-       return query(collRef, where('sessionId', '==', currentCashSession.id));
-    }
-    return query(collRef);
-  }, [firestore, user?.uid, currentCashSession]);
-  const { data: rawTransactions } = useCollection<any>(transactionsRef);
-
   // ── Modal State: Sangria ────────────────────────────────────────────────
   const [isSangriaOpen, setIsSangriaOpen] = useState(false);
   const [sangriaAmount, setSangriaAmount] = useState('');
@@ -212,6 +201,21 @@ export default function DashboardPage() {
     from: startOfDay(new Date()),
     to: endOfDay(new Date()),
   });
+
+  // ── Cashier Transactions ────────────────────────────────────────────────
+  const transactionsRef = useMemoFirebase(() => {
+    if (!firestore || !user?.uid) return null;
+    let collRef = collection(firestore, `companies/${user.uid}/cashier_transactions`);
+    if (currentCashSession) {
+       return query(collRef, where('sessionId', '==', currentCashSession.id));
+    }
+    if (!dateRange?.from) return null;
+    return query(collRef,
+      where('timestamp', '>=', startOfDay(dateRange.from)),
+      where('timestamp', '<=', endOfDay(dateRange.to || dateRange.from))
+    );
+  }, [firestore, user?.uid, currentCashSession?.id, dateRange?.from, dateRange?.to]);
+  const { data: rawTransactions } = useCollection<any>(transactionsRef);
 
   const handlePresetChange = (preset: 'today' | 'week' | 'month') => {
     setActivePreset(preset);

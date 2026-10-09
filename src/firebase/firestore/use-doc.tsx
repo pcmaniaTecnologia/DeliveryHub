@@ -1,9 +1,10 @@
 'use client';
     
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   DocumentReference,
   onSnapshot,
+  refEqual,
   DocumentData,
   FirestoreError,
   DocumentSnapshot,
@@ -47,8 +48,14 @@ export function useDoc<T = any>(
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<FirestoreError | Error | null>(null);
 
+  const stableRef = useRef(memoizedDocRef);
+  if (!stableRef.current || !memoizedDocRef || !refEqual(stableRef.current, memoizedDocRef)) {
+    stableRef.current = memoizedDocRef;
+  }
+  const target = stableRef.current;
+
   useEffect(() => {
-    if (!memoizedDocRef) {
+    if (!target) {
       setData(null);
       setIsLoading(false);
       setError(null);
@@ -60,7 +67,7 @@ export function useDoc<T = any>(
     // Optional: setData(null); // Clear previous data instantly
 
     const unsubscribe = onSnapshot(
-      memoizedDocRef,
+      target,
       (snapshot: DocumentSnapshot<DocumentData>) => {
         if (snapshot.exists()) {
           setData({ ...(snapshot.data() as T), id: snapshot.id });
@@ -74,20 +81,20 @@ export function useDoc<T = any>(
       (error: FirestoreError) => {
         const contextualError = new FirestorePermissionError({
           operation: 'get',
-          path: memoizedDocRef.path,
+          path: target.path,
         })
 
-        setError(contextualError)
+        setError(error.code === 'permission-denied' ? contextualError : error)
         setData(null)
         setIsLoading(false)
 
         // trigger global error propagation
-        errorEmitter.emit('permission-error', contextualError);
+        if (error.code === 'permission-denied') errorEmitter.emit('permission-error', contextualError);
       }
     );
 
     return () => unsubscribe();
-  }, [memoizedDocRef]); // Re-run if the memoizedDocRef changes.
+  }, [target]); // Re-run if the memoizedDocRef changes.
 
   return { data, isLoading, error };
 }

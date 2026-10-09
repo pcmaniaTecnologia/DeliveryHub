@@ -2,7 +2,8 @@
 
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { useFirestore, useUser, errorEmitter, FirestorePermissionError, updateDocument } from '@/firebase';
-import { collection, query, where, onSnapshot, Timestamp, doc } from 'firebase/firestore';
+import { collection, query, where, Timestamp, doc } from 'firebase/firestore';
+import { subscribeToQuery } from '@/firebase/firestore/shared-listener';
 import type { Order } from '../../app/dashboard/orders/page';
 import { generateOrderPrintHtml } from '@/lib/print-utils';
 import { useToast } from '@/hooks/use-toast';
@@ -40,7 +41,7 @@ export const NotificationProvider = ({ children, companyData }: NotificationProv
             where('status', 'in', ['Novo', 'Aguardando pagamento'])
         );
 
-        const unsubscribe = onSnapshot(q, (snapshot) => {
+        const unsubscribe = subscribeToQuery(q, (snapshot) => {
             snapshot.docChanges().forEach((change) => {
                 if (change.type === 'added') {
                     const orderData = change.doc.data();
@@ -71,6 +72,10 @@ export const NotificationProvider = ({ children, companyData }: NotificationProv
                 }
             });
         }, (error) => {
+            if (error.code !== 'permission-denied') {
+                console.error('Erro ao acompanhar novos pedidos:', error);
+                return;
+            }
             errorEmitter.emit('permission-error', new FirestorePermissionError({
                 path: `companies/${user.uid}/orders`,
                 operation: 'list'

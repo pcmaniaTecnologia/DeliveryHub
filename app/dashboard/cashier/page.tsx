@@ -144,13 +144,17 @@ export default function CashierPage() {
     let collRef = collection(firestore, `companies/${effectiveCompanyId}/cashier_transactions`);
     
     // Se estivermos vendo apenas a sessão atual, filtramos pelo ID dela
-    if (activePreset === 'session' && currentSession?.id) {
+    if (activePreset === 'session') {
+       if (!currentSession?.id) return null;
        return query(collRef, where('sessionId', '==', currentSession.id));
     }
 
-    // Caso contrário, buscamos tudo e filtramos na memória para evitar índices complexos
-    return query(collRef);
-  }, [firestore, user?.uid, currentSession?.id, activePreset]);
+    if (!dateRange?.from) return null;
+    return query(collRef,
+      where('timestamp', '>=', startOfDay(dateRange.from)),
+      where('timestamp', '<=', endOfDay(dateRange.to || dateRange.from))
+    );
+  }, [firestore, effectiveCompanyId, currentSession?.id, activePreset, dateRange?.from, dateRange?.to]);
 
   const { data: rawTransactions } = useCollection<CashTransaction>(transactionsRef);
 
