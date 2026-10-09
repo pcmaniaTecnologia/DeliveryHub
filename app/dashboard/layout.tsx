@@ -142,31 +142,8 @@ export default function DashboardLayout({
     }
   };
 
-  const handleClearCache = async () => {
-    // Clear Service Worker Cache Storage
-    if ('caches' in window) {
-      try {
-        const cacheNames = await caches.keys();
-        await Promise.all(cacheNames.map(name => caches.delete(name)));
-      } catch (err) {
-        console.error("Erro ao limpar cache", err);
-      }
-    }
-    
-    // Unregister Service Workers
-    if ('serviceWorker' in navigator) {
-      try {
-        const registrations = await navigator.serviceWorker.getRegistrations();
-        for (const registration of registrations) {
-          await registration.unregister();
-        }
-      } catch (err) {
-        console.error("Erro ao desregistrar service workers", err);
-      }
-    }
-
-    // Force hard reload bypassing cache if possible
-    window.location.href = window.location.pathname + '?t=' + new Date().getTime();
+  const handleReloadPage = () => {
+    window.location.reload();
   };
 
   // When admin impersonates a company, use their ID instead of the logged-in admin's UID
@@ -331,7 +308,7 @@ export default function DashboardLayout({
                 <Download className="h-3.5 w-3.5" />
                 Baixar App
               </Button>
-              <Button variant="outline" size="sm" onClick={handleClearCache} className="h-8 gap-1 text-muted-foreground hover:text-foreground">
+              <Button variant="outline" size="sm" onClick={handleReloadPage} title="Atualizar página do sistema" className="h-8 gap-1 text-muted-foreground hover:text-foreground">
                 <RefreshCw className="h-3.5 w-3.5" />
                 Atualizar
               </Button>
@@ -353,7 +330,7 @@ export default function DashboardLayout({
                 <Button variant="outline" size="icon" onClick={handleInstallClick} className="h-8 w-8 bg-primary text-primary-foreground hover:bg-primary/90 border-0" title="Baixar App">
                   <Download className="h-4 w-4" />
                 </Button>
-                <Button variant="outline" size="icon" onClick={handleClearCache} className="h-8 w-8 text-muted-foreground" title="Atualizar (Limpar Cache)">
+                <Button variant="outline" size="icon" onClick={handleReloadPage} className="h-8 w-8 text-muted-foreground" title="Atualizar página do sistema" aria-label="Atualizar página do sistema">
                   <RefreshCw className="h-4 w-4" />
                 </Button>
               </div>
