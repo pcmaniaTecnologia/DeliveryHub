@@ -342,11 +342,6 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
         }
     }
 
-    if (deliveryType === 'Delivery' && (!user || user.isAnonymous)) {
-        toast({ variant: 'destructive', title: 'Login Obrigatório', description: 'Por favor, faça login ou cadastre-se para pedir por delivery.' });
-        return;
-    }
-
     if (deliveryType === 'Delivery') {
         if (!addressStreet || !addressNumber || !addressNeighborhood) {
             toast({ variant: 'destructive', title: 'Endereço Incompleto', description: 'Por favor, preencha rua, número e bairro.' });
@@ -612,19 +607,18 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
                     <SheetHeader><SheetTitle>Finalizar Pedido</SheetTitle></SheetHeader>
                     <ScrollArea className="flex-grow pr-4">
                         <div className="space-y-4 py-4">
-                            {(!user || user.isAnonymous) && deliveryType !== 'Delivery' && (
+                            {(!user || user.isAnonymous) && (
                                 <div className="bg-muted/30 p-4 rounded-xl border flex flex-col gap-3">
                                     <div className="text-sm">
-                                        <p className="font-semibold text-primary">Já tem uma conta?</p>
-                                        <p className="text-xs text-muted-foreground mt-0.5">Faça login para acompanhar o pedido e salvar seus dados.</p>
+                                        <p className="font-semibold text-primary">Peça com conta ou sem conta</p>
+                                        <p className="text-xs text-muted-foreground mt-0.5">Continue como visitante preenchendo os dados abaixo, ou entre na sua conta para usar seus dados salvos e consultar o histórico.</p>
                                     </div>
                                     <div className="w-full flex justify-start">
                                         <CustomerAuthDialog companyId={companyId} />
                                     </div>
                                 </div>
                             )}
-                            {deliveryType !== 'Delivery' && (
-                                <>
+                            <>
                                     <div className="grid gap-2">
                                         <Label>Nome Completo <span className="text-destructive">*</span></Label>
                                         <Input placeholder="Seu nome" value={customerName} onChange={e => setCustomerName(e.target.value)} />
@@ -633,8 +627,7 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
                                         <Label>WhatsApp <span className="text-destructive">*</span></Label>
                                         <Input placeholder="(99) 99999-9999" value={customerPhone} onChange={handlePhoneChange} maxLength={15} />
                                     </div>
-                                </>
-                            )}
+                            </>
                             {!tableParam && (
                             <>
                             <Separator />
@@ -654,47 +647,32 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
 
                             {deliveryType === 'Delivery' && (
                                 <div className="space-y-3 mt-2">
-                                    {(!user || user.isAnonymous) ? (
-                                        <div className="bg-primary/5 border border-primary/20 rounded-xl p-6 flex flex-col items-center justify-center text-center space-y-4">
-                                            <div className="bg-background p-3 rounded-full shadow-sm"><MapPin className="h-6 w-6 text-primary" /></div>
-                                            <div>
-                                                <h3 className="font-bold text-lg text-primary">Login Obrigatório para Delivery</h3>
-                                                <p className="text-sm text-muted-foreground mt-1">Para garantir a segurança da entrega e salvar seu endereço, você precisa se identificar.</p>
-                                            </div>
-                                            <div className="w-full flex justify-center pt-2">
-                                                <CustomerAuthDialog companyId={companyId} />
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            <div className="grid grid-cols-3 gap-2">
-                                                <div className="col-span-2">
-                                                    <Input placeholder="Rua" value={addressStreet} onChange={e => setAddressStreet(e.target.value)} />
-                                                </div>
-                                                <Input placeholder="Nº" value={addressNumber} onChange={e => setAddressNumber(e.target.value)} />
-                                            </div>
-                                            <div className="grid gap-1.5">
-                                                <Label className="text-xs">Selecione o Bairro <span className="text-destructive">*</span></Label>
-                                                <Select value={addressNeighborhood} onValueChange={setAddressNeighborhood}>
-                                                    <SelectTrigger>
-                                                        <SelectValue placeholder="Escolha um bairro" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {isLoadingZones ? (
-                                                            <SelectItem value="loading" disabled>Carregando...</SelectItem>
-                                                        ) : activeDeliveryZones.length > 0 ? (
-                                                            activeDeliveryZones.map(zone => (
-                                                                <SelectItem key={zone.id} value={zone.neighborhood}>{zone.neighborhood} (R$ {zone.deliveryFee.toFixed(2)})</SelectItem>
-                                                            ))
-                                                        ) : (
-                                                            <SelectItem value="none" disabled>Nenhum bairro cadastrado</SelectItem>
-                                                        )}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                            <Input placeholder="Complemento (Opcional)" value={addressComplement} onChange={e => setAddressComplement(e.target.value)} />
-                                        </>
-                                    )}
+                                <div className="grid grid-cols-3 gap-2">
+                                    <div className="col-span-2">
+                                        <Input placeholder="Rua" value={addressStreet} onChange={e => setAddressStreet(e.target.value)} />
+                                    </div>
+                                    <Input placeholder="Nº" value={addressNumber} onChange={e => setAddressNumber(e.target.value)} />
+                                </div>
+                                <div className="grid gap-1.5">
+                                    <Label className="text-xs">Selecione o Bairro <span className="text-destructive">*</span></Label>
+                                    <Select value={addressNeighborhood} onValueChange={setAddressNeighborhood}>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Escolha um bairro" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {isLoadingZones ? (
+                                                <SelectItem value="loading" disabled>Carregando...</SelectItem>
+                                            ) : activeDeliveryZones.length > 0 ? (
+                                                activeDeliveryZones.map(zone => (
+                                                    <SelectItem key={zone.id} value={zone.neighborhood}>{zone.neighborhood} (R$ {zone.deliveryFee.toFixed(2)})</SelectItem>
+                                                ))
+                                            ) : (
+                                                <SelectItem value="none" disabled>Nenhum bairro cadastrado</SelectItem>
+                                            )}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <Input placeholder="Complemento (Opcional)" value={addressComplement} onChange={e => setAddressComplement(e.target.value)} />
                                 </div>
                             )}
                             {!tableParam && (
@@ -773,8 +751,8 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
                             {discountAmount > 0 && <div className="flex justify-between text-green-600 font-semibold"><span>Desconto</span><span>-R$ {discountAmount.toFixed(2)}</span></div>}
                             <div className="flex justify-between font-bold text-lg pt-1 border-t"><span>Total</span><span className="text-primary">R$ {finalTotal.toFixed(2)}</span></div>
                         </div>
-                        <Button className="w-full h-12 text-lg shadow-md" onClick={handlePlaceOrder} disabled={isSubmitting || isLoadingCompany || (deliveryType === 'Delivery' && (!user || user.isAnonymous))}>
-                            {isSubmitting ? 'Processando...' : isLoadingCompany ? 'Carregando...' : (deliveryType === 'Delivery' && (!user || user.isAnonymous)) ? 'Faça login para continuar' : 'Confirmar e Enviar'}
+                        <Button className="w-full h-12 text-lg shadow-md" onClick={handlePlaceOrder} disabled={isSubmitting || isLoadingCompany}>
+                            {isSubmitting ? 'Processando...' : isLoadingCompany ? 'Carregando...' : 'Confirmar e Enviar'}
                         </Button>
                         {(!user || user.isAnonymous) && (
                             <p className="text-xs text-center text-muted-foreground mt-2">
