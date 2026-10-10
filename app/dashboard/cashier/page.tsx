@@ -31,6 +31,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
@@ -86,6 +87,7 @@ export default function CashierPage() {
   const [transactionType, setTransactionType] = useState<'withdrawal' | 'deposit'>('withdrawal');
   const [transactionAmount, setTransactionAmount] = useState('');
   const [transactionDesc, setTransactionDesc] = useState('');
+  const [transactionPaymentMethod, setTransactionPaymentMethod] = useState('Dinheiro');
 
   const [isClosing, setIsClosing] = useState(false);
   const [closingActual, setClosingActual] = useState('');
@@ -539,6 +541,7 @@ export default function CashierPage() {
         type: transactionType,
         amount,
         description: transactionDesc || (transactionType === 'withdrawal' ? 'Retirada Manual' : 'Reforço de Caixa'),
+        paymentMethod: transactionType === 'withdrawal' ? transactionPaymentMethod : 'Dinheiro',
         timestamp: serverTimestamp()
       });
 
@@ -557,6 +560,7 @@ export default function CashierPage() {
       setIsAddingTransaction(false);
       setTransactionAmount('');
       setTransactionDesc('');
+      setTransactionPaymentMethod('Dinheiro');
     } catch (error) {
       toast({ variant: 'destructive', title: 'Erro ao registrar', description: 'Não foi possível salvar a movimentação.' });
     }
@@ -922,6 +926,21 @@ export default function CashierPage() {
                                     />
                                 </div>
                                 </div>
+                                {transactionType === 'withdrawal' && (
+                                  <div className="space-y-2">
+                                    <Label htmlFor="transaction-payment-method">Espécie</Label>
+                                    <Select value={transactionPaymentMethod} onValueChange={setTransactionPaymentMethod}>
+                                      <SelectTrigger id="transaction-payment-method">
+                                        <SelectValue placeholder="Selecione a espécie" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {['Cartão de Crédito', 'PIX', 'Cartão de Débito', 'Dinheiro'].map(method => (
+                                          <SelectItem key={method} value={method}>{method}</SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                )}
                                 <div className="space-y-2">
                                 <Label>Descrição / Motivo</Label>
                                 <Input 

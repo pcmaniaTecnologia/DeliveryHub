@@ -21,6 +21,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
@@ -181,6 +182,7 @@ export default function DashboardPage() {
   const [isSangriaOpen, setIsSangriaOpen] = useState(false);
   const [sangriaAmount, setSangriaAmount] = useState('');
   const [sangriaDesc, setSangriaDesc] = useState('');
+  const [sangriaPaymentMethod, setSangriaPaymentMethod] = useState('Dinheiro');
   const [isSavingSangria, setIsSavingSangria] = useState(false);
 
   // ── Modal State: Suprimento ─────────────────────────────────────────────
@@ -252,6 +254,7 @@ export default function DashboardPage() {
         type: 'withdrawal',
         amount,
         description: sangriaDesc.trim() || 'Sangria de Caixa',
+        paymentMethod: sangriaPaymentMethod,
         timestamp: serverTimestamp(),
       });
       const sessDocRef = doc(firestore, `companies/${user.uid}/cashier_sessions`, currentCashSession.id);
@@ -260,6 +263,7 @@ export default function DashboardPage() {
       });
       toast({ title: '✅ Sangria registrada!', description: `R$ ${amount.toFixed(2)} retirado do caixa.` });
       setSangriaAmount(''); setSangriaDesc(''); setIsSangriaOpen(false);
+      setSangriaPaymentMethod('Dinheiro');
     } catch {
       toast({ variant: 'destructive', title: 'Erro ao registrar sangria' });
     }
@@ -474,7 +478,7 @@ export default function DashboardPage() {
             <DialogTitle className="flex items-center gap-2">
               <ArrowDownCircle className="h-5 w-5 text-rose-500" /> Sangria de Caixa
             </DialogTitle>
-            <DialogDescription>Registre uma retirada de dinheiro do caixa físico.</DialogDescription>
+            <DialogDescription>Registre uma saída do caixa na espécie selecionada.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
             <div className="space-y-2">
@@ -485,6 +489,19 @@ export default function DashboardPage() {
                   value={sangriaAmount} onChange={e => setSangriaAmount(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleSangria()} autoFocus />
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="sangria-payment-method">Espécie</Label>
+              <Select value={sangriaPaymentMethod} onValueChange={setSangriaPaymentMethod}>
+                <SelectTrigger id="sangria-payment-method">
+                  <SelectValue placeholder="Selecione a espécie" />
+                </SelectTrigger>
+                <SelectContent>
+                  {['Cartão de Crédito', 'PIX', 'Cartão de Débito', 'Dinheiro'].map(method => (
+                    <SelectItem key={method} value={method}>{method}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label>Motivo</Label>
