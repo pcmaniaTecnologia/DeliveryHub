@@ -69,7 +69,7 @@ export default function AdminLayout({
   useEffect(() => {
     if (!isUserLoading && !isLoadingAdmin) {
       if (!user || user.isAnonymous) {
-        router.replace('/');
+        router.replace('/login');
       }
     }
   }, [user, isUserLoading, isLoadingAdmin, router]);

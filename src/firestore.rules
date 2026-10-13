@@ -60,10 +60,13 @@ service cloud.firestore {
       allow list: if isSuperAdmin();
       
       // Allow user to create their own company document.
-      allow create: if isOwner(companyId) && request.resource.data.ownerId == request.auth.uid;
+      allow create: if isOwner(companyId) && request.resource.data.ownerId == request.auth.uid
+                    && request.resource.data.get('showcaseEnabled', false) == false;
       
       // Allow update if user is the owner OR is a super admin.
-      allow update: if (isOwner(companyId) && request.resource.data.ownerId == request.auth.uid) || isSuperAdmin();
+      allow update: if (isOwner(companyId) && request.resource.data.ownerId == request.auth.uid
+                        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['showcaseEnabled']))
+                    || isSuperAdmin();
       
       // Allow delete if user is the owner OR is a super admin.
       allow delete: if isOwner(companyId) || isSuperAdmin();

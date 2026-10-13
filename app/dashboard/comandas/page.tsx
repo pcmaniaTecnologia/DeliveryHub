@@ -97,7 +97,7 @@ export default function ComandasPage() {
         if (!firestore || !effectiveCompanyId) return null;
         return query(
             collection(firestore, `companies/${effectiveCompanyId}/orders`),
-            where('deliveryType', '==', 'Mesa')
+            where('status', 'not-in', ['Entregue', 'Cancelado'])
         );
     }, [firestore, effectiveCompanyId]);
 

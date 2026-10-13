@@ -1,0 +1,18 @@
+const fs = require('node:fs');
+const vm = require('node:vm');
+const ts = require('typescript');
+const assert = require('node:assert/strict');
+const result = {};
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/lib/firebase-admin-options.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { exports: result });
+const { getAdminOptions } = result;
+let calls = 0;
+const cert = value => { calls++; return value; };
+assert.equal(getAdminOptions({}, cert).projectId, 'studio-516051115-a8e0e');
+assert.equal(calls, 0, 'Google hosting keeps default credentials');
+const options = getAdminOptions({ FIREBASE_ADMIN_PROJECT_ID: 'project', FIREBASE_ADMIN_CLIENT_EMAIL: 'server@example.com', FIREBASE_ADMIN_PRIVATE_KEY: 'line1\\nline2' }, cert);
+assert.equal(options.credential.privateKey, 'line1\nline2');
+assert.equal(options.credential.clientEmail, 'server@example.com');
+assert.equal(options.projectId, 'project');
+assert.throws(() => getAdminOptions({ FIREBASE_ADMIN_CLIENT_EMAIL: 'server@example.com' }, cert), /Configure/);
+assert.throws(() => getAdminOptions({ FIREBASE_ADMIN_PRIVATE_KEY: 'secret' }, cert), /Configure/);
+console.log('PASS: default credentials, server credentials, escaped newlines and incomplete configuration');

@@ -47,7 +47,7 @@ export default function ForgotPasswordPage() {
     } catch (error: any) {
       if (error instanceof FirebaseError && error.code === 'auth/user-not-found') {
         // To avoid user enumeration, we can show a generic message even if user not found.
-        setIsSent(true); 
+        setIsSent(true);
          toast({
             title: 'E-mail enviado!',
             description: 'Se uma conta com este e-mail existir, um link de redefinição será enviado.',
@@ -74,7 +74,7 @@ export default function ForgotPasswordPage() {
           </div>
           <CardTitle className="text-2xl font-bold">Esqueceu sua senha?</CardTitle>
           <CardDescription>
-            {isSent 
+            {isSent
                 ? 'Verifique sua caixa de entrada e siga as instruções.'
                 : 'Digite seu e-mail para receber um link de redefinição.'
             }
@@ -107,7 +107,7 @@ export default function ForgotPasswordPage() {
                 </form>
             )}
             <div className="mt-4 text-center text-sm">
-                <Link href="/" className="underline flex items-center justify-center gap-1">
+                <Link href="/login" className="underline flex items-center justify-center gap-1">
                     <ArrowLeft className="h-4 w-4" />
                     Voltar para o login
                 </Link>

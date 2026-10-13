@@ -3,12 +3,12 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   DocumentReference,
-  onSnapshot,
   refEqual,
   DocumentData,
   FirestoreError,
   DocumentSnapshot,
 } from 'firebase/firestore';
+import { subscribeToDocument } from './shared-document-listener';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
@@ -66,7 +66,7 @@ export function useDoc<T = any>(
     setError(null);
     // Optional: setData(null); // Clear previous data instantly
 
-    const unsubscribe = onSnapshot(
+    const unsubscribe = subscribeToDocument(
       target,
       (snapshot: DocumentSnapshot<DocumentData>) => {
         if (snapshot.exists()) {

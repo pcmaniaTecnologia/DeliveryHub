@@ -1,9 +1,8 @@
 import * as admin from 'firebase-admin';
+import { getAdminOptions } from './firebase-admin-options';
 
 if (!admin.apps.length) {
-    admin.initializeApp({
-        projectId: 'studio-516051115-a8e0e',
-    });
+    admin.initializeApp(getAdminOptions(process.env, admin.credential.cert));
 }
 
 export const adminDb = admin.firestore();

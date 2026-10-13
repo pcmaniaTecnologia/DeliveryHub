@@ -4,10 +4,12 @@ const vm = require('node:vm');
 const assert = require('node:assert/strict');
 const ts = require('typescript');
 
+for (const kind of ['query', 'document']) {
 const handles = [];
 const timers = new Map();
 let timerId = 0;
 const firebase = {
+  refEqual: (a, b) => a.db === b.db && a.path === b.path && a.filter === b.filter,
   queryEqual: (a, b) => a.db === b.db && a.path === b.path && a.filter === b.filter,
   onSnapshot: (query, next, error) => {
     const handle = { query, next, error, stopped: false };
@@ -16,7 +18,7 @@ const firebase = {
   },
 };
 const exportsObject = {};
-const source = fs.readFileSync(path.join(__dirname, '../src/firebase/firestore/shared-listener.ts'), 'utf8');
+const source = fs.readFileSync(path.join(__dirname, kind === 'query' ? '../src/firebase/firestore/shared-listener.ts' : '../src/firebase/firestore/shared-document-listener.ts'), 'utf8');
 vm.runInNewContext(ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS },
 }).outputText, {
@@ -25,7 +27,7 @@ vm.runInNewContext(ts.transpileModule(source, {
   setTimeout: callback => { const id = ++timerId; timers.set(id, callback); return id; },
   clearTimeout: id => timers.delete(id),
 });
-const subscribe = exportsObject.subscribeToQuery;
+const subscribe = kind === 'query' ? exportsObject.subscribeToQuery : exportsObject.subscribeToDocument;
 const target = { db: 'one', path: 'orders', filter: 'active' };
 const first = [], second = [], remount = [], errors = [];
 const stopFirst = subscribe(target, value => first.push(value), value => errors.push(value));
@@ -54,3 +56,5 @@ assert.equal(errors[0].code, 'resource-exhausted', 'quota error is preserved');
 stopError();
 for (const callback of timers.values()) callback();
 console.log('PASS: query sharing, snapshots, remount, isolation, cleanup and quota errors');
+
+}

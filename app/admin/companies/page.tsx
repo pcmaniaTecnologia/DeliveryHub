@@ -57,8 +57,9 @@ type Company = {
   email?: string;
   phone?: string;
   isActive?: boolean;
+  showcaseEnabled?: boolean;
   planId?: string;
-  subscriptionEndDate?: Timestamp; 
+  subscriptionEndDate?: Timestamp;
   createdAt?: Timestamp | any;
 };
 
@@ -75,12 +76,13 @@ export default function ManageCompaniesPage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
-  
+
   const [searchQuery, setSearchQuery] = useState('');
+  const [savingShowcase, setSavingShowcase] = useState<Set<string>>(new Set());
   const [isBulkOpen, setIsBulkOpen] = useState(false);
   const [bulkMessage, setBulkMessage] = useState('');
   const [bulkQueue, setBulkQueue] = useState<{ id: string, name: string, phone: string, sent: boolean }[]>([]);
-  
+
   const [selectedCompanyForPlan, setSelectedCompanyForPlan] = useState<Company | null>(null);
   const [isPlanDialogOpen, setIsPlanDialogOpen] = useState(false);
   const [isExpiryDialogOpen, setIsExpiryDialogOpen] = useState(false);
@@ -107,7 +109,7 @@ export default function ManageCompaniesPage() {
       window.open(url, '_blank');
       setBulkQueue(prev => prev.map(q => q.id === currentBulkTarget.id ? { ...q, sent: true } : q));
   };
-  
+
   const handleSendIndividual = (company: Company) => {
       if (!company.phone) return toast({ variant: 'destructive', description: "Telefone não cadastrado." });
       const phone = company.phone.replace(/\D/g, '');
@@ -132,7 +134,7 @@ export default function ManageCompaniesPage() {
     if (!firestore) return;
     const company = companies?.find(c => c.id === companyId);
     const companyDocRef = doc(firestore, 'companies', companyId);
-    
+
     // Se estiver ativando e não tiver plano, abre o diálogo de plano primeiro
     if (!currentStatus && (!hasPlan || !company?.planId)) {
         if (company) {
@@ -142,28 +144,44 @@ export default function ManageCompaniesPage() {
         }
     }
 
-    const updateData: { isActive: boolean, subscriptionEndDate?: Date } = { 
-        isActive: !currentStatus 
+    const updateData: { isActive: boolean, subscriptionEndDate?: Date } = {
+        isActive: !currentStatus
     };
 
     // When activating the company, set a 30-day subscription period.
     if (!currentStatus) {
         updateData.subscriptionEndDate = addDays(new Date(), 30);
     }
-    
+
     updateDocument(companyDocRef, updateData).catch(error => {
        // This will be caught by the global error listener
     });
-    
+
     toast({
         title: 'Status da Empresa Atualizado!',
         description: `A empresa foi ${!currentStatus ? 'ativada' : 'desativada'}. ${!currentStatus ? 'A assinatura é válida por 30 dias.' : ''}`,
     });
   };
 
+  const handleToggleShowcase = async (company: Company, enabled: boolean) => {
+    if (!firestore || savingShowcase.has(company.id)) return;
+    setSavingShowcase(previous => new Set(previous).add(company.id));
+    try {
+      await updateDocument(doc(firestore, 'companies', company.id), { showcaseEnabled: enabled });
+      toast({
+        title: enabled ? 'Empresa selecionada para a vitrine' : 'Empresa retirada da vitrine',
+        description: 'A listagem pública pode levar até 5 minutos para atualizar. Só aparecem empresas ativas com assinatura válida.',
+      });
+    } catch {
+      toast({ variant: 'destructive', title: 'Não foi possível alterar a vitrine', description: 'Tente novamente.' });
+    } finally {
+      setSavingShowcase(previous => { const next = new Set(previous); next.delete(company.id); return next; });
+    }
+  };
+
   const handleDeleteCompany = (companyId: string) => {
     if (!firestore) return;
-    
+
     const companyDocRef = doc(firestore, 'companies', companyId);
     // The owner's user document is in a subcollection where the userId is the same as the companyId
     const companyUserDocRef = doc(firestore, 'companies', companyId, 'users', companyId);
@@ -189,14 +207,14 @@ export default function ManageCompaniesPage() {
         // This will be caught by the global error listener
     });
   };
-  
+
   const handleUpdatePlan = (companyId: string, planId: string) => {
     if (!firestore) return;
     const companyDocRef = doc(firestore, 'companies', companyId);
-    
-    updateDocument(companyDocRef, { 
+
+    updateDocument(companyDocRef, {
         planId,
-        isActive: true, 
+        isActive: true,
         subscriptionEndDate: addDays(new Date(), 30)
     }).then(() => {
         toast({ title: 'Plano Atualizado!', description: 'A empresa foi atualizada com o novo plano.' });
@@ -208,11 +226,11 @@ export default function ManageCompaniesPage() {
   const handleUpdateExpiryDate = () => {
     if (!firestore || !selectedCompanyForPlan || !newExpiryDate) return;
     const companyDocRef = doc(firestore, 'companies', selectedCompanyForPlan.id);
-    
+
     const [year, month, day] = newExpiryDate.split('-').map(Number);
     const date = new Date(year, month - 1, day, 23, 59, 59);
-    
-    updateDocument(companyDocRef, { 
+
+    updateDocument(companyDocRef, {
         subscriptionEndDate: date,
         isActive: true
     }).then(() => {
@@ -235,7 +253,7 @@ export default function ManageCompaniesPage() {
       <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
             <CardTitle>Gerenciar Empresas</CardTitle>
-            <CardDescription>Visualize os emails, ative, desative ou exclua as lojas da plataforma.</CardDescription>
+            <CardDescription>Gerencie as empresas e escolha quais aparecem na vitrine. Ative “Vitrine” para exibir uma empresa ativa com assinatura válida. Alterações podem levar até 5 minutos.</CardDescription>
         </div>
         <div className="flex w-full sm:w-auto items-center gap-2">
             <div className="relative w-full sm:w-64">
@@ -272,13 +290,14 @@ export default function ManageCompaniesPage() {
               <TableHead>Data de Assinatura</TableHead>
               <TableHead>Validade da Assinatura</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Vitrine</TableHead>
               <TableHead className="text-center">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
              {isLoading && (
               <TableRow>
-                <TableCell colSpan={8} className="text-center">Carregando empresas...</TableCell>
+                <TableCell colSpan={9} className="text-center">Carregando empresas...</TableCell>
               </TableRow>
             )}
             {!isLoading && filteredCompanies.map((company) => (
@@ -304,14 +323,27 @@ export default function ManageCompaniesPage() {
                   })()}
                 </TableCell>
                 <TableCell>
-                  {company.subscriptionEndDate && typeof company.subscriptionEndDate.toDate === 'function' 
-                    ? format(company.subscriptionEndDate.toDate(), 'dd/MM/yyyy') 
+                  {company.subscriptionEndDate && typeof company.subscriptionEndDate.toDate === 'function'
+                    ? format(company.subscriptionEndDate.toDate(), 'dd/MM/yyyy')
                     : 'N/A'}
                 </TableCell>
                 <TableCell>
                   <Badge variant={company.isActive ? 'default' : 'destructive'}>
                     {company.isActive ? 'Ativa' : 'Inativa'}
                   </Badge>
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-2 whitespace-nowrap">
+                    <Switch
+                      checked={company.showcaseEnabled === true}
+                      disabled={savingShowcase.has(company.id)}
+                      onCheckedChange={enabled => handleToggleShowcase(company, enabled)}
+                      aria-label={`Exibir ${company.name} na vitrine`}
+                    />
+                    <span className="text-xs text-muted-foreground">
+                      {savingShowcase.has(company.id) ? 'Salvando...' : company.showcaseEnabled === true ? 'Selecionada' : 'Oculta'}
+                    </span>
+                  </div>
                 </TableCell>
                 <TableCell className="text-center">
                     <div className="flex items-center justify-center gap-2">
@@ -381,7 +413,7 @@ export default function ManageCompaniesPage() {
             ))}
              {!isLoading && filteredCompanies.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center">Nenhuma empresa encontrada com essa busca.</TableCell>
+                  <TableCell colSpan={9} className="text-center">Nenhuma empresa encontrada com essa busca.</TableCell>
                 </TableRow>
               )}
           </TableBody>
@@ -404,8 +436,8 @@ export default function ManageCompaniesPage() {
             </DialogHeader>
             {bulkQueue.length === 0 ? (
                 <div className="space-y-4 pt-4">
-                    <Textarea 
-                        placeholder="Olá, {empresa}! Temos novidades plataforma..." 
+                    <Textarea
+                        placeholder="Olá, {empresa}! Temos novidades plataforma..."
                         rows={6}
                         value={bulkMessage}
                         onChange={(e) => setBulkMessage(e.target.value)}
@@ -435,7 +467,7 @@ export default function ManageCompaniesPage() {
                             </Badge>
                         )}
                     </div>
-                    
+
                     <ScrollArea className="h-64 rounded-md border p-4">
                         {bulkQueue.map((q, i) => (
                             <div key={q.id} className="flex items-center justify-between py-2 border-b last:border-0 opacity-60">
@@ -463,8 +495,8 @@ export default function ManageCompaniesPage() {
             </DialogHeader>
             <div className="grid gap-4 py-4">
                 {plans?.map(plan => (
-                    <Button 
-                        key={plan.id} 
+                    <Button
+                        key={plan.id}
                         variant={selectedCompanyForPlan?.planId === plan.id ? "default" : "outline"}
                         className="justify-between h-auto py-4 px-6"
                         onClick={() => handleUpdatePlan(selectedCompanyForPlan!.id, plan.id)}
@@ -472,8 +504,8 @@ export default function ManageCompaniesPage() {
                         <div className="text-left">
                             <div className="font-bold">{plan.name}</div>
                             <div className="text-xs opacity-70">
-                                {plan.billingType === 'per_order' 
-                                    ? `R$ ${plan.pricePerOrder?.toFixed(2)} por pedido` 
+                                {plan.billingType === 'per_order'
+                                    ? `R$ ${plan.pricePerOrder?.toFixed(2)} por pedido`
                                     : `R$ ${plan.price?.toFixed(2)} por mês`}
                             </div>
                         </div>
@@ -494,7 +526,7 @@ export default function ManageCompaniesPage() {
             <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
                     <label htmlFor="expiry-date" className="text-sm font-medium">Data de Vencimento</label>
-                    <Input 
+                    <Input
                         id="expiry-date"
                         type="date"
                         value={newExpiryDate}
