@@ -240,7 +240,7 @@ export default function CartSheet({ companyId }: { companyId: string}) {
 
         const freshProduct = productSnap.data();
 
-        if (freshProduct.isActive === false) {
+        if (freshProduct.isActive === false || freshProduct.deliveryEnabled === false) {
              toast({
                 variant: 'destructive',
                 title: 'Produto Indisponível',

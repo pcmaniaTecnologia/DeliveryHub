@@ -31,7 +31,8 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useToast } from '@/hooks/use-toast';
 import { Textarea } from '@/components/ui/textarea';
-import { useParams } from 'next/navigation';
+import { useParams, usePathname } from 'next/navigation';
+import { isProductAvailableForDelivery } from '@/lib/product-delivery';
 import { Badge } from '@/components/ui/badge';
 
 
@@ -64,6 +65,7 @@ export type Product = {
     categoryId: string;
     category?: string;
     isActive: boolean;
+    deliveryEnabled?: boolean;
     imageUrl?: string;
     imageUrls?: string[];
     variants?: VariantGroup[];
@@ -435,6 +437,8 @@ const ProductCard = ({ product, userVote, onVote }: { product: Product, userVote
 
 
 export default function MenuPage() {
+  const pathname = usePathname();
+  const isDeliveryMenu = !pathname?.startsWith('/waiter/');
   const [failedLogoUrl, setFailedLogoUrl] = useState<string | null>(null);
   const params = useParams();
   const companyId = params?.companyId as string;
@@ -525,6 +529,7 @@ export default function MenuPage() {
     const activeProducts = products.filter(p => {
         const matchesActive = p.isActive;
         if (!matchesActive) return false;
+        if (isDeliveryMenu && !isProductAvailableForDelivery(p)) return false;
         
         if (!searchQuery.trim()) return true;
         
@@ -583,7 +588,7 @@ export default function MenuPage() {
     
     return finalGrouped;
 
-  }, [products, categories, searchQuery]);
+  }, [products, categories, searchQuery, isDeliveryMenu]);
 
   const isLoading = isLoadingCompany || isLoadingProducts || isLoadingCategories;
 

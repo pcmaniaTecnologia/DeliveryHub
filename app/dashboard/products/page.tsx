@@ -93,6 +93,7 @@ const productFormSchema = z.object({
   categoryId: z.string().min(1, { message: 'A categoria é obrigatória.' }),
   imageUrl: z.string().url({ message: 'Por favor, insira uma URL válida.' }).optional().or(z.literal('')),
   isActive: z.boolean().default(true),
+  deliveryEnabled: z.boolean().default(true),
   stockControlEnabled: z.boolean().default(false),
   stock: z.coerce.number().int().default(0),
   variants: z.array(variantGroupSchema).optional(),
@@ -112,6 +113,7 @@ type Product = {
     price: number;
     categoryId: string;
     isActive: boolean;
+    deliveryEnabled?: boolean;
     stockControlEnabled?: boolean;
     stock: number;
     imageUrls: string[];
@@ -153,6 +155,7 @@ export default function ProductsPage() {
       categoryId: '',
       imageUrl: '',
       isActive: true,
+      deliveryEnabled: true,
       stockControlEnabled: false,
       stock: 0,
       variants: [],
@@ -175,6 +178,7 @@ export default function ProductsPage() {
         price: editingProduct.price,
         categoryId: editingProduct.categoryId,
         isActive: editingProduct.isActive,
+        deliveryEnabled: editingProduct.deliveryEnabled !== false,
         stockControlEnabled: editingProduct.stockControlEnabled ?? false,
         stock: editingProduct.stock ?? 0,
         imageUrl: editingProduct.imageUrls?.[0] || '',
@@ -191,6 +195,7 @@ export default function ProductsPage() {
         categoryId: '',
         imageUrl: '',
         isActive: true,
+        deliveryEnabled: true,
         stockControlEnabled: false,
         stock: 0,
         variants: [],
@@ -817,6 +822,23 @@ export default function ProductsPage() {
                 
                 <FormField
                   control={form.control}
+                  name="deliveryEnabled"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                      <div className="space-y-0.5">
+                        <FormLabel>Disponível no delivery</FormLabel>
+                        <FormDescription>
+                          Desmarque para ocultar este produto do cardápio online. Ele continua disponível nas vendas internas e no atendimento do garçom.
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch checked={field.value} onCheckedChange={field.onChange} />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
                   name="stockControlEnabled"
                   render={({ field }) => (
                     <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-primary/5 border-primary/20">
@@ -1021,6 +1043,7 @@ export default function ProductsPage() {
                     <Badge variant={!product.isActive ? 'outline' : 'default'}>
                       {product.isActive ? 'Ativo' : 'Inativo'}
                     </Badge>
+                    {product.deliveryEnabled === false && <Badge variant="outline" className="mt-1 block w-fit">Fora do delivery</Badge>}
                   </TableCell>
                   <TableCell>R${product.price.toFixed(2)}</TableCell>
                   <TableCell className="hidden md:table-cell">{product.stock ?? 0}</TableCell>

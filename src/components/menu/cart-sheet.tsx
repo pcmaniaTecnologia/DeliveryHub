@@ -364,7 +364,7 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
             continue;
         }
 
-        if (freshProduct.isActive === false) {
+        if (freshProduct.isActive === false || (deliveryType !== 'Mesa' && freshProduct.deliveryEnabled === false)) {
             invalidItems.push(`"${item.product.name}" (Indisponível)`);
             continue;
         }
