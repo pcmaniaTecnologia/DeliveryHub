@@ -30,7 +30,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useUser, useFirestore, useCollection, useMemoFirebase, updateDocument, deleteDocument, errorEmitter, FirestorePermissionError } from '@/firebase';
-import { collection, doc, type Timestamp } from 'firebase/firestore';
+import { collection, doc, writeBatch, type Timestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -167,7 +167,12 @@ export default function ManageCompaniesPage() {
     if (!firestore || savingShowcase.has(company.id)) return;
     setSavingShowcase(previous => new Set(previous).add(company.id));
     try {
-      await updateDocument(doc(firestore, 'companies', company.id), { showcaseEnabled: enabled });
+      const batch = writeBatch(firestore);
+      batch.update(doc(firestore, 'companies', company.id), { showcaseEnabled: enabled });
+      const indexRef = doc(firestore, 'companyShowcase', company.id);
+      if (enabled) batch.set(indexRef, { companyId: company.id });
+      else batch.delete(indexRef);
+      await batch.commit();
       toast({
         title: enabled ? 'Empresa selecionada para a vitrine' : 'Empresa retirada da vitrine',
         description: 'A listagem pública pode levar até 5 minutos para atualizar. Só aparecem empresas ativas com assinatura válida.',

@@ -1,38 +1,27 @@
 # Vitrine de empresas
 
-A rota `/api/companies` consulta as empresas pelo Firebase Admin, retorna somente
-nome, logo e identificador públicos e mantém cache de cinco minutos. As regras
-de listagem da coleção `companies` continuam restritas aos administradores.
+A rota `/api/companies` lê o índice público `companyShowcase`, que contém somente
+os identificadores das empresas escolhidas pelo super admin. Ela usa o SDK público
+para ler as informações dos cardápios, autorizadas pelas regras existentes, e retorna
+somente nome, logo e identificador. A listagem completa de `companies` permanece
+restrita aos administradores. Esta rota não depende de credenciais Firebase Admin
+na Vercel e mantém cache de cinco minutos.
 
-## Credenciais do servidor
+## Seleção das empresas
 
-O login de um usuário no navegador e a configuração pública do Firebase não
-autenticam o Firebase Admin. Sem credenciais do servidor, a API retorna 503 e a
-vitrine mostra “Não foi possível carregar as empresas agora”.
-
-Em localhost ou Vercel, configure no `.env.local` ou nos segredos do ambiente:
-
-- `FIREBASE_ADMIN_PROJECT_ID`: o `project_id` da conta de serviço.
-- `FIREBASE_ADMIN_CLIENT_EMAIL`: o `client_email` da conta de serviço.
-- `FIREBASE_ADMIN_PRIVATE_KEY`: o `private_key`, aceitando quebras de linha reais
-  ou `\n` literais.
-
-Use a conta de serviço do projeto `studio-516051115-a8e0e` com permissão para ler
-o Firestore. Obtenha esses valores em Configurações do projeto → Contas de serviço
-no Firebase. Insira-os diretamente no ambiente; não envie a chave no chat nem
-a coloque em variáveis `NEXT_PUBLIC_*`. Reinicie o servidor local ou faça uma
-nova publicação após configurar.
-
-Também é possível usar `GOOGLE_APPLICATION_CREDENTIALS` apontando para um arquivo
-de credenciais fora do repositório. No Firebase App Hosting, o SDK usa a conta de
-serviço do backend automaticamente; confira suas permissões se ocorrer 403.
-
-Depois de configurar, `/api/companies` deve responder 200 com `companies`.
+Em Super admin → Empresas, use a coluna **Vitrine**. O botão salva a opção e o
+índice em um único batch. Somente o super admin pode fazer essa alteração.
 Empresas precisam de `showcaseEnabled: true`, `isActive: true`, nome e assinatura
-não vencida para aparecer. Em Super admin → Empresas, use a coluna **Vitrine**
-para selecionar cada empresa. Empresas existentes e novas ficam ocultas até
-serem selecionadas. Essa escolha é independente da ativação da empresa.
-Publique também `src/firestore.rules` para restringir essa opção ao super admin.
-Alterações na listagem podem levar até cinco minutos para aparecer.
+não vencida para aparecer. A seleção é independente da ativação da empresa.
 
-Documentação: https://firebase.google.com/docs/admin/setup
+Publique também `src/firestore.rules`. As escolhas anteriores à introdução do índice
+podem ser sincronizadas com `scripts/sync-company-showcase.cjs`, usando uma sessão
+existente do Firebase CLI. Defina `FIREBASE_CLI_ROOT` com a instalação do firebase-tools;
+a execução padrão apenas conta registros, e `--apply` preenche o índice com as escolhas
+existentes. Nenhuma chave privada ou token é persistido pelo script.
+
+Alterações podem levar até cinco minutos para aparecer. A API deve retornar 200 com
+`companies`; um erro não deve ser tratado como uma lista vazia.
+
+Outras APIs administrativas continuam usando Firebase Admin e suas credenciais
+privadas do servidor, documentadas em `.env.example`.

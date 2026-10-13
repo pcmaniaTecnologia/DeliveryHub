@@ -53,6 +53,16 @@ service cloud.firestore {
     // Collection Rules
     // ------------------------------------------------------------------------
 
+    // Only public menu identifiers, selected explicitly by the super admin.
+    match /companyShowcase/{companyId} {
+      allow get, list: if true;
+      allow create, update: if isSuperAdmin()
+        && request.resource.data.keys().hasOnly(['companyId'])
+        && request.resource.data.companyId == companyId
+        && getAfter(/databases/$(database)/documents/companies/$(companyId)).data.showcaseEnabled == true;
+      allow delete: if isSuperAdmin();
+    }
+
     match /companies/{companyId} {
       // Public can read for menu pages.
       allow get: if true;
