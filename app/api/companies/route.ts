@@ -5,11 +5,11 @@ import { loadPublicCompanyDirectory } from '@/lib/public-company-directory';
 export const runtime = 'nodejs';
 
 const getDirectory = unstable_cache(loadPublicCompanyDirectory,
-  ['public-company-directory-v3'], { revalidate: 300 });
+  ['public-company-directory-v4'], { revalidate: 30 });
 
 export async function GET() {
   try {
-    return NextResponse.json({ companies: await getDirectory() });
+    return NextResponse.json({ companies: await getDirectory() }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     console.error('Não foi possível carregar a vitrine de empresas:', error);
     return NextResponse.json({ error: 'Não foi possível carregar as empresas. Tente novamente.' }, { status: 503 });

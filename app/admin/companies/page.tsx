@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { MoreHorizontal, Info, Trash2, MessageCircle, Megaphone, Send, Search, BookOpen } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/table';
 import { useUser, useFirestore, useCollection, useMemoFirebase, updateDocument, deleteDocument, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { collection, doc, writeBatch, type Timestamp } from 'firebase/firestore';
+import { repairCompanyShowcaseIndex } from '@/lib/repair-company-showcase';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -124,6 +125,25 @@ export default function ManageCompaniesPage() {
 
   const { data: companies, isLoading: isLoadingCompanies } = useCollection<Company>(companiesRef);
 
+  // Restore selections saved before the public index was introduced. Re-read
+  // inside a transaction so a concurrent deselection can never be republished.
+  const [indexSyncFailed, setIndexSyncFailed] = useState(false);
+  const [indexSyncAttempt, setIndexSyncAttempt] = useState(0);
+  useEffect(() => {
+    if (!firestore || !companies) return;
+    let cancelled = false;
+    async function repairIndex() {
+      try {
+        await repairCompanyShowcaseIndex(firestore!, companies!, () => cancelled);
+        if (!cancelled) setIndexSyncFailed(false);
+      } catch {
+        if (!cancelled) setIndexSyncFailed(true);
+      }
+    }
+    void repairIndex();
+    return () => { cancelled = true; };
+  }, [firestore, companies, indexSyncAttempt]);
+
   const plansRef = useMemoFirebase(() => {
     if (!firestore) return null;
     return collection(firestore, 'plans');
@@ -175,7 +195,7 @@ export default function ManageCompaniesPage() {
       await batch.commit();
       toast({
         title: enabled ? 'Empresa selecionada para a vitrine' : 'Empresa retirada da vitrine',
-        description: 'A listagem pública pode levar até 5 minutos para atualizar. Só aparecem empresas ativas com assinatura válida.',
+        description: 'A listagem pública pode levar até 30 segundos para atualizar. Só aparecem empresas ativas com assinatura válida.',
       });
     } catch {
       toast({ variant: 'destructive', title: 'Não foi possível alterar a vitrine', description: 'Tente novamente.' });
@@ -258,7 +278,7 @@ export default function ManageCompaniesPage() {
       <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
             <CardTitle>Gerenciar Empresas</CardTitle>
-            <CardDescription>Gerencie as empresas e escolha quais aparecem na vitrine. Ative “Vitrine” para exibir uma empresa ativa com assinatura válida. Alterações podem levar até 5 minutos.</CardDescription>
+            <CardDescription>Gerencie as empresas e escolha quais aparecem na vitrine. Ative “Vitrine” para exibir uma empresa ativa com assinatura válida. Alterações podem levar até 30 segundos.</CardDescription>
         </div>
         <div className="flex w-full sm:w-auto items-center gap-2">
             <div className="relative w-full sm:w-64">
@@ -278,6 +298,10 @@ export default function ManageCompaniesPage() {
         </div>
       </CardHeader>
       <CardContent>
+        {indexSyncFailed && <Alert variant="destructive" className="mb-4">
+          <AlertTitle>Não foi possível sincronizar a vitrine</AlertTitle>
+          <AlertDescription>Algumas seleções antigas podem não aparecer. <Button variant="outline" size="sm" onClick={() => setIndexSyncAttempt(value => value + 1)}>Tentar sincronizar novamente</Button></AlertDescription>
+        </Alert>}
         <Alert className="mb-4">
             <Info className="h-4 w-4" />
             <AlertTitle>Entendendo esta lista</AlertTitle>
@@ -346,7 +370,7 @@ export default function ManageCompaniesPage() {
                       aria-label={`Exibir ${company.name} na vitrine`}
                     />
                     <span className="text-xs text-muted-foreground">
-                      {savingShowcase.has(company.id) ? 'Salvando...' : company.showcaseEnabled === true ? 'Selecionada' : 'Oculta'}
+                      {savingShowcase.has(company.id) ? 'Salvando...' : company.showcaseEnabled !== true ? 'Oculta' : !company.isActive ? 'Selecionada · empresa inativa' : company.subscriptionEndDate && company.subscriptionEndDate.toMillis() < Date.now() ? 'Selecionada · assinatura vencida' : 'Selecionada · elegível para a vitrine'}
                     </span>
                   </div>
                 </TableCell>
