@@ -13,6 +13,8 @@ import { cn } from '@/lib/utils';
 import { useImpersonation } from '@/context/impersonation-context';
 import { Loader2, Users, User, Receipt, Clock, CheckCircle2, PlusCircle, Trash2, Plus, Minus, X, Calculator, ShoppingBag, Search, Tag, Wallet, HandCoins, ArrowDownCircle, Banknote, Lock, Printer, UtensilsCrossed, Ticket } from 'lucide-react';
 import { generateTokenPrintHtml, printHtml } from '@/lib/print-utils';
+import { generateFinalizedComandaHtml, type FinalizedComanda } from '@/lib/finalized-comandas';
+import { FinalizedComandasDialog } from '@/components/finalized-comandas-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
@@ -195,6 +197,7 @@ export default function ComandasPage() {
     const [selectedTable, setSelectedTable] = useState<any>(null);
     const [isCheckoutMode, setIsCheckoutMode] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    const [receiptPreviewHtml, setReceiptPreviewHtml] = useState<string | null>(null);
 
     const [tableOccupants, setTableOccupants] = useState(1);
     const [tableCustomerName, setTableCustomerName] = useState('');
@@ -606,18 +609,19 @@ export default function ComandasPage() {
             }, 0);
     }, [tableItems, selectedItemsKeys, itemDiscounts]);
 
-    const handleReprintTableComanda = () => {
+    const handlePrintConference = () => {
         if (!selectedTable) return;
 
         const printWindow = window.open('', '_blank', 'width=800,height=600');
         if (!printWindow) return;
 
-        const total = selectedTable.totalAmount;
+        const total = itemsToPayTotal > 0 ? itemsToPayTotal : selectedTable.totalAmount;
+        const perPerson = total / tableOccupants;
 
         printWindow.document.write(`
             <html>
                 <head>
-                    <title>Reimpressão da Comanda - Mesa ${selectedTable.tableNumber}</title>
+                    <title>Conferência de Mesa - ${selectedTable.tableNumber}</title>
                     <style>
                         @page { margin: 3mm; }
                         * { box-sizing: border-box; }
@@ -636,7 +640,7 @@ export default function ComandasPage() {
                 </head>
                 <body>
                     <div class="header">
-                        <h2 style="margin: 0;">REIMPRESSÃO DA COMANDA</h2>
+                        <h2 style="margin: 0;">CONFERÊNCIA DE MESA</h2>
                         <p style="margin: 5px 0;">Mesa: ${selectedTable.tableNumber}</p>
                         ${tableCustomerName ? `<p style="margin: 0;">Cliente: ${tableCustomerName}</p>` : ''}
                         <p style="margin: 0;">Data: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</p>
@@ -656,6 +660,12 @@ export default function ComandasPage() {
                             <span>TOTAL CONSUMO</span>
                             <span>R$ ${total.toFixed(2)}</span>
                         </div>
+                    </div>
+
+                    <div class="division">
+                        <p style="margin: 0; font-size: 14px;">DIVISÃO POR PESSOAS</p>
+                        <p style="margin: 5px 0; font-size: 18px; font-weight: 900;">${tableOccupants} Pessoa(s)</p>
+                        <p style="margin: 0; font-size: 20px; font-weight: 900;">R$ ${perPerson.toFixed(2)} p/ pessoa</p>
                     </div>
 
                     <div class="footer">
@@ -900,7 +910,44 @@ export default function ComandasPage() {
                 console.error('Error recording cashier sale:', cashierError);
             }
 
-            toast({ title: "✅ Pagamento realizado!", description: `Mesa ${selectedTable.tableNumber} — R$ ${totalPaidAmount.toFixed(2)}. Redirecionando para o relatório...` });
+            toast({ title: "✅ Pagamento realizado!", description: `Mesa ${selectedTable.tableNumber} — R$ ${totalPaidAmount.toFixed(2)}. Confira o comprovante para imprimir se desejar.` });
+
+            const receiptOrders = Array.from(ordersToProcess).flatMap(orderId => {
+                const originalOrder = selectedTable.orders.find((order: Order) => order.id === orderId);
+                if (!originalOrder) return [];
+                const paidItems = itemsBeingPaid.filter(item => item.orderId === orderId);
+                const orderTotal = paidItems.reduce((sum, item) => {
+                    const base = (item.finalPrice || item.unitPrice) * item.quantity;
+                    return sum + Math.max(0, base - (itemDiscounts[item.uniqueKey] || 0));
+                }, 0);
+                return [{
+                    id: orderId,
+                    status: 'Entregue',
+                    deliveryType: 'Mesa',
+                    tableNumber: String(selectedTable.tableNumber),
+                    customerName: originalOrder.customerName,
+                    orderDate: originalOrder.orderDate,
+                    totalAmount: orderTotal,
+                    paymentMethod: paymentSummary || 'Não informado',
+                    orderItems: paidItems.map(item => ({
+                        productId: item.productId,
+                        productName: item.productName,
+                        quantity: item.quantity,
+                        unitPrice: item.unitPrice,
+                        finalPrice: item.finalPrice,
+                        notes: item.notes,
+                        selectedVariants: item.selectedVariants,
+                    })),
+                }];
+            });
+            const receipt: FinalizedComanda = {
+                id: `mesa-${selectedTable.tableNumber}-${Date.now()}`,
+                tableNumber: String(selectedTable.tableNumber),
+                orders: receiptOrders,
+                paidAt: Date.now(),
+                total: totalPaidAmount,
+                payments: payments.map(payment => ({ method: payment.method, amount: payment.amount })),
+            };
             
             // Limpa contribuições da mesa
             await clearTableContributions(selectedTable.tableNumber);
@@ -938,10 +985,8 @@ export default function ComandasPage() {
                 }
             }
 
+            setReceiptPreviewHtml(generateFinalizedComandaHtml(receipt, companyData?.name || 'Restaurante', false));
             setSelectedTable(null);
-
-            // Redireciona para o painel com o relatório de Fechamento de Caixa
-            setTimeout(() => router.push('/dashboard'), 800);
 
         } catch (error) {
             console.error(error);
@@ -994,6 +1039,7 @@ export default function ComandasPage() {
                         <Ticket className="h-4 w-4" />
                         <span className="hidden sm:inline">Vender Ficha</span>
                     </Button>
+                    <FinalizedComandasDialog companyId={effectiveCompanyId} companyName={companyData?.name || 'Restaurante'} />
                     <Button
                         variant="outline"
                         size="sm"
@@ -1520,10 +1566,10 @@ export default function ComandasPage() {
                                         <Button 
                                             variant="outline" 
                                             className="h-12 px-4 gap-2 border-indigo-200 text-indigo-600 hover:bg-indigo-50"
-                                            onClick={handleReprintTableComanda}
+                                            onClick={handlePrintConference}
                                         >
                                             <Printer className="h-4 w-4" />
-                                            <span translate="no">Reimprimir Comanda</span>
+                                            <span translate="no">Ratear Conta</span>
                                         </Button>
                                         <Button 
                                             variant="secondary" 
@@ -1553,6 +1599,26 @@ export default function ComandasPage() {
                     </DialogContent>
                 </Dialog>
             )}
+
+            <Dialog open={!!receiptPreviewHtml} onOpenChange={open => !open && setReceiptPreviewHtml(null)}>
+                <DialogContent className="flex h-[85dvh] max-h-[850px] flex-col sm:max-w-3xl">
+                    <DialogHeader>
+                        <DialogTitle>Comprovante da comanda</DialogTitle>
+                        <DialogDescription>Confira o comprovante. Você pode imprimi-lo para entregar ao cliente.</DialogDescription>
+                    </DialogHeader>
+                    <iframe
+                        title="Pré-visualização do comprovante"
+                        srcDoc={receiptPreviewHtml || ''}
+                        className="min-h-0 flex-1 rounded-md border bg-white"
+                    />
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setReceiptPreviewHtml(null)}>Fechar</Button>
+                        <Button onClick={() => receiptPreviewHtml && printHtml(receiptPreviewHtml)}>
+                            <Printer className="mr-2 h-4 w-4" /> Imprimir comprovante
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {/* Reserve Table Dialog */}
             <Dialog open={isReserveDialogOpen} onOpenChange={setIsReserveDialogOpen}>
