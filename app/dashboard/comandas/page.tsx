@@ -620,14 +620,19 @@ export default function ComandasPage() {
                 <head>
                     <title>Conferência de Mesa - ${selectedTable.tableNumber}</title>
                     <style>
-                        body { font-family: 'Courier New', monospace; font-size: 12pt; margin: 20px; color: #000; font-weight: bold; width: 100%; }
+                        @page { margin: 3mm; }
+                        * { box-sizing: border-box; }
+                        body { font-family: Arial, sans-serif; font-size: 10pt; line-height: 1.25; margin: 0 auto; padding: 2mm; color: #000; font-weight: 600; width: 100%; max-width: 72mm; overflow-wrap: anywhere; }
                         h2, p { margin: 0; text-align: center; color: #000; }
-                        h2 { font-size: 1.4em; font-weight: 900; }
-                        .header { text-align: center; border-bottom: 2px dashed #000; padding-bottom: 10px; margin-bottom: 10px; }
-                        .item { display: flex; justify-content: space-between; font-size: 1.1em; margin-bottom: 5px; font-weight: bold; }
-                        .total { border-top: 2px dashed #000; margin-top: 10px; padding-top: 10px; font-weight: 900; font-size: 1.3em; }
-                        .division { background: #f0f0f0; margin-top: 15px; padding: 15px; text-align: center; border: 2px dashed #000; }
-                        .footer { margin-top: 20px; text-align: center; font-size: 0.8em; border-top: 2px dashed #000; padding-top: 10px; opacity: 0.8; font-weight: normal; }
+                        h2 { font-size: 13pt; font-weight: 900; }
+                        .header { text-align: center; border-bottom: 1px dashed #000; padding-bottom: 6px; margin-bottom: 6px; }
+                        .item { display: flex; justify-content: space-between; gap: 4px; font-size: 9pt; margin-bottom: 4px; font-weight: bold; }
+                        .item span:first-child { min-width: 0; overflow-wrap: anywhere; }
+                        .item span:last-child { white-space: nowrap; }
+                        .total { border-top: 1px dashed #000; margin-top: 6px; padding-top: 6px; font-weight: 900; font-size: 10pt; }
+                        .division { margin-top: 8px; padding: 6px; text-align: center; border: 1px dashed #000; }
+                        .footer { margin-top: 8px; text-align: center; font-size: 8pt; border-top: 1px dashed #000; padding-top: 6px; font-weight: normal; }
+                        @media print { body { width: 100%; max-width: 72mm; margin: 0 auto; } }
                     </style>
                 </head>
                 <body>
@@ -642,7 +647,7 @@ export default function ComandasPage() {
                         ${tableItems.map((item: any) => `
                             <div class="item">
                                 <span>${item.quantity}x ${item.productName}</span>
-                                <span>R$ {((item.finalPrice || item.unitPrice) * item.quantity).toFixed(2)}</span>
+                                <span>R$ ${((item.finalPrice || item.unitPrice) * item.quantity).toFixed(2)}</span>
                             </div>
                         `).join('')}
                     </div>
@@ -1454,7 +1459,7 @@ export default function ComandasPage() {
                                 <div className="space-y-6">
                                     <div className="flex gap-2">
                                         <Button variant="outline" className="flex-1 h-12 gap-2 shadow-sm" onClick={() => router.push(`/waiter/${effectiveCompanyId}/dashboard/menu?table=${selectedTable.tableNumber}&admin=true`)}>
-                                            <PlusCircle className="h-5 w-5 text-primary" /> Lançar Itens
+                                            <PlusCircle className="h-5 w-5 text-primary" /> Adicionar Itens
                                         </Button>
                                         <Button variant="outline" className="flex-1 h-12 gap-2 shadow-sm" onClick={() => setIsTransferDialogOpen(true)}>
                                             <HandCoins className="h-5 w-5 text-amber-600" /> Transferir Mesa

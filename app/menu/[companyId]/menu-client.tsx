@@ -86,6 +86,14 @@ type Category = {
     sortOrder?: number;
 };
 
+const normalizeMenuSearchText = (value: string) => value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase('pt-BR')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+
 // Function to get an icon for a category
 const getCategoryIcon = (categoryName: string): LucideIcon => {
     const normalizedName = categoryName.toLowerCase();
@@ -533,11 +541,13 @@ export default function MenuPage() {
         
         if (!searchQuery.trim()) return true;
         
-        const queryNorm = searchQuery.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-        const nameNorm = p.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-        const descNorm = (p.description || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-        
-        return nameNorm.includes(queryNorm) || descNorm.includes(queryNorm);
+        const queryWords = normalizeMenuSearchText(searchQuery).split(' ').filter(Boolean);
+        const categoryName = categories.find(category => category.id === p.categoryId)?.name || '';
+        const searchableText = normalizeMenuSearchText(`${p.name || ''} ${p.description || ''} ${categoryName}`);
+
+        // Busca por nome, descrição e categoria, ignorando acentos e diferenças
+        // de pontuação/espaçamento. Todos os termos digitados precisam aparecer.
+        return queryWords.every(word => searchableText.includes(word));
     });
 
     const categoriesById = new Map(categories.map(c => [c.id, c.name]));

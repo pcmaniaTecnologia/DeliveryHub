@@ -6,6 +6,7 @@ type Company = {
 };
 
 export function generateOrderPrintHtml(order: Order, company?: Company) {
+    const isTableOrder = order.deliveryType?.toLocaleLowerCase('pt-BR') === 'mesa' || Boolean(order.tableNumber);
     const itemsHtml = order.orderItems.map(item => {
         const groupedVariants: { [key: string]: { name: string; price: number }[] } = {};
         if (item.selectedVariants) {
@@ -48,17 +49,20 @@ export function generateOrderPrintHtml(order: Order, company?: Company) {
             <head>
                 <title>Pedido ${order.id.substring(0,6).toUpperCase()}</title>
                 <style>
-                    body { font-family: 'Courier New', monospace; font-size: 12pt; margin: 20px; color: #000; font-weight: bold; }
+                    @page { margin: 3mm; }
+                    * { box-sizing: border-box; }
+                    body { font-family: Arial, sans-serif; font-size: 10pt; line-height: 1.25; width: 100%; max-width: 72mm; margin: 0 auto; padding: 2mm; color: #000; font-weight: 600; overflow-wrap: anywhere; }
                     h2, p { margin: 0; text-align: center; color: #000; }
-                    h2 { font-size: 1.4em; font-weight: 900; }
-                    hr { border: none; border-top: 2px dashed black; margin: 10px 0; }
-                    table { width: 100%; border-collapse: collapse; color: #000; }
-                    th, td { padding: 4px 0; }
-                    th { text-align: left; border-bottom: 2px dashed black; font-weight: 900; font-size: 1.1em; }
+                    h2 { font-size: 13pt; font-weight: 900; }
+                    .table-number { font-size: 16pt; font-weight: 900; margin-top: 4px; }
+                    hr { border: none; border-top: 1px dashed black; margin: 6px 0; }
+                    table { width: 100%; table-layout: fixed; border-collapse: collapse; color: #000; }
+                    th, td { padding: 3px 1px; }
+                    th { text-align: left; border-bottom: 1px dashed black; font-weight: 900; font-size: 9pt; }
                     td { font-weight: bold; }
                     .totals { text-align: right; margin-top: 10px; color: #000; }
-                    .totals strong { font-size: 1.3em; font-weight: 900; }
-                    .section { margin-top: 15px; color: #000; font-weight: bold; }
+                    .totals strong { font-size: 11pt; font-weight: 900; }
+                    .section { margin-top: 8px; color: #000; font-weight: bold; }
                     .section p { text-align: left; margin-bottom: 4px; }
                     .section-title { font-weight: 900; font-size: 1.1em; text-transform: uppercase; }
                 </style>
@@ -66,6 +70,7 @@ export function generateOrderPrintHtml(order: Order, company?: Company) {
             <body>
                 <h2>${company?.name || 'Seu Restaurante'}</h2>
                 <p>Pedido: ${order.id.substring(0, 6).toUpperCase()}</p>
+                ${isTableOrder ? `<p class="table-number">MESA ${order.tableNumber || order.deliveryAddress?.replace(/^Mesa\s*/i, '') || '—'}</p>` : ''}
                 <p>${order.orderDate?.toDate ? order.orderDate.toDate().toLocaleString('pt-BR') : new Date().toLocaleString('pt-BR')}</p>
                 <hr />
                 <div class="section">
@@ -96,7 +101,7 @@ export function generateOrderPrintHtml(order: Order, company?: Company) {
                 <p style="text-align: left;">Pagamento: ${order.paymentMethod}</p>
                 ${order.amountReceived && order.amountReceived > 0 ? `<p style="text-align: left;">Recebido: R$${order.amountReceived.toFixed(2)}</p>` : ''}
                 ${order.change && order.change > 0 ? `<p style="text-align: left;">Troco: R$${order.change.toFixed(2)}</p>` : ''}
-                <p style="text-align: left;">Entrega: ${order.deliveryType}</p>
+                ${!isTableOrder ? `<p style="text-align: left;">Entrega: ${order.deliveryType}</p>` : ''}
                 <div style="text-align: center; margin-top: 20px; font-weight: bold; font-size: 1.1em;">sistema criado por PC MANIA<br>www.pcmania.net</div>
                 <script>
                     window.print();
