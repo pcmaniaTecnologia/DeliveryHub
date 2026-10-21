@@ -606,19 +606,18 @@ export default function ComandasPage() {
             }, 0);
     }, [tableItems, selectedItemsKeys, itemDiscounts]);
 
-    const handlePrintConference = () => {
+    const handleReprintTableComanda = () => {
         if (!selectedTable) return;
 
         const printWindow = window.open('', '_blank', 'width=800,height=600');
         if (!printWindow) return;
 
-        const total = itemsToPayTotal > 0 ? itemsToPayTotal : selectedTable.totalAmount;
-        const perPerson = total / tableOccupants;
+        const total = selectedTable.totalAmount;
 
         printWindow.document.write(`
             <html>
                 <head>
-                    <title>Conferência de Mesa - ${selectedTable.tableNumber}</title>
+                    <title>Reimpressão da Comanda - Mesa ${selectedTable.tableNumber}</title>
                     <style>
                         @page { margin: 3mm; }
                         * { box-sizing: border-box; }
@@ -637,7 +636,7 @@ export default function ComandasPage() {
                 </head>
                 <body>
                     <div class="header">
-                        <h2 style="margin: 0;">CONFERÊNCIA DE MESA</h2>
+                        <h2 style="margin: 0;">REIMPRESSÃO DA COMANDA</h2>
                         <p style="margin: 5px 0;">Mesa: ${selectedTable.tableNumber}</p>
                         ${tableCustomerName ? `<p style="margin: 0;">Cliente: ${tableCustomerName}</p>` : ''}
                         <p style="margin: 0;">Data: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</p>
@@ -657,12 +656,6 @@ export default function ComandasPage() {
                             <span>TOTAL CONSUMO</span>
                             <span>R$ ${total.toFixed(2)}</span>
                         </div>
-                    </div>
-
-                    <div class="division">
-                        <p style="margin: 0; font-size: 14px;">DIVISÃO POR PESSOAS</p>
-                        <p style="margin: 5px 0; font-size: 18px; font-weight: 900;">${tableOccupants} Pessoa(s)</p>
-                        <p style="margin: 0; font-size: 20px; font-weight: 900;">R$ ${perPerson.toFixed(2)} p/ pessoa</p>
                     </div>
 
                     <div class="footer">
@@ -1527,10 +1520,10 @@ export default function ComandasPage() {
                                         <Button 
                                             variant="outline" 
                                             className="h-12 px-4 gap-2 border-indigo-200 text-indigo-600 hover:bg-indigo-50"
-                                            onClick={handlePrintConference}
+                                            onClick={handleReprintTableComanda}
                                         >
                                             <Printer className="h-4 w-4" />
-                                            <span translate="no">Imprimir</span>
+                                            <span translate="no">Reimprimir Comanda</span>
                                         </Button>
                                         <Button 
                                             variant="secondary" 
