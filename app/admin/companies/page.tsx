@@ -2,7 +2,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { MoreHorizontal, Info, Trash2, MessageCircle, Megaphone, Send, Search, BookOpen } from 'lucide-react';
+import { MoreHorizontal, Info, Trash2, MessageCircle, Megaphone, Send, Search, BookOpen, KeyRound } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,7 +29,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useUser, useFirestore, useCollection, useMemoFirebase, updateDocument, deleteDocument, errorEmitter, FirestorePermissionError } from '@/firebase';
+import { useUser, useAuth, useFirestore, useCollection, useMemoFirebase, updateDocument, deleteDocument, errorEmitter, FirestorePermissionError } from '@/firebase';
+import { sendPasswordResetEmail } from 'firebase/auth';
 import { collection, doc, writeBatch, type Timestamp } from 'firebase/firestore';
 import { repairCompanyShowcaseIndex } from '@/lib/repair-company-showcase';
 import { useToast } from '@/hooks/use-toast';
@@ -75,6 +76,7 @@ type Plan = {
 
 export default function ManageCompaniesPage() {
   const { user, isUserLoading } = useUser();
+  const auth = useAuth();
   const firestore = useFirestore();
   const { toast } = useToast();
 
@@ -88,6 +90,24 @@ export default function ManageCompaniesPage() {
   const [isPlanDialogOpen, setIsPlanDialogOpen] = useState(false);
   const [isExpiryDialogOpen, setIsExpiryDialogOpen] = useState(false);
   const [newExpiryDate, setNewExpiryDate] = useState<string>('');
+  const [sendingResetFor, setSendingResetFor] = useState<string | null>(null);
+
+  const handleSendPasswordReset = async (company: Company) => {
+    const email = company.email?.trim();
+    if (!auth || !email) {
+      toast({ variant: 'destructive', title: 'E-mail indisponível', description: 'Esta empresa não tem um e-mail cadastrado.' });
+      return;
+    }
+    setSendingResetFor(company.id);
+    try {
+      await sendPasswordResetEmail(auth, email);
+      toast({ title: 'Link de redefinição enviado', description: `Enviamos as instruções para ${email}. A senha atual não pode ser consultada.` });
+    } catch {
+      toast({ variant: 'destructive', title: 'Não foi possível enviar', description: 'Confira se o e-mail pertence a uma conta e tente novamente.' });
+    } finally {
+      setSendingResetFor(null);
+    }
+  };
 
   const handleStartBulk = () => {
       const queue = companies?.filter(c => c.phone && c.phone.replace(/\D/g, '').length >= 10).map(c => ({
@@ -397,6 +417,10 @@ export default function ManageCompaniesPage() {
                                         <BookOpen className="mr-2 h-4 w-4" />
                                         Ver Cardápio
                                     </a>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem disabled={!company.email || sendingResetFor === company.id} onClick={() => void handleSendPasswordReset(company)}>
+                                    <KeyRound className="mr-2 h-4 w-4" />
+                                    {sendingResetFor === company.id ? 'Enviando link...' : 'Enviar redefinição de senha'}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => {
                                     setSelectedCompanyForPlan(company);
