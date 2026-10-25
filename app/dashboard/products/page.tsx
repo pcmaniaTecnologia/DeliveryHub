@@ -90,6 +90,7 @@ const productFormSchema = z.object({
   barcode: z.string().optional().or(z.literal('')),
   description: z.string().optional(),
   price: z.coerce.number().positive({ message: 'O preço deve ser um número positivo.' }),
+  printSector: z.enum(['Geral', 'Cozinha', 'Bar', 'Sobremesas']).default('Geral'),
   categoryId: z.string().min(1, { message: 'A categoria é obrigatória.' }),
   imageUrl: z.string().url({ message: 'Por favor, insira uma URL válida.' }).optional().or(z.literal('')),
   isActive: z.boolean().default(true),
@@ -111,6 +112,7 @@ type Product = {
     barcode?: string;
     description: string;
     price: number;
+    printSector?: 'Geral' | 'Cozinha' | 'Bar' | 'Sobremesas';
     categoryId: string;
     isActive: boolean;
     deliveryEnabled?: boolean;
@@ -152,6 +154,7 @@ export default function ProductsPage() {
       barcode: '',
       description: '',
       price: 0,
+      printSector: 'Geral',
       categoryId: '',
       imageUrl: '',
       isActive: true,
@@ -176,6 +179,7 @@ export default function ProductsPage() {
         barcode: editingProduct.barcode || '',
         description: editingProduct.description || '',
         price: editingProduct.price,
+        printSector: editingProduct.printSector || 'Geral',
         categoryId: editingProduct.categoryId,
         isActive: editingProduct.isActive,
         deliveryEnabled: editingProduct.deliveryEnabled !== false,
@@ -192,6 +196,7 @@ export default function ProductsPage() {
         barcode: '',
         description: '',
         price: 0,
+        printSector: 'Geral',
         categoryId: '',
         imageUrl: '',
         isActive: true,
@@ -782,6 +787,30 @@ export default function ProductsPage() {
                         </FormItem>
                       )}
                     />
+                    <FormField
+                      control={form.control}
+                      name="printSector"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Setor de impressão</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione um setor" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="Geral">Geral</SelectItem>
+                              <SelectItem value="Cozinha">Cozinha</SelectItem>
+                              <SelectItem value="Bar">Bar</SelectItem>
+                              <SelectItem value="Sobremesas">Sobremesas</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormDescription>Na impressão do pedido, os itens serão separados por setor.</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                 </div>
                 <FormField
                   control={form.control}
@@ -1033,6 +1062,7 @@ export default function ProductsPage() {
                   </TableCell>
                   <TableCell className="font-medium">
                     <div>{product.name}</div>
+                    <div className="text-xs text-muted-foreground">Setor: {product.printSector || 'Geral'}</div>
                     {product.barcode && (
                       <div className="text-xs text-muted-foreground font-mono">
                         Cód: {product.barcode}

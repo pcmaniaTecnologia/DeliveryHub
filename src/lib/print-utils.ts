@@ -112,6 +112,59 @@ export function generateOrderPrintHtml(order: Order, company?: Company) {
     `;
 }
 
+/** Builds one kitchen ticket per sector, separated by print page. */
+export function generateOrderSectorPrintHtml(order: Order, company?: Company) {
+    const entities: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+    const escapeHtml = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, char => entities[char]);
+    const sectors = new Map<string, typeof order.orderItems>();
+    for (const item of order.orderItems || []) {
+        const sector = item.printSector?.trim() || 'Geral';
+        sectors.set(sector, [...(sectors.get(sector) || []), item]);
+    }
+    if (sectors.size === 0) sectors.set('Geral', []);
+    const isTableOrder = order.deliveryType?.toLocaleLowerCase('pt-BR') === 'mesa' || Boolean(order.tableNumber);
+    const tableLabel = order.tableNumber || order.deliveryAddress?.replace(/^Mesa\s*/i, '') || '—';
+    const tickets = Array.from(sectors.entries()).map(([sector, items], index) => {
+        const rows = items.map(item => {
+            const variants = (item.selectedVariants || []).map(variant =>
+                `<div class="detail">${escapeHtml(variant.groupName)}: ${escapeHtml(variant.itemName)}</div>`
+            ).join('');
+            const quantity = item.isSoldByWeight
+                ? `${Number(item.quantity).toFixed(3).replace('.', ',')} kg`
+                : `${escapeHtml(item.quantity)}x`;
+            return `<li><strong>${quantity} ${escapeHtml(item.productName || item.productId)}</strong>${variants}${item.notes ? `<div class="note">OBS: ${escapeHtml(item.notes)}</div>` : ''}</li>`;
+        }).join('');
+        return `<section class="ticket ${index < sectors.size - 1 ? 'next-page' : ''}">
+            <h1>${escapeHtml(sector)}</h1>
+            <h2>${escapeHtml(company?.name || 'Seu Restaurante')}</h2>
+            <p class="order">Pedido ${escapeHtml(order.id.substring(0, 6).toUpperCase())}</p>
+            ${isTableOrder ? `<p class="table">MESA ${escapeHtml(tableLabel)}</p>` : `<p class="order">${escapeHtml(order.deliveryType || 'Pedido')}</p>`}
+            <p class="meta">${escapeHtml(order.customerName || 'Cliente')} · ${escapeHtml(order.orderDate?.toDate ? order.orderDate.toDate().toLocaleString('pt-BR') : new Date().toLocaleString('pt-BR'))}</p>
+            <hr /><ul>${rows}</ul>
+        </section>`;
+    }).join('');
+
+    return `<!doctype html><html><head><meta charset="utf-8"><title>Pedido ${escapeHtml(order.id.substring(0, 6))} por setor</title>
+        <style>
+            @page { margin: 3mm; }
+            * { box-sizing: border-box; }
+            body { font-family: Arial, sans-serif; color: #000; margin: 0 auto; width: 72mm; font-size: 11pt; }
+            .ticket { padding: 2mm; min-height: 40mm; }
+            .next-page { page-break-after: always; break-after: page; }
+            h1, h2, p { margin: 0; text-align: center; }
+            h1 { font-size: 18pt; text-transform: uppercase; border: 2px solid #000; padding: 5px; margin-bottom: 6px; }
+            h2 { font-size: 12pt; }
+            .order, .meta { font-size: 9pt; margin-top: 3px; }
+            .table { font-size: 20pt; font-weight: 900; margin: 5px 0; }
+            hr { border: 0; border-top: 1px dashed #000; margin: 7px 0; }
+            ul { list-style: none; padding: 0; margin: 0; }
+            li { padding: 5px 0; border-bottom: 1px dotted #777; font-size: 13pt; }
+            li strong { display: block; }
+            .detail, .note { font-size: 10pt; margin: 2px 0 0 12px; }
+            .note { font-weight: 700; }
+        </style></head><body>${tickets}<script>window.print();window.onafterprint=()=>window.close();</script></body></html>`;
+}
+
 export function generateTokenPrintHtml(quantity: number, productName: string, price: number, companyName?: string, paymentMethod?: string, customerName?: string) {
     let html = `
         <html>
@@ -327,6 +380,36 @@ export function printHtml(html: string) {
             document.body.style.pointerEvents = 'auto';
         }
     }
+}
+
+/** Opens a readable on-screen preview and waits for the user to choose when to print. */
+export function openPrintPreview(html: string) {
+    if (typeof window === 'undefined') return;
+    const cleanHtml = html.replace(/<script[\s\S]*?<\/script>/gi, '');
+    const previewWindow = window.open('', '_blank', 'width=1000,height=800,resizable=yes,scrollbars=yes');
+    if (!previewWindow) return;
+
+    const previewStyles = `
+        <style id="print-preview-styles">
+            @media screen {
+                html { background: #eef0f3; }
+                body { width: min(900px, calc(100% - 48px)) !important; max-width: none !important; margin: 76px auto 32px !important; padding: 32px !important; background: #fff; color: #111 !important; box-shadow: 0 4px 24px #0002; font-size: 15px !important; line-height: 1.45 !important; }
+                body > .ticket { width: auto !important; }
+                #preview-toolbar { position: fixed; z-index: 9999; inset: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 20px; background: #172033; color: white; font: 14px Arial,sans-serif; box-shadow: 0 2px 8px #0003; }
+                #preview-toolbar button { border: 0; border-radius: 6px; padding: 10px 18px; background: #f97316; color: white; font-weight: 700; cursor: pointer; }
+                #preview-toolbar .secondary { background: #374151; }
+            }
+            @media print {
+                #preview-toolbar { display: none !important; }
+                html { background: #fff; }
+                body { margin: 0 auto !important; padding: 2mm !important; box-shadow: none !important; }
+            }
+        </style>`;
+    const toolbar = `<nav id="preview-toolbar"><strong>Prévia do pedido — confira antes de imprimir</strong><span><button class="secondary" onclick="window.close()">Fechar</button> <button onclick="window.print()">Imprimir</button></span></nav>`;
+    const prepared = cleanHtml.replace('</head>', `${previewStyles}</head>`).replace('<body>', `<body>${toolbar}`);
+    previewWindow.document.open();
+    previewWindow.document.write(prepared);
+    previewWindow.document.close();
 }
 
 

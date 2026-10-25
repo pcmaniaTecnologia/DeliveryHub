@@ -431,6 +431,7 @@ export default function CartSheet({ companyId, tableNumber }: { companyId: strin
         orderItems: cartItems.map(item => ({
             productId: String(item.product.id || ''),
             productName: String(item.product.name || 'Produto'),
+            printSector: item.product.printSector || 'Geral',
             quantity: Number(item.quantity) || 0,
             unitPrice: Number(item.product.price) || 0,
             finalPrice: Number(item.finalPrice) || 0,

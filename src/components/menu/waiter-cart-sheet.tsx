@@ -194,6 +194,7 @@ export default function WaiterCartSheet({ companyId }: { companyId: string}) {
         orderItems: cartItems.map(item => ({
             productId: item.product.id || 'unknown',
             productName: item.product.name || 'Produto',
+            printSector: item.product.printSector || 'Geral',
             quantity: Number(item.quantity) || 1,
             unitPrice: Number(item.product.price) || 0,
             finalPrice: Number(item.finalPrice) || 0,
