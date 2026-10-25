@@ -363,6 +363,17 @@ export default function OrdersPage() {
                                   <span className="hidden sm:inline">Por setor</span>
                                 </Button>
                               )}
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-9 px-2.5 sm:px-3 gap-1.5 sm:gap-2 flex items-center"
+                                onClick={() => handlePrintOrder(order)}
+                                title="Imprimir comprovante"
+                                aria-label="Imprimir comprovante"
+                              >
+                                <Printer className="h-4 w-4" />
+                                <span className="hidden sm:inline">Comprovante</span>
+                              </Button>
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-9 w-9"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
@@ -370,9 +381,6 @@ export default function OrdersPage() {
                                   <DropdownMenuItem onClick={() => setSelectedOrder(order)}>Ver Detalhes</DropdownMenuItem>
                                   <DropdownMenuItem onClick={() => handlePrintTokens(order)}>
                                     <Ticket className="mr-2 h-4 w-4" /> <span translate="no">Imprimir Ficha(s)</span>
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => handlePrintOrder(order)}>
-                                    <Printer className="mr-2 h-4 w-4" /> <span translate="no">Imprimir Comprovante</span>
                                   </DropdownMenuItem>
                                   <DropdownMenuSeparator />
                                   <DropdownMenuItem onClick={() => handleUpdateStatus(order, 'Em preparo')}>Mudar para Preparo</DropdownMenuItem>
