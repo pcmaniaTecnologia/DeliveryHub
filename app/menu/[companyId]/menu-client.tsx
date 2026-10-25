@@ -62,6 +62,7 @@ export type Product = {
     name: string;
     description: string;
     price: number;
+    printSector?: 'Geral' | 'Cozinha' | 'Bar' | 'Sobremesas';
     categoryId: string;
     category?: string;
     isActive: boolean;
