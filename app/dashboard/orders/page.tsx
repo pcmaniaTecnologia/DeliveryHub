@@ -33,7 +33,7 @@ import { MoreHorizontal, Printer, Bike, Ticket } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { generateOrderPrintHtml, generateOrderTokensPrintHtml } from '@/lib/print-utils';
+import { generateOrderPrintHtml, generateOrderSectorPrintHtml, generateOrderTokensPrintHtml, openPrintPreview } from '@/lib/print-utils';
 import { Input } from '@/components/ui/input';
 import { Search } from 'lucide-react';
 
@@ -55,6 +55,7 @@ type OrderItem = {
   finalPrice?: number;
   notes?: string;
   productName?: string;
+  printSector?: string;
   isSoldByWeight?: boolean;
   selectedVariants?: { groupName: string; itemName: string; price: number }[];
 };
@@ -109,6 +110,13 @@ export default function OrdersPage() {
     const { toast } = useToast();
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
+    const [selectedDate, setSelectedDate] = useState(() => {
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    });
 
     const companyRef = useMemoFirebase(() => {
       if (!firestore || !user?.uid) return null;
@@ -197,6 +205,15 @@ export default function OrdersPage() {
         }
     };
 
+    const handlePrintOrderBySector = (orderToPrint: Order) => {
+        if (!firestore || !user) return;
+        const html = generateOrderSectorPrintHtml(orderToPrint, companyData || undefined);
+        openPrintPreview(html);
+        if (orderToPrint.status === 'Novo' || orderToPrint.status === 'Aguardando pagamento') {
+            updateDocument(doc(firestore, `companies/${user.uid}/orders`, orderToPrint.id), { status: 'Em preparo' }).catch(() => {});
+        }
+    };
+
     const handlePrintTokens = (orderToPrint: Order) => {
         if (!firestore || !user) return;
         const printHtml = generateOrderTokensPrintHtml(orderToPrint, companyData || undefined);
@@ -239,6 +256,16 @@ export default function OrdersPage() {
             className="pl-9 w-full md:max-w-md"
           />
         </div>
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <label htmlFor="orders-date" className="text-sm font-medium">Data dos pedidos</label>
+          <Input
+            id="orders-date"
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="w-full sm:w-auto sm:max-w-[190px]"
+          />
+        </div>
         <Tabs defaultValue="Todos">
           <TabsList className="flex flex-wrap w-full justify-start h-auto mb-4 md:mb-0">
             {Object.keys(statusMap).map(status => (
@@ -265,6 +292,10 @@ export default function OrdersPage() {
                         <TableRow><TableCell colSpan={5} className="text-center">Carregando...</TableCell></TableRow>
                       ) : (
                       orders?.filter(order => {
+                          if (!order.orderDate) return false;
+                          const orderDate = order.orderDate.toDate();
+                          const orderLocalDate = `${orderDate.getFullYear()}-${String(orderDate.getMonth() + 1).padStart(2, '0')}-${String(orderDate.getDate()).padStart(2, '0')}`;
+                          if (orderLocalDate !== selectedDate) return false;
                           const matchesStatus = statuses.includes(order.status);
                           if (!matchesStatus) return false;
                           if (!searchQuery.trim()) return true;
@@ -333,11 +364,11 @@ export default function OrdersPage() {
                                   variant={(order.status === 'Novo' || order.status === 'Aguardando pagamento') ? 'default' : 'outline'} 
                                   size="sm"
                                   className="h-9 px-2.5 sm:px-3 gap-1.5 sm:gap-2 flex items-center" 
-                                  onClick={() => handlePrintOrder(order)}
-                                  title={(order.status === 'Novo' || order.status === 'Aguardando pagamento') ? 'Imprimir e Iniciar Preparo' : 'Imprimir Pedido'}
+                                  onClick={() => handlePrintOrderBySector(order)}
+                                  title={(order.status === 'Novo' || order.status === 'Aguardando pagamento') ? 'Imprimir por setor e iniciar preparo' : 'Imprimir por setor'}
                                 >
                                   <Printer className="h-4 w-4" />
-                                  <span className="hidden sm:inline" translate="no">Imprimir</span>
+                                  <span className="hidden sm:inline">Por setor</span>
                                 </Button>
                               )}
                               <DropdownMenu>
@@ -427,6 +458,15 @@ const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order; co
             if (order.status !== 'Cancelado' && order.status !== 'Entregue') {
                 updateDocument(orderRef, { status: 'Em preparo' }).catch(() => {});
             }
+        }
+    };
+
+    const handlePrintBySector = () => {
+        if (!order || !firestore || !user) return;
+        const html = generateOrderSectorPrintHtml(order, company);
+        openPrintPreview(html);
+        if (order.status === 'Novo' || order.status === 'Aguardando pagamento') {
+            updateDocument(doc(firestore, `companies/${user.uid}/orders`, order.id), { status: 'Em preparo' }).catch(() => {});
         }
     };
 
@@ -571,12 +611,19 @@ const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order; co
                         </>
                     ) : (
                         <>
+                            <Button
+                                variant="default"
+                                className="w-full mt-2 gap-2"
+                                onClick={handlePrintBySector}
+                            >
+                                <Printer className="h-4 w-4" /> Imprimir por setor e começar preparo
+                            </Button>
                             <Button 
                                 variant="outline" 
-                                className="w-full mt-2 gap-2" 
+                                className="w-full gap-2" 
                                 onClick={handlePrint}
                             >
-                                <Printer className="h-4 w-4" /> Imprimir e Começar Preparo
+                                <Printer className="h-4 w-4" /> Imprimir comprovante geral
                             </Button>
                             <Button 
                                 variant="outline" 
