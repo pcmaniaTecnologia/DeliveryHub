@@ -184,11 +184,7 @@ export default function OrdersPage() {
     const handlePrintOrder = (orderToPrint: Order) => {
         if (!firestore || !user) return;
         const printHtml = generateOrderPrintHtml(orderToPrint, companyData || undefined);
-        const printWindow = window.open('', '_blank', 'width=300,height=500');
-        if (printWindow) {
-            printWindow.document.write(printHtml);
-            printWindow.document.close();
-        }
+        openPrintPreview(printHtml);
 
         if (orderToPrint.status === 'Novo' || orderToPrint.status === 'Aguardando pagamento' || orderToPrint.deliveryType === 'Mesa') {
             const orderDocRef = doc(firestore, `companies/${user.uid}/orders`, orderToPrint.id);
@@ -217,11 +213,7 @@ export default function OrdersPage() {
     const handlePrintTokens = (orderToPrint: Order) => {
         if (!firestore || !user) return;
         const printHtml = generateOrderTokensPrintHtml(orderToPrint, companyData || undefined);
-        const printWindow = window.open('', '_blank', 'width=300,height=500');
-        if (printWindow) {
-            printWindow.document.write(printHtml);
-            printWindow.document.close();
-        }
+        openPrintPreview(printHtml);
 
         if (orderToPrint.status === 'Novo' || orderToPrint.status === 'Aguardando pagamento' || orderToPrint.deliveryType === 'Mesa') {
             const orderDocRef = doc(firestore, `companies/${user.uid}/orders`, orderToPrint.id);
@@ -447,11 +439,7 @@ const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order; co
      const handlePrint = () => {
         if (!order || !firestore || !user) return;
         const printHtml = generateOrderPrintHtml(order, company);
-        const printWindow = window.open('', '_blank', 'width=300,height=500');
-        if (printWindow) {
-            printWindow.document.write(printHtml);
-            printWindow.document.close();
-        }
+        openPrintPreview(printHtml);
 
         if (order.status === 'Novo' || order.status === 'Aguardando pagamento' || order.deliveryType === 'Mesa') {
             const orderRef = doc(firestore, `companies/${user.uid}/orders`, order.id);
@@ -473,11 +461,7 @@ const OrderDetailsDialog = ({ order, company, onOpenChange }: { order: Order; co
     const handlePrintTokens = () => {
         if (!order || !firestore || !user) return;
         const printHtml = generateOrderTokensPrintHtml(order, company);
-        const printWindow = window.open('', '_blank', 'width=300,height=500');
-        if (printWindow) {
-            printWindow.document.write(printHtml);
-            printWindow.document.close();
-        }
+        openPrintPreview(printHtml);
 
         if (order.status === 'Novo' || order.status === 'Aguardando pagamento' || order.deliveryType === 'Mesa') {
             const orderRef = doc(firestore, `companies/${user.uid}/orders`, order.id);
