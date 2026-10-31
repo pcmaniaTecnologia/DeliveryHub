@@ -5,7 +5,7 @@ import { useEffect } from 'react';
 import { useDoc, useFirestore, useMemoFirebase, useAuth, initiateAnonymousSignIn } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { hexToHsl } from '@/lib/utils';
-import { Package2 } from 'lucide-react';
+import { ArrowLeft, Package2 } from 'lucide-react';
 import Link from 'next/link';
 import { CartProvider } from '@/context/cart-context';
 import CartSheet from '@/components/menu/cart-sheet';
@@ -85,13 +85,24 @@ export default function MenuLayout({
         <div className="menu-storefront min-h-screen bg-background">
         <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background/95 px-4 backdrop-blur-xl md:px-6">
             <nav className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 text-lg font-medium">
+            <div className="flex min-w-0 items-center gap-2 sm:gap-4">
+            <Link
+                href="/"
+                aria-label="Voltar para a vitrine"
+                title="Voltar para a vitrine"
+                className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-full border px-3 text-sm font-semibold text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:px-4"
+            >
+                <ArrowLeft className="h-4 w-4" />
+                <span className="hidden sm:inline">Vitrine</span>
+            </Link>
             <Link
                 href={`/menu/${companyId}`}
-                className="flex items-center gap-2 text-lg font-semibold"
+                className="flex min-w-0 items-center gap-2 text-lg font-semibold"
             >
                 <Package2 className="h-6 w-6 text-primary" />
                 <span className="max-w-[180px] truncate text-sm font-bold tracking-tight sm:max-w-sm">{companyData?.name || 'Cardápio'}</span>
             </Link>
+            </div>
             <CustomerAuthDialog companyId={companyId} />
             </nav>
         </header>
