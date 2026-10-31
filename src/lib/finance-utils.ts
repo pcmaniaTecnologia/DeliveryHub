@@ -81,6 +81,26 @@ export type SalesByPaymentMethod = {
 };
 
 /**
+ * Calculates the physical cash expected in the drawer from its ledger.
+ * Card and PIX sales are not cash in the drawer; only cash sales, cash
+ * deposits, and cash withdrawals change this balance.
+ */
+export function calculateCashDrawerBalance(openingBalance: number, transactions: any[] = []) {
+    let cents = Math.round((Number(openingBalance) || 0) * 100);
+
+    for (const transaction of transactions) {
+        const amountCents = Math.round((Number(transaction.amount) || 0) * 100);
+        const method = categorizePayment(String(transaction.paymentMethod || 'Dinheiro'));
+
+        if (transaction.type === 'sale' && method === 'cash') cents += amountCents;
+        if (transaction.type === 'deposit' && method === 'cash') cents += amountCents;
+        if (transaction.type === 'withdrawal' && method === 'cash') cents -= amountCents;
+    }
+
+    return cents / 100;
+}
+
+/**
  * Internal helper to normalize and categorize payment methods.
  * High-precision version for DeliveryHub.
  */

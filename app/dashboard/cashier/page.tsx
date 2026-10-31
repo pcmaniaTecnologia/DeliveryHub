@@ -10,7 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { cn } from '@/lib/utils';
 import { Calendar } from '@/components/ui/calendar';
 import { ptBR } from 'date-fns/locale';
-import { parseSalesByPaymentMethod, categorizePayment } from '@/lib/finance-utils';
+import { parseSalesByPaymentMethod, categorizePayment, calculateCashDrawerBalance } from '@/lib/finance-utils';
 import { Calendar as CalendarIcon, FilterX } from 'lucide-react';
 import {
   Card,
@@ -158,7 +158,7 @@ export default function CashierPage() {
     );
   }, [firestore, effectiveCompanyId, currentSession?.id, activePreset, dateRange?.from, dateRange?.to]);
 
-  const { data: rawTransactions } = useCollection<CashTransaction>(transactionsRef);
+  const { data: rawTransactions, isLoading: isLoadingTransactions } = useCollection<CashTransaction>(transactionsRef);
 
   const transactions = useMemo(() => {
     if (!rawTransactions) return null;
@@ -283,7 +283,7 @@ export default function CashierPage() {
     
     // Caso venha como Objeto (formato novo/caixa)
     const s = salesByPaymentMethod as any;
-    return (s.cash || 0) + (s.pix || 0) + (s.credit || 0) + (s.debit || 0) + (s.others || 0);
+    return (s.cash || 0) + (s.pix || 0) + (s.credit || 0) + (s.debit || 0) + (s.others || 0) + (s.crediario || 0);
   }, [salesByPaymentMethod]);
 
   const handlePrintReport = () => {
@@ -329,6 +329,7 @@ export default function CashierPage() {
           <div class="item"><span>PIX</span> <span>${formatCurrency(salesByPaymentMethod.pix)}</span></div>
           <div class="item"><span>Cartão de Crédito</span> <span>${formatCurrency(salesByPaymentMethod.credit)}</span></div>
           <div class="item"><span>Cartão de Débito</span> <span>${formatCurrency(salesByPaymentMethod.debit)}</span></div>
+          <div class="item"><span>Crediário</span> <span>${formatCurrency((salesByPaymentMethod as any).crediario || 0)}</span></div>
           <div class="item"><span>Outros/Diversos</span> <span>${formatCurrency((salesByPaymentMethod as any).others || 0)}</span></div>
           
           <div class="total"><span>Total</span> <span>${formatCurrency(sessionTotalSales)}</span></div>
@@ -474,7 +475,7 @@ export default function CashierPage() {
       if (t.type === 'sale') sales += amt;
     });
 
-    const current = Number(opening) + deposits + sales - withdrawals;
+    const current = calculateCashDrawerBalance(opening, transactions);
 
     const result = { 
       withdrawals: Number(withdrawals.toFixed(2)), 
@@ -567,9 +568,13 @@ export default function CashierPage() {
   };
 
   const handleCloseCashier = async () => {
-    if (!firestore || !user || !currentSession) return;
+    if (!firestore || !user || !currentSession || isLoadingTransactions || !transactions) return;
+    if (!closingActual.trim() || !Number.isFinite(Number(closingActual)) || Number(closingActual) < 0) {
+      toast({ variant: 'destructive', title: 'Valor contado inválido', description: 'Informe o valor contado na gaveta antes de fechar.' });
+      return;
+    }
     try {
-      const actual = parseFloat(closingActual) || 0;
+      const actual = Math.round(Number(closingActual) * 100) / 100;
       const sessDocRef = doc(firestore, `companies/${effectiveCompanyId}/cashier_sessions`, currentSession.id);
       
       await updateDocument(sessDocRef, {
@@ -821,6 +826,7 @@ export default function CashierPage() {
                             { label: 'PIX', value: salesByPaymentMethod.pix, icon: Landmark },
                             { label: 'Cartão de Crédito', value: salesByPaymentMethod.credit, icon: CreditCard },
                             { label: 'Cartão de Débito', value: salesByPaymentMethod.debit, icon: CreditCard },
+                            { label: 'Crediário', value: (salesByPaymentMethod as any).crediario || 0, icon: Calculator },
                             { label: 'Outros/Diversos', value: (salesByPaymentMethod as any).others || 0, icon: Calculator },
                           ].map((item) => (
                             <div key={item.label} className="flex items-center group">
@@ -863,8 +869,8 @@ export default function CashierPage() {
                                 <span>Contado: <b>R$ {s.closingBalanceActual?.toFixed(2)}</b></span>
                             </div>
                         </div>
-                        <Badge variant={Math.abs((s.closingBalanceActual || 0) - (s.closingBalanceExpected || 0)) < 0.1 ? 'outline' : 'destructive'} className="text-[10px] h-6 px-2">
-                            {Math.abs((s.closingBalanceActual || 0) - (s.closingBalanceExpected || 0)) < 0.1 ? 'Conferido' : `Dif: R$ ${(s.closingBalanceActual! - s.closingBalanceExpected!).toFixed(2)}`}
+                        <Badge variant={Math.abs((s.closingBalanceActual || 0) - (s.closingBalanceExpected || 0)) < 0.005 ? 'outline' : 'destructive'} className="text-[10px] h-6 px-2">
+                            {Math.abs((s.closingBalanceActual || 0) - (s.closingBalanceExpected || 0)) < 0.005 ? 'Conferido' : `Dif: R$ ${(s.closingBalanceActual! - s.closingBalanceExpected!).toFixed(2)}`}
                         </Badge>
                         </div>
                     ))
@@ -1003,7 +1009,7 @@ export default function CashierPage() {
                             </div>
                             <DialogFooter>
                                 <Button variant="outline" onClick={() => setIsClosing(false)}>Cancelar</Button>
-                                <Button variant="destructive" className="h-11 px-8 font-bold shadow-lg" onClick={handleCloseCashier}>Encerrar Sessão</Button>
+                                <Button variant="destructive" className="h-11 px-8 font-bold shadow-lg" onClick={handleCloseCashier} disabled={isLoadingTransactions || !transactions || !closingActual.trim()}>Encerrar Sessão</Button>
                             </DialogFooter>
                         </DialogContent>
                     </Dialog>

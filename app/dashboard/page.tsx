@@ -38,7 +38,7 @@ import { DateRange } from 'react-day-picker';
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { parseSalesByPaymentMethod, categorizePayment } from '@/lib/finance-utils';
+import { parseSalesByPaymentMethod, categorizePayment, calculateCashDrawerBalance } from '@/lib/finance-utils';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -217,7 +217,13 @@ export default function DashboardPage() {
       where('timestamp', '<=', endOfDay(dateRange.to || dateRange.from))
     );
   }, [firestore, user?.uid, currentCashSession?.id, dateRange?.from, dateRange?.to]);
-  const { data: rawTransactions } = useCollection<any>(transactionsRef);
+  const { data: rawTransactions, isLoading: isLoadingTransactions } = useCollection<any>(transactionsRef);
+
+  const cashDrawerExpected = useMemo(() => {
+    if (!currentCashSession || isLoadingTransactions || !rawTransactions) return null;
+    const sessionTransactions = rawTransactions.filter((transaction: any) => transaction.sessionId === currentCashSession.id);
+    return calculateCashDrawerBalance(currentCashSession.openingBalance || 0, sessionTransactions);
+  }, [currentCashSession, isLoadingTransactions, rawTransactions]);
 
   const handlePresetChange = (preset: 'today' | 'week' | 'month') => {
     setActivePreset(preset);
@@ -292,15 +298,20 @@ export default function DashboardPage() {
   };
 
   const handleCloseCashier = async () => {
-    if (!firestore || !user?.uid || !currentCashSession) return;
+    if (!firestore || !user?.uid || !currentCashSession || cashDrawerExpected === null) return;
+    if (!closingActual.trim() || !Number.isFinite(Number(closingActual)) || Number(closingActual) < 0) {
+      toast({ variant: 'destructive', title: 'Valor contado inválido', description: 'Informe o valor contado na gaveta antes de fechar.' });
+      return;
+    }
     setIsSavingClose(true);
     try {
-      const actual = parseFloat(closingActual) || 0;
+      const actual = Math.round(Number(closingActual) * 100) / 100;
       const sessDocRef = doc(firestore, `companies/${user.uid}/cashier_sessions`, currentCashSession.id);
       await updateDocument(sessDocRef, {
         status: 'closed',
         closedAt: serverTimestamp(),
         closedBy: user.uid,
+        closingBalanceExpected: cashDrawerExpected,
         closingBalanceActual: actual,
         note: closingNote,
       });
@@ -613,18 +624,20 @@ export default function DashboardPage() {
               </div>
               <div className="flex justify-between font-bold text-base pt-1">
                 <span>Saldo Esperado na Gaveta:</span>
-                <span className="text-primary">R$ {((currentCashSession?.openingBalance || 0) + salesByPaymentMethod.cash + totalDeposits - totalWithdrawals).toFixed(2)}</span>
+                <span className="text-primary">R$ {(cashDrawerExpected ?? 0).toFixed(2)}</span>
               </div>
             </div>
             <div className="space-y-2">
               <Label className="text-base font-semibold">Valor Contado na Gaveta (R$)</Label>
               <Input type="number" className="text-xl h-12 font-bold" placeholder="0.00"
                 value={closingActual} onChange={e => setClosingActual(e.target.value)} autoFocus />
-              {closingActual && !isNaN(parseFloat(closingActual)) && (
-                <p className={cn("text-sm font-medium", parseFloat(closingActual) >= ((currentCashSession?.openingBalance || 0) + salesByPaymentMethod.cash + totalDeposits - totalWithdrawals) ? "text-emerald-600" : "text-rose-600")}>
-                  {parseFloat(closingActual) >= ((currentCashSession?.openingBalance || 0) + salesByPaymentMethod.cash + totalDeposits - totalWithdrawals)
-                    ? `✅ Confere (+R$ ${(parseFloat(closingActual) - ((currentCashSession?.openingBalance || 0) + salesByPaymentMethod.cash + totalDeposits - totalWithdrawals)).toFixed(2)})`
-                    : `⚠️ Diferença: -R$ ${(((currentCashSession?.openingBalance || 0) + salesByPaymentMethod.cash + totalDeposits - totalWithdrawals) - parseFloat(closingActual)).toFixed(2)}`}
+              {closingActual && !isNaN(parseFloat(closingActual)) && cashDrawerExpected !== null && (
+                <p className={cn("text-sm font-medium", Math.round((Number(closingActual) - cashDrawerExpected) * 100) === 0 ? "text-emerald-600" : "text-rose-600")}>
+                  {Math.round((Number(closingActual) - cashDrawerExpected) * 100) === 0
+                    ? '✅ Conferido'
+                    : Math.round((Number(closingActual) - cashDrawerExpected) * 100) > 0
+                      ? `⚠️ Sobra: R$ ${((Number(closingActual) - cashDrawerExpected)).toFixed(2)}`
+                      : `⚠️ Falta: R$ ${(cashDrawerExpected - Number(closingActual)).toFixed(2)}`}
                 </p>
               )}
             </div>
@@ -642,7 +655,7 @@ export default function DashboardPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsCloseOpen(false)}>Cancelar</Button>
             <Button variant="destructive" className="font-bold px-6" onClick={handleCloseCashier}
-              disabled={isSavingClose || !currentCashSession}>
+              disabled={isSavingClose || !currentCashSession || cashDrawerExpected === null || !closingActual.trim()}>
               {isSavingClose ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <XCircle className="h-4 w-4 mr-2" />}
               Encerrar Sessão
             </Button>
