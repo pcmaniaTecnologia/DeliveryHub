@@ -143,7 +143,9 @@ export default function DashboardLayout({
   };
 
   const handleReloadPage = () => {
-    window.location.reload();
+    const currentUrl = new URL(window.location.href);
+    currentUrl.searchParams.set('_refresh', Date.now().toString());
+    window.location.replace(currentUrl.toString());
   };
 
   // When admin impersonates a company, use their ID instead of the logged-in admin's UID
