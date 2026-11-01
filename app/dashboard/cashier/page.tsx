@@ -256,19 +256,16 @@ export default function CashierPage() {
       return isWithinInterval(date, { start, end });
     });
 
+    // Session-linked orders already supply their payment breakdown. Adding sale
+    // transactions here would count the same payment twice. Only manual drawer
+    // movements belong on top of the order totals.
     const result = parseSalesByPaymentMethod(sessionOrders);
-
-    // Inclui pagamentos de fiado (deposits) e subtrai saídas (withdrawals) no breakdown por método
     if (transactions) {
         transactions.forEach(t => {
             const val = Number(t.amount) || 0;
             const cat = categorizePayment(t.paymentMethod || 'Dinheiro') || 'others';
-            
-            if (t.type === 'deposit') {
-                result[cat] += val;
-            } else if (t.type === 'withdrawal') {
-                result[cat] -= val;
-            }
+            if (t.type === 'deposit') result[cat] += val;
+            if (t.type === 'withdrawal') result[cat] -= val;
         });
     }
 
