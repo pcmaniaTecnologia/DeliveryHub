@@ -38,7 +38,7 @@ import { DateRange } from 'react-day-picker';
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { parseSalesByPaymentMethod, categorizePayment, calculateCashDrawerBalance } from '@/lib/finance-utils';
+import { parseSalesByPaymentMethod, calculateCashDrawerBalance } from '@/lib/finance-utils';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -77,6 +77,7 @@ type SalesByPaymentMethod = {
   pix: number;
   credit: number;
   debit: number;
+  crediario: number;
 };
 
 type CashSession = {
@@ -342,7 +343,7 @@ export default function DashboardPage() {
       totalSales: 0, totalDeposits: 0, totalWithdrawals: 0, totalOrders: 0, avgTicket: 0, pendingOrders: 0,
       deliveryCustomers: 0,
       salesChartData: [], recentOrdersWithDetails: [],
-      salesByPaymentMethod: { cash: 0, pix: 0, credit: 0, debit: 0 },
+      salesByPaymentMethod: { cash: 0, pix: 0, credit: 0, debit: 0, crediario: 0 },
       topProducts: [], lowStockProducts: []
     };
     if (!orders) return empty;
@@ -383,22 +384,10 @@ export default function DashboardPage() {
 
         transactions.forEach(t => {
             const val = Number(t.amount) || 0;
-            const cat = categorizePayment(t.paymentMethod || 'Dinheiro') || 'others';
-            
             if (t.type === 'deposit') {
                 totalDeposits += val;
-                if (salesByPaymentMethod[cat] !== undefined) {
-                    salesByPaymentMethod[cat] += val;
-                } else {
-                    salesByPaymentMethod.others += val;
-                }
             } else if (t.type === 'withdrawal') {
                 totalWithdrawals += val;
-                if (salesByPaymentMethod[cat] !== undefined) {
-                    salesByPaymentMethod[cat] -= val;
-                } else {
-                    salesByPaymentMethod.others -= val;
-                }
             }
         });
     }
@@ -445,6 +434,9 @@ export default function DashboardPage() {
     return { totalSales, totalDeposits, totalWithdrawals, totalOrders, avgTicket, pendingOrders, deliveryCustomers, salesChartData, recentOrdersWithDetails, salesByPaymentMethod, topProducts, lowStockProducts };
   }, [orders, products, categories, dateRange, rawTransactions, currentCashSession]);
 
+  const totalReceived = salesByPaymentMethod.cash + salesByPaymentMethod.pix
+    + salesByPaymentMethod.credit + salesByPaymentMethod.debit;
+
   const isLoading = isUserLoading || isLoadingOrders || isLoadingAdmin || isLoadingProducts;
 
   const dateRangeLabel = useMemo(() => {
@@ -466,7 +458,10 @@ export default function DashboardPage() {
       <div class="item"><span>PIX</span><span>${fc(salesByPaymentMethod.pix)}</span></div>
       <div class="item"><span>Cartão de Crédito</span><span>${fc(salesByPaymentMethod.credit)}</span></div>
       <div class="item"><span>Cartão de Débito</span><span>${fc(salesByPaymentMethod.debit)}</span></div>
-      <div class="total"><span>Total</span><span>${fc(totalSales)}</span></div>
+      <div class="item"><span>Crediário (a receber)</span><span>${fc(salesByPaymentMethod.crediario)}</span></div>
+      <div class="item"><span>Suprimentos</span><span>${fc(totalDeposits)}</span></div>
+      <div class="item"><span>Sangrias</span><span>${fc(totalWithdrawals)}</span></div>
+      <div class="total"><span>Total recebido</span><span>${fc(totalReceived)}</span></div>
       <script>window.print();window.onafterprint=()=>window.close();</script>
       </body></html>`;
     const w = window.open('', '_blank');
@@ -885,7 +880,7 @@ export default function DashboardPage() {
                 <PieChart className="h-5 w-5 text-muted-foreground" />
                 Fechamento de Caixa {dateRangeLabel}
               </CardTitle>
-              <CardDescription>Total de vendas do período detalhado por forma de pagamento.</CardDescription>
+              <CardDescription>Valores recebidos no período; o crediário fica separado como valor a receber.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -894,6 +889,7 @@ export default function DashboardPage() {
                   { label: 'PIX', value: salesByPaymentMethod.pix, Icon: Landmark },
                   { label: 'Cartão de Crédito', value: salesByPaymentMethod.credit, Icon: CreditCard },
                   { label: 'Cartão de Débito', value: salesByPaymentMethod.debit, Icon: CreditCard },
+                  { label: 'Crediário (a receber)', value: salesByPaymentMethod.crediario, Icon: DollarSign },
                 ].map(({ label, value, Icon }) => (
                   <div key={label} className="flex items-center">
                     <Icon className="h-5 w-5 mr-3 text-muted-foreground" />
@@ -901,14 +897,25 @@ export default function DashboardPage() {
                     <span className="font-medium">R$ {value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
                 ))}
+                <Separator />
+                <div className="flex items-center">
+                  <ArrowDownCircle className="mr-3 h-5 w-5 text-emerald-600" />
+                  <span className="flex-1">Suprimentos</span>
+                  <span className="font-medium text-emerald-600">+ R$ {totalDeposits.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+                <div className="flex items-center">
+                  <ArrowUpCircle className="mr-3 h-5 w-5 text-rose-600" />
+                  <span className="flex-1">Sangrias</span>
+                  <span className="font-medium text-rose-600">- R$ {totalWithdrawals.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
               </div>
             </CardContent>
             <CardFooter className="flex-col items-stretch space-y-2">
               <Separator />
               <div className="flex items-center font-bold text-lg pt-2">
                 <DollarSign className="h-5 w-5 mr-3" />
-                <span className="flex-1">Total</span>
-                <span>R$ {totalSales.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span className="flex-1">Total recebido</span>
+                <span>R$ {totalReceived.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
               <Button variant="outline" className="w-full" onClick={handlePrint}>
                 <Printer className="mr-2 h-4 w-4" /> Imprimir
