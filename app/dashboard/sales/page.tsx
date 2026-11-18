@@ -634,7 +634,7 @@ export default function POSPage() {
             const orderData = {
                 companyId: effectiveCompanyId,
                 customerId: 'balcao',
-                registeredCustomerId: selectedCustomerId || undefined,
+                ...(selectedCustomerId ? { registeredCustomerId: selectedCustomerId } : {}),
                 customerName: checkoutCustomerName || 'Consumidor',
                 customerPhone: checkoutCustomerPhone,
                 deliveryAddress: checkoutCustomerAddress || 'Venda de Balcão',
@@ -686,7 +686,7 @@ export default function POSPage() {
                     customerPhone: checkoutCustomerPhone,
                     customerAddress: checkoutCustomerAddress,
                     customerEmail: checkoutCustomerEmail,
-                    customerId: selectedCustomerId || undefined,
+                    ...(selectedCustomerId ? { customerId: selectedCustomerId } : {}),
                     originalAmount: crediarioAmount,
                     remainingAmount: crediarioAmount,
                     status: 'pendente',
