@@ -45,7 +45,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { format, addDays } from 'date-fns';
+import { format, addDays, startOfDay } from 'date-fns';
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Textarea } from '@/components/ui/textarea';
@@ -64,6 +64,15 @@ type Company = {
   subscriptionEndDate?: Timestamp;
   createdAt?: Timestamp | any;
 };
+
+function getSubscriptionExpiryStatus(company: Company) {
+  const expiry = company.subscriptionEndDate;
+  if (!expiry || typeof expiry.toDate !== 'function') return null;
+
+  return startOfDay(expiry.toDate()).getTime() < startOfDay(new Date()).getTime()
+    ? 'expired'
+    : 'current';
+}
 
 type Plan = {
     id: string;
@@ -349,9 +358,13 @@ export default function ManageCompaniesPage() {
                 <TableCell colSpan={9} className="text-center">Carregando empresas...</TableCell>
               </TableRow>
             )}
-            {!isLoading && filteredCompanies.map((company) => (
-              <TableRow key={company.id}>
-                <TableCell className="font-medium">{company.name}</TableCell>
+            {!isLoading && filteredCompanies.map((company) => {
+              const expiryStatus = getSubscriptionExpiryStatus(company);
+              const isExpired = expiryStatus === 'expired';
+
+              return (
+              <TableRow key={company.id} className={isExpired ? 'bg-red-50 hover:bg-red-100 dark:bg-red-950/30 dark:hover:bg-red-950/50' : undefined}>
+                <TableCell className={`font-medium ${isExpired ? 'text-red-800 dark:text-red-300' : ''}`}>{company.name}</TableCell>
                 <TableCell>{company.email || 'Não informado'}</TableCell>
                 <TableCell>{company.phone || 'Não informado'}</TableCell>
                 <TableCell>
@@ -372,9 +385,15 @@ export default function ManageCompaniesPage() {
                   })()}
                 </TableCell>
                 <TableCell>
-                  {company.subscriptionEndDate && typeof company.subscriptionEndDate.toDate === 'function'
-                    ? format(company.subscriptionEndDate.toDate(), 'dd/MM/yyyy')
-                    : 'N/A'}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={isExpired ? 'font-semibold text-red-700 dark:text-red-300' : ''}>
+                      {company.subscriptionEndDate && typeof company.subscriptionEndDate.toDate === 'function'
+                        ? format(company.subscriptionEndDate.toDate(), 'dd/MM/yyyy')
+                        : 'N/A'}
+                    </span>
+                    {expiryStatus === 'expired' && <Badge variant="destructive">Vencida</Badge>}
+                    {expiryStatus === 'current' && <Badge className="bg-emerald-600 text-white hover:bg-emerald-700">Em dia</Badge>}
+                  </div>
                 </TableCell>
                 <TableCell>
                   <Badge variant={company.isActive ? 'default' : 'destructive'}>
@@ -463,7 +482,7 @@ export default function ManageCompaniesPage() {
                     </div>
                 </TableCell>
               </TableRow>
-            ))}
+            )})}
              {!isLoading && filteredCompanies.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={9} className="text-center">Nenhuma empresa encontrada com essa busca.</TableCell>
