@@ -45,7 +45,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { format, addDays, startOfDay } from 'date-fns';
+import { format, addMonths, startOfDay } from 'date-fns';
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Textarea } from '@/components/ui/textarea';
@@ -62,6 +62,7 @@ type Company = {
   showcaseEnabled?: boolean;
   planId?: string;
   subscriptionEndDate?: Timestamp;
+  subscriptionBillingDay?: number;
   createdAt?: Timestamp | any;
 };
 
@@ -193,13 +194,15 @@ export default function ManageCompaniesPage() {
         }
     }
 
-    const updateData: { isActive: boolean, subscriptionEndDate?: Date } = {
+    const updateData: { isActive: boolean, subscriptionEndDate?: Date, subscriptionBillingDay?: number } = {
         isActive: !currentStatus
     };
 
-    // When activating the company, set a 30-day subscription period.
+    // When activating the company, set a one-month subscription period and keep its billing day.
     if (!currentStatus) {
-        updateData.subscriptionEndDate = addDays(new Date(), 30);
+        const activatedAt = new Date();
+        updateData.subscriptionEndDate = addMonths(activatedAt, 1);
+        updateData.subscriptionBillingDay = activatedAt.getDate();
     }
 
     updateDocument(companyDocRef, updateData).catch(error => {
@@ -208,7 +211,7 @@ export default function ManageCompaniesPage() {
 
     toast({
         title: 'Status da Empresa Atualizado!',
-        description: `A empresa foi ${!currentStatus ? 'ativada' : 'desativada'}. ${!currentStatus ? 'A assinatura é válida por 30 dias.' : ''}`,
+        description: `A empresa foi ${!currentStatus ? 'ativada' : 'desativada'}. ${!currentStatus ? 'A assinatura é válida por um mês.' : ''}`,
     });
   };
 
@@ -266,10 +269,12 @@ export default function ManageCompaniesPage() {
     if (!firestore) return;
     const companyDocRef = doc(firestore, 'companies', companyId);
 
+    const activatedAt = new Date();
     updateDocument(companyDocRef, {
         planId,
         isActive: true,
-        subscriptionEndDate: addDays(new Date(), 30)
+        subscriptionEndDate: addMonths(activatedAt, 1),
+        subscriptionBillingDay: activatedAt.getDate(),
     }).then(() => {
         toast({ title: 'Plano Atualizado!', description: 'A empresa foi atualizada com o novo plano.' });
         setIsPlanDialogOpen(false);
@@ -286,6 +291,7 @@ export default function ManageCompaniesPage() {
 
     updateDocument(companyDocRef, {
         subscriptionEndDate: date,
+        subscriptionBillingDay: day,
         isActive: true
     }).then(() => {
         toast({ title: 'Validade Atualizada!', description: `Nova data: ${format(date, 'dd/MM/yyyy')}` });

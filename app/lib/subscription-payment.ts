@@ -1,7 +1,30 @@
-import { addDays } from 'date-fns';
+import { addMonths } from 'date-fns';
 import { admin, adminDb } from '@/lib/firebase-admin';
 
 type PaymentSource = 'manual' | 'recurring';
+
+function setBillingDay(date: Date, billingDay: number) {
+  const lastDayOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+  return new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    Math.min(billingDay, lastDayOfMonth),
+    date.getHours(),
+    date.getMinutes(),
+    date.getSeconds(),
+    date.getMilliseconds(),
+  );
+}
+
+function getNextFixedExpiry(currentEndDate: Date | null, now: Date, billingDay: number) {
+  const anchor = currentEndDate || now;
+  if (anchor > now) return setBillingDay(addMonths(anchor, 1), billingDay);
+
+  const monthDistance = (now.getFullYear() - anchor.getFullYear()) * 12 + now.getMonth() - anchor.getMonth();
+  let nextExpiry = setBillingDay(addMonths(anchor, Math.max(1, monthDistance)), billingDay);
+  if (nextExpiry <= now) nextExpiry = setBillingDay(addMonths(nextExpiry, 1), billingDay);
+  return nextExpiry;
+}
 
 export async function applyApprovedSubscriptionPayment(input: {
   paymentId: string;
@@ -43,15 +66,23 @@ export async function applyApprovedSubscriptionPayment(input: {
     if (!currentCompany.exists) throw new Error('Empresa do pagamento não encontrada.');
 
     const now = new Date();
-    const currentEndDate = currentCompany.data()?.subscriptionEndDate?.toDate?.();
-    const baseDate = currentEndDate instanceof Date && currentEndDate > now ? currentEndDate : now;
-    const subscriptionEndDate = addDays(baseDate, 30);
+    const companyData = currentCompany.data()!;
+    const storedEndDate = companyData.subscriptionEndDate?.toDate?.();
+    const currentEndDate = storedEndDate instanceof Date ? storedEndDate : null;
+    const startsPaidPlan = !companyData.planId || companyData.planId === 'trial';
+    const billingAnchor = startsPaidPlan && (!currentEndDate || currentEndDate <= now) ? null : currentEndDate;
+    const storedBillingDay = Number(companyData.subscriptionBillingDay);
+    const billingDay = Number.isInteger(storedBillingDay) && storedBillingDay >= 1 && storedBillingDay <= 31
+      ? storedBillingDay
+      : billingAnchor?.getDate() ?? now.getDate();
+    const subscriptionEndDate = getNextFixedExpiry(billingAnchor, now, billingDay);
 
     transaction.update(companyRef, {
       isActive: true,
       planId,
       trialUsed: true,
       subscriptionEndDate: admin.firestore.Timestamp.fromDate(subscriptionEndDate),
+      subscriptionBillingDay: billingDay,
       ...(subscriptionId ? { mercadoPagoSubscriptionId: subscriptionId } : {}),
     });
     transaction.create(paymentRef, {
