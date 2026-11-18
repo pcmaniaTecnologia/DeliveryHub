@@ -70,7 +70,8 @@ export function groupFinalizedComandas(orders: FinalizedOrder[], movements: Move
 
 const escape = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]!));
 const money = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-export function generateFinalizedComandaHtml(receipt: FinalizedComanda, companyName: string, isReprint = true) {
+export type CompanyPrintInfo = { name?: string; cnpj?: string; address?: string; city?: string; state?: string };
+export function generateFinalizedComandaHtml(receipt: FinalizedComanda, company: CompanyPrintInfo, isReprint = true) {
     const customers = [...new Set(receipt.orders.map(o => o.customerName).filter(Boolean))].join(', ');
     const payments = new Map<string, number>();
     const recordedPayments = receipt.payments || receipt.orders.flatMap(order => order.payments || []);
@@ -84,8 +85,28 @@ export function generateFinalizedComandaHtml(receipt: FinalizedComanda, companyN
     const itemTotal = sumCurrency(receipt.orders.flatMap(o => (o.orderItems || []).map(item => pricedItemTotal(item))));
     const discount = sumCurrency([itemTotal, -receipt.total]);
     return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${isReprint ? 'Reimpressão' : 'Comprovante'} — Mesa ${escape(receipt.tableNumber)}</title>
-        <style>body{font:14px 'Courier New',monospace;color:#000;max-width:76mm;margin:12px auto}h1{font-size:18px;text-align:center}h2{font-size:16px;text-align:center}p{margin:5px 0}table{width:100%;border-collapse:collapse}td{padding:6px 0;border-bottom:1px dashed #777;vertical-align:top}td:last-child{text-align:right;white-space:nowrap}small{display:block}hr{border:0;border-top:1px dashed #000}.total{font-size:18px;font-weight:bold}.center{text-align:center}@media print{body{margin:0;max-width:none}}</style></head><body>
-        <h1>${escape(companyName)}</h1><h2>${isReprint ? 'COMANDA FINALIZADA — REIMPRESSÃO' : 'COMPROVANTE DE PAGAMENTO'}</h2><p>Mesa ${escape(receipt.tableNumber)}</p>
+        <style>
+            @page{margin:3mm}
+            *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+            body{font:700 10pt/1.3 Arial,sans-serif;color:#000;background:#fff;max-width:72mm;margin:0 auto;padding:2mm}
+            h1,h2,p{color:#000;text-align:center;margin:0}
+            h1{font-size:14pt;font-weight:900;margin-bottom:2px}
+            h2{font-size:10pt;font-weight:900;margin:7px 0 4px}
+            p{font-weight:700;margin:4px 0}
+            table{width:100%;border-collapse:collapse;color:#000;font-weight:700}
+            td{padding:5px 2px;border-bottom:1px dashed #000;vertical-align:top;font-weight:700}
+            td:last-child{text-align:right;white-space:nowrap;font-weight:900}
+            small{display:block;color:#000;font-weight:700}
+            hr{border:0;border-top:1px dashed #000;margin:6px 0}
+            .total{font-size:12pt;font-weight:900}
+            .center{text-align:center;font-weight:700}
+            @media print{body{margin:0;max-width:72mm}}
+        </style></head><body>
+        <h1>${escape(company.name || 'Restaurante')}</h1>
+        ${company.cnpj?.trim() ? `<p>${escape(`CNPJ: ${company.cnpj.trim()}`)}</p>` : ''}
+        ${company.address?.trim() ? `<p>${escape(company.address.trim())}</p>` : ''}
+        ${[company.city?.trim(), company.state?.trim()].filter(Boolean).length ? `<p>${escape([company.city?.trim(), company.state?.trim()].filter(Boolean).join(' - '))}</p>` : ''}
+        <h2>${isReprint ? 'COMANDA FINALIZADA — REIMPRESSÃO' : 'COMPROVANTE DE PAGAMENTO'}</h2><p>Mesa ${escape(receipt.tableNumber)}</p>
         ${customers ? `<p>Cliente: ${escape(customers)}</p>` : ''}
         <p>${receipt.paidAt ? 'Pagamento' : 'Pedido'}: ${new Date(receipt.paidAt || millis(receipt.orders[0].orderDate)).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</p>
         <p>Pedidos: ${escape(receipt.orders.map(o => o.id.slice(0,6).toUpperCase()).join(', '))}</p><hr><table>${rows}</table>

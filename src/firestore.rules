@@ -189,6 +189,20 @@ service cloud.firestore {
       allow delete: if (isOwner(companyId) || isSuperAdmin()) && resource != null;
     }
 
+    match /companies/{companyId}/customers/{customerId} {
+      allow get, list: if isCompanyMember(companyId) || isOwner(companyId) || isSuperAdmin();
+      allow create: if (isCompanyMember(companyId) || isOwner(companyId) || isSuperAdmin())
+        && request.resource.data.name is string
+        && request.resource.data.phone is string
+        && request.resource.data.address is string;
+      allow update: if (isCompanyMember(companyId) || isOwner(companyId) || isSuperAdmin())
+        && resource != null
+        && request.resource.data.name is string
+        && request.resource.data.phone is string
+        && request.resource.data.address is string;
+      allow delete: if (isOwner(companyId) || isSuperAdmin()) && resource != null;
+    }
+
     match /companies/{companyId}/payables/{payableId} {
       allow get, list: if isCompanyMember(companyId) || isOwner(companyId) || isSuperAdmin();
       allow create: if isCompanyMember(companyId) || isOwner(companyId) || isSuperAdmin();

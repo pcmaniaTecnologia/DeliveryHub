@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { collection, query, where } from 'firebase/firestore';
 import { Printer, Loader2 } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { groupFinalizedComandas, generateFinalizedComandaHtml, type FinalizedOrder, type FinalizedComanda } from '@/lib/finalized-comandas';
+import { groupFinalizedComandas, generateFinalizedComandaHtml, type FinalizedOrder, type FinalizedComanda, type CompanyPrintInfo } from '@/lib/finalized-comandas';
 import { printHtml } from '@/lib/print-utils';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 
 const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 
-export function FinalizedComandasDialog({ companyId, companyName }: { companyId?: string | null; companyName: string }) {
+export function FinalizedComandasDialog({ companyId, companyInfo }: { companyId?: string | null; companyInfo: CompanyPrintInfo }) {
     const firestore = useFirestore();
     const { toast } = useToast();
     const [open, setOpen] = useState(false);
@@ -41,7 +41,7 @@ export function FinalizedComandasDialog({ companyId, companyName }: { companyId?
     });
     const loading = loadingOrders || loadingMovements;
     const reprint = (receipt: FinalizedComanda) => {
-        try { printHtml(generateFinalizedComandaHtml(receipt, companyName)); }
+        try { printHtml(generateFinalizedComandaHtml(receipt, companyInfo)); }
         catch { toast({ variant: 'destructive', title: 'Não foi possível abrir a impressão', description: 'Tente novamente e verifique as permissões de impressão do navegador.' }); }
     };
 

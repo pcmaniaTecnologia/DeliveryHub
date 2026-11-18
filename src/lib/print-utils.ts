@@ -3,7 +3,22 @@ import type { Order } from '../../app/dashboard/orders/page';
 type Company = {
     id?: string;
     name?: string;
+    cnpj?: string;
+    address?: string;
+    city?: string;
+    state?: string;
 };
+
+const escapePrintText = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]!));
+
+function companyHeader(company?: Company) {
+    const details = [
+        company?.cnpj?.trim() ? `CNPJ: ${company.cnpj.trim()}` : '',
+        company?.address?.trim() || '',
+        [company?.city?.trim(), company?.state?.trim()].filter(Boolean).join(' - '),
+    ].filter(Boolean);
+    return `<h2>${escapePrintText(company?.name || 'Seu Restaurante')}</h2>${details.map(line => `<p>${escapePrintText(line)}</p>`).join('')}`;
+}
 
 export function generateOrderPrintHtml(order: Order, company?: Company) {
     const isTableOrder = order.deliveryType?.toLocaleLowerCase('pt-BR') === 'mesa' || Boolean(order.tableNumber);
@@ -68,7 +83,7 @@ export function generateOrderPrintHtml(order: Order, company?: Company) {
                 </style>
             </head>
             <body>
-                <h2>${company?.name || 'Seu Restaurante'}</h2>
+                ${companyHeader(company)}
                 <p>Pedido: ${order.id.substring(0, 6).toUpperCase()}</p>
                 ${isTableOrder ? `<p class="table-number">MESA ${order.tableNumber || order.deliveryAddress?.replace(/^Mesa\s*/i, '') || '—'}</p>` : ''}
                 <p>${order.orderDate?.toDate ? order.orderDate.toDate().toLocaleString('pt-BR') : new Date().toLocaleString('pt-BR')}</p>
@@ -148,7 +163,7 @@ export function generateOrderSectorPrintHtml(order: Order, company?: Company) {
         <style>
             @page { margin: 3mm; }
             * { box-sizing: border-box; }
-            body { font-family: Arial, sans-serif; color: #000; margin: 0 auto; width: 72mm; font-size: 11pt; }
+            body { font-family: Arial, sans-serif; color: #000; margin: 0 auto; width: 72mm; font-size: 11pt; font-weight: 700; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             .ticket { padding: 2mm; min-height: 40mm; }
             .next-page { page-break-after: always; break-after: page; }
             h1, h2, p { margin: 0; text-align: center; }

@@ -625,7 +625,7 @@ export default function ComandasPage() {
                     <style>
                         @page { margin: 3mm; }
                         * { box-sizing: border-box; }
-                        body { font-family: Arial, sans-serif; font-size: 10pt; line-height: 1.25; margin: 0 auto; padding: 2mm; color: #000; font-weight: 600; width: 100%; max-width: 72mm; overflow-wrap: anywhere; }
+                        body { font-family: Arial, sans-serif; font-size: 10pt; line-height: 1.25; margin: 0 auto; padding: 2mm; color: #000; font-weight: 700; width: 100%; max-width: 72mm; overflow-wrap: anywhere; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
                         h2, p { margin: 0; text-align: center; color: #000; }
                         h2 { font-size: 13pt; font-weight: 900; }
                         .header { text-align: center; border-bottom: 1px dashed #000; padding-bottom: 6px; margin-bottom: 6px; }
@@ -634,7 +634,7 @@ export default function ComandasPage() {
                         .item span:last-child { white-space: nowrap; }
                         .total { border-top: 1px dashed #000; margin-top: 6px; padding-top: 6px; font-weight: 900; font-size: 10pt; }
                         .division { margin-top: 8px; padding: 6px; text-align: center; border: 1px dashed #000; }
-                        .footer { margin-top: 8px; text-align: center; font-size: 8pt; border-top: 1px dashed #000; padding-top: 6px; font-weight: normal; }
+                        .footer { margin-top: 8px; text-align: center; font-size: 8pt; border-top: 1px dashed #000; padding-top: 6px; font-weight: 700; }
                         @media print { body { width: 100%; max-width: 72mm; margin: 0 auto; } }
                     </style>
                 </head>
@@ -985,7 +985,13 @@ export default function ComandasPage() {
                 }
             }
 
-            setReceiptPreviewHtml(generateFinalizedComandaHtml(receipt, companyData?.name || 'Restaurante', false));
+            setReceiptPreviewHtml(generateFinalizedComandaHtml(receipt, {
+                name: companyData?.name,
+                cnpj: companyData?.cnpj,
+                address: companyData?.address,
+                city: companyData?.city,
+                state: companyData?.state,
+            }, false));
             setSelectedTable(null);
 
         } catch (error) {
@@ -1039,7 +1045,13 @@ export default function ComandasPage() {
                         <Ticket className="h-4 w-4" />
                         <span className="hidden sm:inline">Vender Ficha</span>
                     </Button>
-                    <FinalizedComandasDialog companyId={effectiveCompanyId} companyName={companyData?.name || 'Restaurante'} />
+                    <FinalizedComandasDialog companyId={effectiveCompanyId} companyInfo={{
+                        name: companyData?.name,
+                        cnpj: companyData?.cnpj,
+                        address: companyData?.address,
+                        city: companyData?.city,
+                        state: companyData?.state,
+                    }} />
                     <Button
                         variant="outline"
                         size="sm"

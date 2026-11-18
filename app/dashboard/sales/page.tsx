@@ -1,14 +1,14 @@
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { Search, Plus, Minus, Trash2, ShoppingCart, User, Smartphone, CreditCard, DollarSign, Landmark, CheckCircle2, Printer, X, Package, Loader2, Scale } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, ShoppingCart, User, Smartphone, CreditCard, DollarSign, Landmark, CheckCircle2, Printer, X, Package, Loader2, Scale, UserRoundSearch } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { useUser, useFirestore, useCollection, useMemoFirebase, addDocument, updateDocument } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase, addDocument, updateDocument, useDoc } from '@/firebase';
 import { collection, serverTimestamp, doc, increment, getDocs, query, where, limit, orderBy } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
@@ -72,12 +72,17 @@ type CartItem = {
     notes?: string;
 }
 
+type RegisteredCustomer = { id: string; name: string; phone: string; address: string; email?: string };
+
 export default function POSPage() {
     const { user, isUserLoading } = useUser();
     const firestore = useFirestore();
     const { toast } = useToast();
     const { isImpersonating, impersonatedCompanyId } = useImpersonation();
     const effectiveCompanyId = isImpersonating ? impersonatedCompanyId : user?.uid;
+
+    const companyRef = useMemoFirebase(() => firestore && effectiveCompanyId ? doc(firestore, 'companies', effectiveCompanyId) : null, [firestore, effectiveCompanyId]);
+    const { data: companyData } = useDoc<{ name?: string; cnpj?: string; address?: string; city?: string; state?: string }>(companyRef);
 
     // Data Fetching
     const productsRef = useMemoFirebase(() => {
@@ -91,6 +96,15 @@ export default function POSPage() {
         return collection(firestore, `companies/${effectiveCompanyId}/categories`);
     }, [firestore, effectiveCompanyId]);
     const { data: categoriesData, isLoading: isLoadingCategories } = useCollection<Category>(categoriesRef);
+
+    const customersRef = useMemoFirebase(() => {
+        if (!firestore || !effectiveCompanyId) return null;
+        return collection(firestore, `companies/${effectiveCompanyId}/customers`);
+    }, [firestore, effectiveCompanyId]);
+    const { data: registeredCustomers } = useCollection<RegisteredCustomer>(customersRef);
+    const [selectedCustomerId, setSelectedCustomerId] = useState('');
+    const [customerSearch, setCustomerSearch] = useState('');
+    const [isSavingCustomer, setIsSavingCustomer] = useState(false);
 
     // Refs for keyboard shortcuts
     const searchInputRef = useRef<HTMLInputElement>(null);
@@ -457,6 +471,63 @@ export default function POSPage() {
     const isFullCustomerNameValid = customerNameParts.length >= 2 && customerNameParts.every(part => part.length >= 2);
     const isCustomerPhoneValid = customerPhone.replace(/\D/g, '').length >= 10;
     const isCustomerAddressValid = customerAddress.trim().length >= 5;
+    const filteredRegisteredCustomers = useMemo(() => {
+        const search = customerSearch.trim().toLocaleLowerCase('pt-BR');
+        return (registeredCustomers || []).filter(customer => !search || `${customer.name} ${customer.phone} ${customer.email || ''}`.toLocaleLowerCase('pt-BR').includes(search)).slice(0, 6);
+    }, [registeredCustomers, customerSearch]);
+
+    const selectRegisteredCustomer = (customer: RegisteredCustomer) => {
+        setSelectedCustomerId(customer.id);
+        setCustomerName(customer.name);
+        setCustomerPhone(customer.phone);
+        setCustomerAddress(customer.address);
+        setCustomerEmail(customer.email || '');
+        setCustomerSearch(customer.name);
+    };
+
+    const saveCheckoutCustomer = async () => {
+        if (!firestore || !effectiveCompanyId) return;
+        const name = customerName.trim();
+        const phone = customerPhone.trim();
+        const address = customerAddress.trim();
+        if (name.split(/\s+/).filter(Boolean).length < 2 || name.toLowerCase() === 'consumidor') {
+            toast({ variant: 'destructive', title: 'Nome completo obrigatório', description: 'Preencha o nome e sobrenome antes de cadastrar.' });
+            return;
+        }
+        if (phone.replace(/\D/g, '').length < 10) {
+            toast({ variant: 'destructive', title: 'Contato inválido', description: 'Informe um telefone com DDD.' });
+            return;
+        }
+        if (address.length < 5) {
+            toast({ variant: 'destructive', title: 'Endereço obrigatório', description: 'Preencha o endereço completo antes de cadastrar.' });
+            return;
+        }
+        const duplicate = registeredCustomers?.find(customer => customer.phone.replace(/\D/g, '') === phone.replace(/\D/g, ''));
+        if (duplicate) {
+            selectRegisteredCustomer(duplicate);
+            toast({ title: 'Cliente já cadastrado', description: 'Encontramos esse telefone e selecionamos o cadastro existente.' });
+            return;
+        }
+        setIsSavingCustomer(true);
+        try {
+            const customerRef = await addDocument(collection(firestore, `companies/${effectiveCompanyId}/customers`), {
+                name, phone, address, email: customerEmail.trim(), notes: '',
+                createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+            });
+            setSelectedCustomerId('');
+            setCustomerSearch('');
+            setCustomerName('Consumidor');
+            setCustomerPhone('');
+            setCustomerAddress('');
+            setCustomerEmail('');
+            toast({ title: 'Cliente cadastrado', description: `${name} foi salvo. Os campos estão prontos para o próximo cadastro.` });
+        } catch (error) {
+            console.error('Falha ao cadastrar cliente pelo PDV:', error);
+            toast({ variant: 'destructive', title: 'Não foi possível cadastrar', description: 'Confira as permissões do Firestore e tente novamente.' });
+        } finally {
+            setIsSavingCustomer(false);
+        }
+    };
 
     // Keyboard Shortcuts Logic
     useEffect(() => {
@@ -496,6 +567,11 @@ export default function POSPage() {
 
     const handleCheckout = async () => {
         if (!firestore || !user || cart.length === 0) return;
+        const selectedCustomer = registeredCustomers?.find(customer => customer.id === selectedCustomerId);
+        const checkoutCustomerName = selectedCustomer?.name || customerName.trim();
+        const checkoutCustomerPhone = selectedCustomer?.phone || customerPhone.trim();
+        const checkoutCustomerAddress = selectedCustomer?.address || customerAddress.trim();
+        const checkoutCustomerEmail = selectedCustomer?.email || customerEmail.trim();
 
         // Check for out of stock items with blocking enabled (using fresh productsData)
         const blockedItems = cart.filter(item => {
@@ -524,18 +600,19 @@ export default function POSPage() {
         // Validation for Crediário
         const hasCrediario = isMultiPayment ? payments.some(p => p.method === 'Crediário') : paymentMethod === 'Crediário';
         if (hasCrediario) {
-            if (!isFullCustomerNameValid || customerName.trim().toLowerCase() === 'consumidor') {
+            const nameParts = checkoutCustomerName.split(/\s+/).filter(Boolean);
+            if (nameParts.length < 2 || nameParts.some(part => part.length < 2) || checkoutCustomerName.toLowerCase() === 'consumidor') {
                 toast({ variant: 'destructive', title: 'Nome completo obrigatório', description: 'Informe o nome e o sobrenome do cliente para continuar no crediário.' });
                 customerNameRef.current?.focus();
                 setIsSubmitting(false);
                 return;
             }
-            if (!isCustomerPhoneValid) {
+            if (checkoutCustomerPhone.replace(/\D/g, '').length < 10) {
                 toast({ variant: 'destructive', title: 'Contato obrigatório', description: 'Informe um telefone ou WhatsApp válido com DDD.' });
                 setIsSubmitting(false);
                 return;
             }
-            if (!isCustomerAddressValid) {
+            if (checkoutCustomerAddress.length < 5) {
                 toast({ variant: 'destructive', title: 'Endereço obrigatório', description: 'Informe o endereço completo do cliente para continuar no crediário.' });
                 setIsSubmitting(false);
                 return;
@@ -557,11 +634,12 @@ export default function POSPage() {
             const orderData = {
                 companyId: effectiveCompanyId,
                 customerId: 'balcao',
-                customerName: customerName.trim() || 'Consumidor',
-                customerPhone: customerPhone.trim(),
+                registeredCustomerId: selectedCustomerId || undefined,
+                customerName: checkoutCustomerName || 'Consumidor',
+                customerPhone: checkoutCustomerPhone,
+                deliveryAddress: checkoutCustomerAddress || 'Venda de Balcão',
                 orderDate: serverTimestamp(),
                 status: 'Finalizado',
-                deliveryAddress: 'Venda de Balcão',
                 deliveryType: 'Balcão',
                 deliveryFee: 0,
                 paymentMethod: fullPaymentMethod,
@@ -604,10 +682,11 @@ export default function POSPage() {
                 const receivablesRef = collection(firestore, 'companies', effectiveCompanyId as string, 'receivables');
                 await addDocument(receivablesRef, {
                     companyId: effectiveCompanyId,
-                    customerName: customerName.trim(),
-                    customerPhone: customerPhone.trim(),
-                    customerAddress: customerAddress.trim(),
-                    customerEmail: customerEmail.trim(),
+                    customerName: checkoutCustomerName,
+                    customerPhone: checkoutCustomerPhone,
+                    customerAddress: checkoutCustomerAddress,
+                    customerEmail: checkoutCustomerEmail,
+                    customerId: selectedCustomerId || undefined,
                     originalAmount: crediarioAmount,
                     remainingAmount: crediarioAmount,
                     status: 'pendente',
@@ -702,6 +781,7 @@ export default function POSPage() {
             setCustomerPhone('');
             setCustomerAddress('');
             setCustomerEmail('');
+            setSelectedCustomerId('');
             setPaymentMethod('Dinheiro');
             setDiscount('0.00');
             setAmountReceived('');
@@ -844,7 +924,7 @@ export default function POSPage() {
         const printWindow = window.open(windowUrl, windowName, 'left=50000,top=50000,width=0,height=0');
 
         if (printWindow) {
-            const html = generateOrderPrintHtml(order as any, { name: 'DeliveryHub' });
+            const html = generateOrderPrintHtml(order as any, companyData || undefined);
             printWindow.document.write(html);
             printWindow.document.close();
         }
@@ -1152,6 +1232,18 @@ export default function POSPage() {
                                 </p>
                             </div>
                             <div className="grid gap-4 sm:grid-cols-2">
+                                {hasCrediarioSelected && (
+                                    <div className="space-y-2 sm:col-span-2">
+                                        <Label htmlFor="registered-customer-search">Pesquisar cliente cadastrado</Label>
+                                        <div className="relative">
+                                            <UserRoundSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                            <Input id="registered-customer-search" className="h-11 pl-9" value={customerSearch} onChange={event => { setCustomerSearch(event.target.value); setSelectedCustomerId(''); }} placeholder="Digite nome ou telefone do cliente" />
+                                        </div>
+                                        {!selectedCustomerId && customerSearch.trim() && filteredRegisteredCustomers.length > 0 && <div className="max-h-36 overflow-y-auto rounded-md border bg-background">{filteredRegisteredCustomers.map(customer => <button type="button" key={customer.id} onClick={() => selectRegisteredCustomer(customer)} className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-muted"><span className="font-medium">{customer.name}</span><span className="shrink-0 text-xs text-muted-foreground">{customer.phone}</span></button>)}</div>}
+                                        {selectedCustomerId && <p className="text-xs font-medium text-emerald-700">Cliente selecionado: {customerName}</p>}
+                                        {!selectedCustomerId && customerSearch && filteredRegisteredCustomers.length === 0 && <p className="text-xs text-muted-foreground">Nenhum cliente encontrado. Preencha os dados abaixo e clique em “Cadastrar cliente”.</p>}
+                                    </div>
+                                )}
                                 <div className="space-y-2">
                                     <Label htmlFor="cust-name" className="text-xs text-muted-foreground">
                                         Nome completo [F2] {hasCrediarioSelected && <span className="text-destructive">*</span>}
@@ -1205,6 +1297,12 @@ export default function POSPage() {
                                         <div className="space-y-2">
                                             <Label htmlFor="cust-email" className="text-xs text-muted-foreground">E-mail</Label>
                                             <Input className="h-11" id="cust-email" type="email" value={customerEmail} onChange={e => setCustomerEmail(e.target.value)} placeholder="cliente@email.com" />
+                                        </div>
+                                        <div className="sm:col-span-2">
+                                            <Button type="button" onClick={saveCheckoutCustomer} disabled={isSavingCustomer} className="h-12 w-full gap-2 bg-primary text-base font-bold shadow-md ring-2 ring-primary/20 hover:bg-primary/90 sm:w-auto sm:min-w-56">
+                                                {isSavingCustomer ? <Loader2 className="h-5 w-5 animate-spin" /> : <Plus className="h-5 w-5" />}
+                                                {isSavingCustomer ? 'Salvando cliente...' : 'Cadastrar cliente'}
+                                            </Button>
                                         </div>
                                     </>
                                 )}

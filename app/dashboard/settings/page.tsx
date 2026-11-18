@@ -117,10 +117,14 @@ type CompanySettingsData = {
     id?: string;
     name?: string;
     phone?: string;
+    cnpj?: string;
     themeColors?: string;
     searchIndexingEnabled?: boolean;
     seoDescription?: string;
     address?: string;
+    city?: string;
+    state?: string;
+    neighborhood?: string;
     logoUrl?: string;
     logoAdjustments?: LogoAdjustments;
     soundNotificationEnabled?: boolean;
@@ -570,6 +574,10 @@ export default function SettingsPage() {
   const [seoDescription, setSeoDescription] = useState('');
   const [address, setAddress] = useState('');
   const [phone, setPhone] = useState('');
+  const [cnpj, setCnpj] = useState('');
+  const [city, setCity] = useState('');
+  const [state, setState] = useState('');
+  const [neighborhood, setNeighborhood] = useState('');
   const [primaryColor, setPrimaryColor] = useState('#29ABE2');
   const [accentColor, setAccentColor] = useState('#29E2D1');
   const [logoUrl, setLogoUrl] = useState('');
@@ -614,6 +622,10 @@ export default function SettingsPage() {
       setSeoDescription(companyData.seoDescription || '');
       setAddress(companyData.address || '');
       setPhone(companyData.phone || '');
+      setCnpj(companyData.cnpj || '');
+      setCity(companyData.city || '');
+      setState(companyData.state || '');
+      setNeighborhood(companyData.neighborhood || '');
       setLogoUrl(companyData.logoUrl || '');
       setLogoAdjustments(normalizeLogoAdjustments(companyData.logoAdjustments));
       setSoundNotificationEnabled(companyData.soundNotificationEnabled ?? true);
@@ -720,9 +732,13 @@ export default function SettingsPage() {
 
         const updatedData = {
             name: storeName,
+            cnpj: cnpj.trim(),
             searchIndexingEnabled,
             seoDescription: seoDescription.trim(),
             address: address.trim(),
+            city: city.trim(),
+            state: state.trim().toUpperCase(),
+            neighborhood: neighborhood.trim(),
             phone: phone,
             logoUrl: finalLogoUrl,
             logoAdjustments: normalizeLogoAdjustments(logoAdjustments),
@@ -1042,6 +1058,28 @@ export default function SettingsPage() {
               <div className="space-y-2">
                 <Label htmlFor="phone">Telefone/WhatsApp</Label>
                 <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} disabled={isLoading} />
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="company-cnpj">CNPJ</Label>
+                  <Input id="company-cnpj" value={cnpj} onChange={(e) => setCnpj(e.target.value)} placeholder="00.000.000/0000-00" maxLength={18} disabled={isLoading} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="company-address">Endereço</Label>
+                  <Input id="company-address" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Rua e número" autoComplete="street-address" disabled={isLoading} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="company-city">Cidade</Label>
+                  <Input id="company-city" value={city} onChange={(e) => setCity(e.target.value)} autoComplete="address-level2" disabled={isLoading} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="company-state">UF</Label>
+                  <Input id="company-state" value={state} onChange={(e) => setState(e.target.value.toUpperCase().slice(0, 2))} placeholder="MG" maxLength={2} autoComplete="address-level1" disabled={isLoading} />
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="company-neighborhood">Bairro</Label>
+                  <Input id="company-neighborhood" value={neighborhood} onChange={(e) => setNeighborhood(e.target.value)} autoComplete="address-level3" disabled={isLoading} />
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="logoUrl">URL da Logo (Link da imagem)</Label>
