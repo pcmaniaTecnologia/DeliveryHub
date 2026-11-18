@@ -280,7 +280,7 @@ export default function CashierPage() {
     
     // Caso venha como Objeto (formato novo/caixa)
     const s = salesByPaymentMethod as any;
-    return (s.cash || 0) + (s.pix || 0) + (s.credit || 0) + (s.debit || 0) + (s.others || 0) + (s.crediario || 0);
+    return (s.cash || 0) + (s.pix || 0) + (s.credit || 0) + (s.debit || 0) + (s.crediario || 0);
   }, [salesByPaymentMethod]);
 
   const handlePrintReport = () => {
@@ -327,7 +327,6 @@ export default function CashierPage() {
           <div class="item"><span>Cartão de Crédito</span> <span>${formatCurrency(salesByPaymentMethod.credit)}</span></div>
           <div class="item"><span>Cartão de Débito</span> <span>${formatCurrency(salesByPaymentMethod.debit)}</span></div>
           <div class="item"><span>Crediário</span> <span>${formatCurrency((salesByPaymentMethod as any).crediario || 0)}</span></div>
-          <div class="item"><span>Outros/Diversos</span> <span>${formatCurrency((salesByPaymentMethod as any).others || 0)}</span></div>
           
           <div class="total"><span>Total</span> <span>${formatCurrency(sessionTotalSales)}</span></div>
 
@@ -824,7 +823,6 @@ export default function CashierPage() {
                             { label: 'Cartão de Crédito', value: salesByPaymentMethod.credit, icon: CreditCard },
                             { label: 'Cartão de Débito', value: salesByPaymentMethod.debit, icon: CreditCard },
                             { label: 'Crediário', value: (salesByPaymentMethod as any).crediario || 0, icon: Calculator },
-                            { label: 'Outros/Diversos', value: (salesByPaymentMethod as any).others || 0, icon: Calculator },
                           ].map((item) => (
                             <div key={item.label} className="flex items-center group">
                                 <item.icon className="h-5 w-5 mr-3 text-muted-foreground group-hover:text-primary transition-colors" />
@@ -975,6 +973,20 @@ export default function CashierPage() {
                                         <span className="text-muted-foreground">Troco Inicial:</span>
                                         <span className="font-medium">R$ {currentSession.openingBalance.toFixed(2)}</span>
                                     </div>
+                                    <Separator className="bg-muted-foreground/20" />
+                                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Valores por espécie</p>
+                                    <div className="grid grid-cols-2 gap-y-1.5 text-sm">
+                                        <span className="text-muted-foreground">Dinheiro:</span>
+                                        <span className="font-medium text-right">R$ {Number((salesByPaymentMethod as any).cash || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                        <span className="text-muted-foreground">PIX:</span>
+                                        <span className="font-medium text-right">R$ {Number((salesByPaymentMethod as any).pix || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                        <span className="text-muted-foreground">Cartão de Crédito:</span>
+                                        <span className="font-medium text-right">R$ {Number((salesByPaymentMethod as any).credit || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                        <span className="text-muted-foreground">Cartão de Débito:</span>
+                                        <span className="font-medium text-right">R$ {Number((salesByPaymentMethod as any).debit || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                        <span className="text-muted-foreground">Crediário (a receber):</span>
+                                        <span className="font-medium text-right">R$ {Number((salesByPaymentMethod as any).crediario || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                    </div>
                                     <div className="flex justify-between text-sm text-emerald-600 font-medium">
                                         <span>Vendas + Reforços:</span>
                                         <span>+ R$ {(stats.sales + stats.deposits).toFixed(2)}</span>
@@ -985,7 +997,7 @@ export default function CashierPage() {
                                     </div>
                                     <Separator className="bg-muted-foreground/20" />
                                     <div className="flex justify-between font-bold text-xl items-end">
-                                        <span className="text-base font-semibold">Saldo Esperado:</span>
+                                        <span className="text-base font-semibold">Saldo esperado na gaveta:</span>
                                         <span>R$ {stats.current.toFixed(2)}</span>
                                     </div>
                                 </div>

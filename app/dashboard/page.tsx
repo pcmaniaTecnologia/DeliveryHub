@@ -38,7 +38,7 @@ import { DateRange } from 'react-day-picker';
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { parseSalesByPaymentMethod, calculateCashDrawerBalance } from '@/lib/finance-utils';
+import { parseSalesByPaymentMethod, categorizePayment, calculateCashDrawerBalance } from '@/lib/finance-utils';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -206,19 +206,23 @@ export default function DashboardPage() {
   });
 
   // ── Cashier Transactions ────────────────────────────────────────────────
-  const transactionsRef = useMemoFirebase(() => {
+  const sessionTransactionsRef = useMemoFirebase(() => {
+    if (!firestore || !user?.uid || !currentCashSession) return null;
+    return query(
+      collection(firestore, `companies/${user.uid}/cashier_transactions`),
+      where('sessionId', '==', currentCashSession.id)
+    );
+  }, [firestore, user?.uid, currentCashSession?.id]);
+  const periodTransactionsRef = useMemoFirebase(() => {
     if (!firestore || !user?.uid) return null;
-    let collRef = collection(firestore, `companies/${user.uid}/cashier_transactions`);
-    if (currentCashSession) {
-       return query(collRef, where('sessionId', '==', currentCashSession.id));
-    }
     if (!dateRange?.from) return null;
-    return query(collRef,
+    return query(collection(firestore, `companies/${user.uid}/cashier_transactions`),
       where('timestamp', '>=', startOfDay(dateRange.from)),
       where('timestamp', '<=', endOfDay(dateRange.to || dateRange.from))
     );
-  }, [firestore, user?.uid, currentCashSession?.id, dateRange?.from, dateRange?.to]);
-  const { data: rawTransactions, isLoading: isLoadingTransactions } = useCollection<any>(transactionsRef);
+  }, [firestore, user?.uid, dateRange?.from, dateRange?.to]);
+  const { data: rawTransactions, isLoading: isLoadingTransactions } = useCollection<any>(sessionTransactionsRef);
+  const { data: periodTransactions } = useCollection<any>(periodTransactionsRef);
 
   const cashDrawerExpected = useMemo(() => {
     if (!currentCashSession || isLoadingTransactions || !rawTransactions) return null;
@@ -288,6 +292,7 @@ export default function DashboardPage() {
         type: 'deposit',
         amount,
         description: suprimentoDesc.trim() || 'Suprimento de Caixa',
+        paymentMethod: 'Dinheiro',
         timestamp: serverTimestamp(),
       });
       toast({ title: '✅ Suprimento registrado!', description: `R$ ${amount.toFixed(2)} adicionado ao caixa.` });
@@ -373,21 +378,20 @@ export default function DashboardPage() {
     
     let totalDeposits = 0;
     let totalWithdrawals = 0;
-    if (rawTransactions) {
-        const transactions = rawTransactions.filter(t => {
-            if (currentCashSession) return t.sessionId === currentCashSession.id;
-            if (!dateRange?.from) return false;
-            const tDate = t.timestamp?.toDate ? t.timestamp.toDate() : new Date();
-            const toDate = dateRange.to || dateRange.from;
-            return isWithinInterval(tDate, { start: dateRange.from, end: toDate });
-        });
-
-        transactions.forEach(t => {
+    if (periodTransactions) {
+        periodTransactions.forEach(t => {
             const val = Number(t.amount) || 0;
+            const category = categorizePayment(t.paymentMethod || 'Dinheiro');
             if (t.type === 'deposit') {
                 totalDeposits += val;
+                if (category && category !== 'crediario') {
+                    salesByPaymentMethod[category] = Math.round((salesByPaymentMethod[category] + val) * 100) / 100;
+                }
             } else if (t.type === 'withdrawal') {
                 totalWithdrawals += val;
+                if (category && category !== 'crediario') {
+                    salesByPaymentMethod[category] = Math.round((salesByPaymentMethod[category] - val) * 100) / 100;
+                }
             }
         });
     }
@@ -432,7 +436,7 @@ export default function DashboardPage() {
         .slice(0, 5);
 
     return { totalSales, totalDeposits, totalWithdrawals, totalOrders, avgTicket, pendingOrders, deliveryCustomers, salesChartData, recentOrdersWithDetails, salesByPaymentMethod, topProducts, lowStockProducts };
-  }, [orders, products, categories, dateRange, rawTransactions, currentCashSession]);
+  }, [orders, products, categories, dateRange, periodTransactions]);
 
   const totalReceived = salesByPaymentMethod.cash + salesByPaymentMethod.pix
     + salesByPaymentMethod.credit + salesByPaymentMethod.debit;
@@ -710,6 +714,13 @@ export default function DashboardPage() {
                 </CardDescription>
               </div>
             </div>
+            {currentCashSession && (
+              <Link href="/dashboard/cashier" className="sm:ml-auto">
+                <Button variant="outline" size="sm" className="gap-2 border-primary/30 font-semibold text-primary hover:bg-primary/10">
+                  <BarChart3 className="h-4 w-4" /> Controle do Caixa
+                </Button>
+              </Link>
+            )}
           </div>
         </CardHeader>
         <CardContent className="pt-4">
