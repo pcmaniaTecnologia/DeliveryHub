@@ -115,6 +115,11 @@ export default function DashboardLayout({
   const { toast } = useToast();
 
   useEffect(() => {
+    // Also migrates legacy platform payment settings on the server without exposing the access token.
+    void fetch('/api/payments/public-settings', { cache: 'no-store' }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e);

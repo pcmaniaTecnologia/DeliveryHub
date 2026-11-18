@@ -225,8 +225,20 @@ service cloud.firestore {
     }
     
     match /platform_settings/{settingsId} {
-      allow read: if true;
+      // Legacy settings include a Mercado Pago access token. Keep these documents private.
+      allow read: if isSuperAdmin();
       allow create, update, delete: if isSuperAdmin();
+    }
+
+    match /platform_public_settings/{settingsId} {
+      allow read: if true;
+      allow create, update: if isSuperAdmin()
+        && request.resource.data.keys().hasOnly(['pixKey']);
+      allow delete: if isSuperAdmin();
+    }
+
+    match /platform_private_settings/{settingsId} {
+      allow read, write: if isSuperAdmin();
     }
 
     match /roles_admin/{userId} {

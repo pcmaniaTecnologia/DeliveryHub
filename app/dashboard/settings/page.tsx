@@ -100,6 +100,7 @@ type Plan = {
     productLimit: number;
     orderLimit: number;
     duration: 'monthly' | 'trial';
+    billingType?: 'monthly' | 'per_order';
 }
 
 type Waiter = {
@@ -131,15 +132,12 @@ type CompanySettingsData = {
     planId?: string;
     isActive?: boolean;
     subscriptionEndDate?: any;
+    mercadoPagoSubscriptionId?: string;
     trialUsed?: boolean;
     paymentMethods?: any;
     pixKey?: any;
     businessHours?: any;
     whatsappTemplates?: any;
-};
-
-type PlatformSettings = {
-    pixKey?: string;
 };
 
 const SubscriptionView = ({ isExpired, trialEndDate, companyData }: { isExpired?: boolean, trialEndDate?: Date, companyData?: CompanySettingsData }) => {
@@ -152,11 +150,8 @@ const SubscriptionView = ({ isExpired, trialEndDate, companyData }: { isExpired?
     }, [firestore]);
     const { data: plans, isLoading: isLoadingPlans } = useCollection<Plan>(plansRef);
 
-    const platformSettingsRef = useMemoFirebase(() => {
-        if (!firestore) return null;
-        return doc(firestore, 'platform_settings', 'main');
-    }, [firestore]);
-    const { data: platformSettings, isLoading: isLoadingSettings } = useDoc<PlatformSettings>(platformSettingsRef);
+    const [pixKey, setPixKey] = useState('');
+    const [isLoadingSettings, setIsLoadingSettings] = useState(true);
 
     const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
     const [showPixPayment, setShowPixPayment] = useState(false);
@@ -164,9 +159,21 @@ const SubscriptionView = ({ isExpired, trialEndDate, companyData }: { isExpired?
     const { user } = useUser();
     const searchParams = useSearchParams();
     const router = useRouter();
-    const paymentId = searchParams.get('payment_id');
+    const paymentId = searchParams.get('payment_id') || searchParams.get('collection_id');
+    const returnedFromSubscription = searchParams.get('subscription') === 'return';
     const [isVerifying, setIsVerifying] = useState(!!paymentId);
     const [isCheckingOut, setIsCheckingOut] = useState(false);
+    const [isStartingSubscription, setIsStartingSubscription] = useState(false);
+
+    useEffect(() => {
+        let active = true;
+        fetch('/api/payments/public-settings', { cache: 'no-store' })
+            .then(async response => response.ok ? response.json() : null)
+            .then(data => { if (active) setPixKey(data?.pixKey || ''); })
+            .catch(() => { if (active) setPixKey(''); })
+            .finally(() => { if (active) setIsLoadingSettings(false); });
+        return () => { active = false; };
+    }, []);
 
     useEffect(() => {
         if (paymentId && user && isVerifying && firestore) {
@@ -178,7 +185,11 @@ const SubscriptionView = ({ isExpired, trialEndDate, companyData }: { isExpired?
                 try {
                     const res = await fetch('/api/payments/verify', {
                         method: 'POST',
-                        body: JSON.stringify({ payment_id: paymentId, companyId: user.uid })
+                        headers: {
+                            'Content-Type': 'application/json',
+                            Authorization: `Bearer ${await user.getIdToken()}`,
+                        },
+                        body: JSON.stringify({ payment_id: paymentId })
                     });
                     const data = await res.json();
                     
@@ -213,18 +224,31 @@ const SubscriptionView = ({ isExpired, trialEndDate, companyData }: { isExpired?
         }
     }, [paymentId, user, isVerifying, firestore, router, toast]);
 
+    useEffect(() => {
+        if (!returnedFromSubscription) return;
+        toast({
+            title: 'Retorno do Mercado Pago recebido',
+            description: 'A cobrança mensal será ativada após a confirmação do Mercado Pago. Você pode acompanhar a validade nesta tela.',
+            duration: 9000,
+        });
+        router.replace('/dashboard/settings');
+    }, [returnedFromSubscription, router, toast]);
+
     const handleCheckout = async () => {
         if (!selectedPlan || !user) return;
         setIsCheckingOut(true);
         try {
             const res = await fetch('/api/payments/checkout', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ planId: selectedPlan.id, companyId: user.uid })
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${await user.getIdToken()}`,
+                },
+                body: JSON.stringify({ planId: selectedPlan.id })
             });
             const data = await res.json();
             if (data.init_point) {
-                window.location.href = data.init_point;
+                window.location.assign(data.init_point);
             } else {
                 toast({ variant: 'destructive', title: 'Erro ao gerar pagamento', description: data.error || 'Verifique as configurações do Mercado Pago no Admin.' });
                 setIsCheckingOut(false);
@@ -234,14 +258,43 @@ const SubscriptionView = ({ isExpired, trialEndDate, companyData }: { isExpired?
             setIsCheckingOut(false);
         }
     };
+
+    const handleRecurringSubscription = async () => {
+        if (!selectedPlan || !user) return;
+        setIsStartingSubscription(true);
+        try {
+            const res = await fetch('/api/payments/subscription', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${await user.getIdToken()}`,
+                },
+                body: JSON.stringify({ planId: selectedPlan.id }),
+            });
+            const data = await res.json();
+            if (data.init_point) {
+                window.location.assign(data.init_point);
+                return;
+            }
+            toast({
+                variant: 'destructive',
+                title: 'Não foi possível ativar a cobrança mensal',
+                description: data.error || 'Tente novamente ou escolha o pagamento avulso.',
+            });
+        } catch {
+            toast({ variant: 'destructive', title: 'Erro de conexão', description: 'Não foi possível falar com o Mercado Pago.' });
+        } finally {
+            setIsStartingSubscription(false);
+        }
+    };
     
     const handleSelectPlan = (plan: Plan) => {
         setSelectedPlan(plan);
     };
 
     const handleCopyPixKey = () => {
-        if (platformSettings?.pixKey) {
-            navigator.clipboard.writeText(platformSettings.pixKey);
+        if (pixKey) {
+            navigator.clipboard.writeText(pixKey);
             setPixCopied(true);
             toast({ title: "Chave PIX copiada!", description: "Cole no app do seu banco para realizar o pagamento." });
             setTimeout(() => setPixCopied(false), 3000);
@@ -299,6 +352,7 @@ const SubscriptionView = ({ isExpired, trialEndDate, companyData }: { isExpired?
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {plans?.filter(plan => {
+                        if (plan.billingType === 'per_order') return false;
                         // Não mostrar planos de teste se já usou ou se o plano atual é pago
                         if (plan.duration === 'trial') {
                             return !companyData?.trialUsed && companyData?.planId === 'trial';
@@ -341,7 +395,7 @@ const SubscriptionView = ({ isExpired, trialEndDate, companyData }: { isExpired?
             </div>
             <Card className="max-w-lg mx-auto shadow-xl">
                 <CardHeader>
-                    <CardTitle>Pagamento via PIX</CardTitle>
+                    <CardTitle>Pagamento da assinatura</CardTitle>
                     <CardDescription>Plano selecionado: <span className="font-bold text-primary">{selectedPlan.name}</span></CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -351,13 +405,23 @@ const SubscriptionView = ({ isExpired, trialEndDate, companyData }: { isExpired?
                         <span className="text-3xl font-bold text-primary">R${selectedPlan.price.toFixed(2)}</span>
                     </div>
 
+                    {companyData?.mercadoPagoSubscriptionId && (
+                        <Alert className="border-amber-300 bg-amber-50">
+                            <AlertTriangle className="h-4 w-4 text-amber-600" />
+                            <AlertTitle className="text-amber-800">Cobrança mensal cadastrada</AlertTitle>
+                            <AlertDescription className="text-amber-800">
+                                Se escolher o pagamento avulso ou PIX, a cobrança recorrente existente continuará ativa. Cancele a assinatura na sua conta Mercado Pago para evitar uma nova cobrança automática.
+                            </AlertDescription>
+                        </Alert>
+                    )}
+
                     {!showPixPayment ? (
                         // Instrução inicial
                         <Alert className="bg-primary/5 border-primary/20">
                             <Send className="h-4 w-4 text-primary" />
-                            <AlertTitle className="text-primary font-bold">Pagamento via PIX</AlertTitle>
+                                <AlertTitle className="text-primary font-bold">Escolha como pagar</AlertTitle>
                             <AlertDescription className="text-muted-foreground">
-                                Clique em <strong>"Pagar Agora"</strong> para ver a chave PIX e as instruções de pagamento.
+                                Você pode autorizar a cobrança mensal automática no Mercado Pago, pagar apenas esta mensalidade ou fazer um PIX manual.
                             </AlertDescription>
                         </Alert>
                     ) : (
@@ -369,11 +433,11 @@ const SubscriptionView = ({ isExpired, trialEndDate, companyData }: { isExpired?
                                     <CheckCircle className="h-5 w-5" />
                                     Chave PIX para Pagamento
                                 </div>
-                                {platformSettings?.pixKey ? (
+                                {pixKey ? (
                                     <div className="space-y-2">
                                         <div className="flex items-center gap-2 bg-white border border-green-300 rounded-lg px-3 py-2">
                                             <span className="flex-1 font-mono text-sm font-bold text-gray-800 break-all select-all">
-                                                {platformSettings.pixKey}
+                                                {pixKey}
                                             </span>
                                             <Button
                                                 type="button"
@@ -398,8 +462,8 @@ const SubscriptionView = ({ isExpired, trialEndDate, companyData }: { isExpired?
                                 <AlertTriangle className="h-4 w-4 text-orange-600" />
                                 <AlertTitle className="text-orange-700 font-bold">⚠️ Importante: Envie o Comprovante!</AlertTitle>
                                 <AlertDescription className="text-orange-700 text-sm space-y-1">
-                                    <p>Após realizar o pagamento via PIX, <strong>envie o comprovante</strong> para o nosso suporte para que seu sistema seja liberado.</p>
-                                    <p className="mt-2 font-semibold">Seu acesso será ativado manualmente após a confirmação do pagamento.</p>
+                                    <p>Após realizar o PIX, <strong>envie o comprovante</strong> para o suporte.</p>
+                                    <p className="mt-2 font-semibold">Este PIX é manual e a renovação depende da confirmação do pagamento pelo suporte.</p>
                                 </AlertDescription>
                             </Alert>
 
@@ -419,15 +483,24 @@ const SubscriptionView = ({ isExpired, trialEndDate, companyData }: { isExpired?
                 </CardContent>
                 <CardFooter className="flex flex-col gap-3">
                     {!showPixPayment ? (
-                        <Button className="w-full text-lg h-12 gap-2" size="lg" onClick={handlePixPayment}>
-                            Pagar Agora
-                        </Button>
+                        <>
+                            <Button className="w-full text-lg h-12 gap-2" size="lg" onClick={handleRecurringSubscription} disabled={isStartingSubscription || isCheckingOut || isVerifying}>
+                                {isStartingSubscription ? 'Conectando ao Mercado Pago...' : 'Ativar cobrança mensal automática'}
+                            </Button>
+                            <p className="text-center text-xs text-muted-foreground">A cobrança recorrente começa após sua autorização no Mercado Pago.</p>
+                            <Button className="w-full" variant="outline" onClick={handleCheckout} disabled={isCheckingOut || isStartingSubscription || isVerifying}>
+                                {isCheckingOut ? 'Gerando pagamento...' : 'Pagar somente esta mensalidade'}
+                            </Button>
+                            <Button className="w-full" variant="ghost" onClick={handlePixPayment} disabled={isCheckingOut || isStartingSubscription || isVerifying}>
+                                Ver opção de PIX manual
+                            </Button>
+                        </>
                     ) : (
                         <Button className="w-full text-lg h-12 gap-2" size="lg" variant="outline" onClick={() => setShowPixPayment(false)}>
-                            Fechar instruções
+                            Voltar às opções de pagamento
                         </Button>
                     )}
-                    <Button variant="ghost" className="w-full" onClick={() => { setSelectedPlan(null); setShowPixPayment(false); }} disabled={isCheckingOut || isVerifying}>Cancelar e voltar</Button>
+                    <Button variant="ghost" className="w-full" onClick={() => { setSelectedPlan(null); setShowPixPayment(false); }} disabled={isCheckingOut || isStartingSubscription || isVerifying}>Cancelar e voltar</Button>
                 </CardFooter>
             </Card>
         </div>
@@ -1373,6 +1446,15 @@ export default function SettingsPage() {
                             Seu acesso está liberado. Quando sua assinatura estiver próxima do fim, novas opções de renovação aparecerão aqui.
                         </AlertDescription>
                     </Alert>
+                    {companyData?.mercadoPagoSubscriptionId && (
+                        <Alert className="border-amber-300 bg-amber-50">
+                            <AlertTriangle className="h-4 w-4 text-amber-600" />
+                            <AlertTitle className="text-amber-800">Cobrança mensal cadastrada</AlertTitle>
+                            <AlertDescription className="text-amber-800">
+                                O pagamento avulso ou o PIX manual não cancelam a cobrança recorrente já autorizada. Gerencie ou cancele a renovação automática na sua conta Mercado Pago para evitar uma próxima cobrança.
+                            </AlertDescription>
+                        </Alert>
+                    )}
                 </CardContent>
                 <CardFooter>
                     <p className="text-xs text-muted-foreground">Fale com o suporte para mudanças de plano.</p>

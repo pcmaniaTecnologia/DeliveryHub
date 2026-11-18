@@ -1,91 +1,51 @@
 import { NextResponse } from 'next/server';
-import { getServerFirestore } from '@/firebase/server';
-import { doc, getDoc, updateDoc, Timestamp } from 'firebase/firestore';
-import { addDays } from 'date-fns';
+import { adminDb } from '@/lib/firebase-admin';
+import { getPaymentUserId } from '@/lib/payment-auth';
+import { applyApprovedSubscriptionPayment } from '@/lib/subscription-payment';
+import { getMercadoPagoAccessToken } from '@/lib/mercado-pago';
 
 export async function POST(req: Request) {
   try {
-    const { payment_id, companyId } = await req.json();
-    if (!payment_id || !companyId) return NextResponse.json({ error: 'Missing data' }, { status: 400 });
+    const companyId = await getPaymentUserId(req);
+    if (!companyId) return NextResponse.json({ error: 'Faça login novamente para continuar.' }, { status: 401 });
 
-    const firestore = getServerFirestore();
-    
-    // get platform settings for access token
-    const settingsDoc = await getDoc(doc(firestore, 'platform_settings', 'main'));
-    const mpAccessToken = settingsDoc.data()?.mpAccessToken;
-    
-    if (!mpAccessToken) {
-        return NextResponse.json({ error: 'Mercado Pago não configurado no painel Admin.' }, { status: 400 });
+    const { payment_id: paymentId } = await req.json();
+    if (!paymentId) return NextResponse.json({ error: 'Pagamento não informado.' }, { status: 400 });
+
+    const mpAccessToken = await getMercadoPagoAccessToken();
+    if (!mpAccessToken) return NextResponse.json({ error: 'Mercado Pago não configurado no painel Admin.' }, { status: 400 });
+
+    const paymentResponse = await fetch(`https://api.mercadopago.com/v1/payments/${encodeURIComponent(String(paymentId))}`, {
+      headers: { Authorization: `Bearer ${mpAccessToken}` },
+    });
+    const payment = await paymentResponse.json();
+    if (!paymentResponse.ok) return NextResponse.json({ error: 'Não foi possível consultar este pagamento no Mercado Pago.' }, { status: 502 });
+
+    const [referenceCompanyId, planId, source] = String(payment.external_reference || '').split('|');
+    if (referenceCompanyId !== companyId || !planId || !['manual', 'recurring'].includes(source)) {
+      return NextResponse.json({ error: 'O pagamento não corresponde a esta conta.' }, { status: 403 });
+    }
+    if (payment.status !== 'approved') {
+      return NextResponse.json({ approved: false, status: payment.status });
     }
 
-    // verify payment in MP
-    const mpResponse = await fetch(`https://api.mercadopago.com/v1/payments/${payment_id}`, {
-        method: 'GET',
-        headers: {
-            'Authorization': `Bearer ${mpAccessToken}`
-        }
+    const result = await applyApprovedSubscriptionPayment({
+      paymentId: String(payment.id),
+      companyId,
+      planId,
+      amount: Number(payment.transaction_amount),
+      source: source as 'manual' | 'recurring',
+      subscriptionId: payment.preapproval_id ? String(payment.preapproval_id) : undefined,
     });
 
-    const mpData = await mpResponse.json();
-
-    if (!mpResponse.ok) {
-        return NextResponse.json({ error: 'Payment not found' }, { status: 404 });
-    }
-
-    // external_reference format: "companyId|planId"
-    const externalRef: string = mpData.external_reference || '';
-    const [refCompanyId, planId] = externalRef.split('|');
-
-    if (mpData.status === 'approved' && refCompanyId === companyId) {
-        // Fetch plan to get the correct duration
-        let daysToAdd = 30; // fallback
-        let planName = 'Plano';
-
-        if (planId) {
-            const planDoc = await getDoc(doc(firestore, 'plans', planId));
-            if (planDoc.exists()) {
-                const plan = planDoc.data();
-                planName = plan.name || 'Plano';
-                if (plan.duration === 'trial') {
-                    daysToAdd = plan.trialDays || 7;
-                } else {
-                    daysToAdd = 30; // monthly
-                }
-            }
-        }
-
-        // Save to Firestore server-side
-        const companyRef = doc(firestore, 'companies', companyId);
-        const companySnap = await getDoc(companyRef);
-        let baseDate = new Date();
-
-        if (companySnap.exists()) {
-            const currentEndDate = companySnap.data()?.subscriptionEndDate?.toDate();
-            if (currentEndDate && currentEndDate > baseDate) {
-                baseDate = currentEndDate;
-            }
-        }
-
-        const subscriptionEndDate = addDays(baseDate, daysToAdd);
-
-        await updateDoc(companyRef, {
-            isActive: true,
-            planId: planId || 'unknown',
-            trialUsed: true,
-            subscriptionEndDate: Timestamp.fromDate(subscriptionEndDate),
-        });
-
-        return NextResponse.json({
-            approved: true,
-            planName,
-            daysAdded: daysToAdd,
-            subscriptionEndDate: subscriptionEndDate.toISOString(),
-        });
-    }
-
-    return NextResponse.json({ approved: false, status: mpData.status });
+    return NextResponse.json({
+      approved: true,
+      planName: (await adminDb.collection('plans').doc(planId).get()).data()?.name || 'Plano',
+      subscriptionEndDate: result.subscriptionEndDate?.toISOString?.() || null,
+      alreadyProcessed: result.alreadyProcessed,
+    });
   } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    console.error('Payment verification error:', error);
+    return NextResponse.json({ error: 'Não foi possível confirmar e aplicar o pagamento.' }, { status: 500 });
   }
 }
