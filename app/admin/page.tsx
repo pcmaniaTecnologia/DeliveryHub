@@ -1,6 +1,6 @@
 'use client';
 
-import { Building, DollarSign, ShoppingCart, Calendar as CalendarIcon, Search } from 'lucide-react';
+import { Building, DollarSign, ShoppingCart, Search } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -9,6 +9,7 @@ import {
   CardDescription,
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Bar,
   BarChart,
@@ -24,11 +25,7 @@ import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart';
 import { useUser, useFirestore, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { collection, collectionGroup, getDocs, query, Timestamp } from 'firebase/firestore';
 import { useState, useEffect, useMemo } from 'react';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
-import { Button } from '@/components/ui/button';
 import { format, startOfMonth, endOfMonth, endOfDay, startOfDay } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { DateRange } from 'react-day-picker';
 import {
   Table,
@@ -38,7 +35,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 
 type Company = {
@@ -91,6 +87,25 @@ export default function AdminDashboardPage() {
       from: startOfMonth(new Date()),
       to: endOfMonth(new Date())
     });
+    const handleDateChange = (field: 'from' | 'to', value: string) => {
+        setDateRange(current => {
+            const selectedDate = value
+                ? (() => {
+                    const [year, month, day] = value.split('-').map(Number);
+                    return new Date(year, month - 1, day);
+                })()
+                : undefined;
+            let from = field === 'from' ? selectedDate : current?.from;
+            let to = field === 'to' ? selectedDate : current?.to;
+
+            if (from && to && to < from) {
+                if (field === 'from') to = selectedDate;
+                else from = selectedDate;
+            }
+
+            return from || to ? { from, to } : undefined;
+        });
+    };
     const [shopSearch, setShopSearch] = useState('');
 
     useEffect(() => {
@@ -268,44 +283,29 @@ export default function AdminDashboardPage() {
     <div className="space-y-6">
        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
            <h2 className="text-3xl font-bold tracking-tight">Dashboard do Administrador</h2>
-           <div className="flex items-center gap-2">
-               <Popover>
-                    <PopoverTrigger asChild>
-                        <Button
-                            id="date"
-                            variant={"outline"}
-                            className={cn(
-                                "w-[260px] justify-start text-left font-normal",
-                                !dateRange && "text-muted-foreground"
-                            )}
-                        >
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {dateRange?.from ? (
-                                dateRange.to ? (
-                                    <>
-                                        {format(dateRange.from, "dd/MM/yyyy")} -{" "}
-                                        {format(dateRange.to, "dd/MM/yyyy")}
-                                    </>
-                                ) : (
-                                    format(dateRange.from, "dd/MM/yyyy")
-                                )
-                            ) : (
-                                <span>Filtrar por data</span>
-                            )}
-                        </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="end">
-                        <Calendar
-                            initialFocus
-                            mode="range"
-                            defaultMonth={dateRange?.from}
-                            selected={dateRange}
-                            onSelect={setDateRange}
-                            numberOfMonths={1}
-                            locale={ptBR}
-                        />
-                    </PopoverContent>
-                </Popover>
+           <div className="flex flex-wrap items-end gap-2">
+               <div className="space-y-1">
+                   <Label htmlFor="admin-date-from" className="text-xs text-muted-foreground">De</Label>
+                   <Input
+                       id="admin-date-from"
+                       type="date"
+                       className="h-9 w-[155px]"
+                       value={dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : ''}
+                       max={dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : undefined}
+                       onChange={event => handleDateChange('from', event.target.value)}
+                   />
+               </div>
+               <div className="space-y-1">
+                   <Label htmlFor="admin-date-to" className="text-xs text-muted-foreground">Até</Label>
+                   <Input
+                       id="admin-date-to"
+                       type="date"
+                       className="h-9 w-[155px]"
+                       value={dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : ''}
+                       min={dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : undefined}
+                       onChange={event => handleDateChange('to', event.target.value)}
+                   />
+               </div>
            </div>
        </div>
 
@@ -366,31 +366,6 @@ export default function AdminDashboardPage() {
           </CardContent>
         </Card>
       </div>
-
-       <Card>
-          <CardHeader>
-            <CardTitle>Ganhos por Loja Assinante</CardTitle>
-          </CardHeader>
-          <CardContent className="pl-0">
-            <ChartContainer config={chartConfig} className="h-[350px] w-full">
-                <BarChart data={stats?.salesByCompany} layout="vertical" margin={{ left: 0, right: 60, top: 10, bottom: 10 }}>
-                  <defs>
-                    <linearGradient id="colorGanho" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.6}/>
-                      <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={1}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid horizontal={true} vertical={true} strokeDasharray="3 3" opacity={0.3} />
-                  <XAxis type="number" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `R$${value}`}/>
-                  <YAxis type="category" dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} width={130} />
-                  <Tooltip content={<ChartTooltipContent indicator="dashed" />} cursor={{ fill: 'hsl(var(--muted))' }} />
-                  <Bar dataKey="Ganho" fill="url(#colorGanho)" radius={[0, 4, 4, 0]} barSize={28}>
-                     <LabelList dataKey="Ganho" position="right" formatter={(value: any) => `R$ ${Number(value || 0).toFixed(2)}`} fill="#888888" fontSize={12} />
-                  </Bar>
-                </BarChart>
-            </ChartContainer>
-          </CardContent>
-        </Card>
 
         {/* Quantidade de Pedidos por Loja Table */}
         <Card>
