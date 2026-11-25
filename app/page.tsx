@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, Search, Store, Loader2, UtensilsCrossed, X, ShoppingBag, Sparkles, MapPin, ChevronRight } from 'lucide-react';
+import { ArrowRight, Search, Store, Loader2, UtensilsCrossed, X, ShoppingBag, MapPin, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { normalizeCompanySearch, type DirectoryCompany } from '@/lib/company-directory';
@@ -111,9 +111,6 @@ export default function HomePage() {
           <div aria-hidden="true" className="pointer-events-none absolute -bottom-48 left-1/3 h-[26rem] w-[26rem] rounded-full bg-amber-300/10 blur-3xl" />
           <div className="relative grid items-center gap-10 px-6 py-10 sm:px-10 sm:py-14 lg:grid-cols-[1.2fr_.8fr] lg:gap-14 lg:px-16 lg:py-[4.5rem]">
             <div className="max-w-2xl">
-              <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[.07] px-3.5 py-2 text-[11px] font-bold uppercase tracking-[.16em] text-teal-100">
-                <Sparkles className="h-3.5 w-3.5 text-amber-300" /> Descubra algo gostoso hoje
-              </span>
               <h1 className="mt-6 text-[2.65rem] font-semibold leading-[1.06] tracking-[-.045em] sm:text-6xl lg:text-[4.4rem]">
                 Seu próximo favorito está <span className="text-[#c7e8d7]">mais perto.</span>
               </h1>

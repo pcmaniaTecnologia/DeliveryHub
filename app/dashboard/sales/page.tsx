@@ -101,7 +101,7 @@ export default function POSPage() {
         if (!firestore || !effectiveCompanyId) return null;
         return collection(firestore, `companies/${effectiveCompanyId}/customers`);
     }, [firestore, effectiveCompanyId]);
-    const { data: registeredCustomers } = useCollection<RegisteredCustomer>(customersRef);
+    const { data: registeredCustomers, isLoading: isLoadingCustomers, error: customersError } = useCollection<RegisteredCustomer>(customersRef);
     const [selectedCustomerId, setSelectedCustomerId] = useState('');
     const [customerSearch, setCustomerSearch] = useState('');
     const [isSavingCustomer, setIsSavingCustomer] = useState(false);
@@ -239,6 +239,7 @@ export default function POSPage() {
     // Multi-payment state
     const [isMultiPayment, setIsMultiPayment] = useState(false);
     const [payments, setPayments] = useState<{ method: string, amount: number, received?: number }[]>([]);
+    const [crediarioInstallments, setCrediarioInstallments] = useState(1);
 
     // Helper para extrair multiplicador de quantidade (ex: "3*código", "5*nome", "2*")
     const parseSearchMultiplier = (input: string) => {
@@ -472,15 +473,20 @@ export default function POSPage() {
     const isCustomerPhoneValid = customerPhone.replace(/\D/g, '').length >= 10;
     const isCustomerAddressValid = customerAddress.trim().length >= 5;
     const filteredRegisteredCustomers = useMemo(() => {
-        const search = customerSearch.trim().toLocaleLowerCase('pt-BR');
-        return (registeredCustomers || []).filter(customer => !search || `${customer.name} ${customer.phone} ${customer.email || ''}`.toLocaleLowerCase('pt-BR').includes(search)).slice(0, 6);
+        const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR').replace(/\s+/g, ' ').trim();
+        const search = normalize(customerSearch);
+        const digits = customerSearch.replace(/\D/g, '');
+        return (registeredCustomers || []).filter(customer => {
+            const searchableText = normalize(`${customer.name || ''} ${customer.phone || ''} ${customer.email || ''}`);
+            return !search || searchableText.includes(search) || (digits.length >= 4 && (customer.phone || '').replace(/\D/g, '').includes(digits));
+        }).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR')).slice(0, 6);
     }, [registeredCustomers, customerSearch]);
 
     const selectRegisteredCustomer = (customer: RegisteredCustomer) => {
         setSelectedCustomerId(customer.id);
-        setCustomerName(customer.name);
-        setCustomerPhone(customer.phone);
-        setCustomerAddress(customer.address);
+        setCustomerName(customer.name?.trim() || '');
+        setCustomerPhone(customer.phone?.trim() || '');
+        setCustomerAddress(customer.address?.trim() || '');
         setCustomerEmail(customer.email || '');
         setCustomerSearch(customer.name);
     };
@@ -568,9 +574,9 @@ export default function POSPage() {
     const handleCheckout = async () => {
         if (!firestore || !user || cart.length === 0) return;
         const selectedCustomer = registeredCustomers?.find(customer => customer.id === selectedCustomerId);
-        const checkoutCustomerName = selectedCustomer?.name || customerName.trim();
-        const checkoutCustomerPhone = selectedCustomer?.phone || customerPhone.trim();
-        const checkoutCustomerAddress = selectedCustomer?.address || customerAddress.trim();
+        const checkoutCustomerName = (selectedCustomer?.name || customerName).trim();
+        const checkoutCustomerPhone = (selectedCustomer?.phone || customerPhone).trim();
+        const checkoutCustomerAddress = (selectedCustomer?.address || customerAddress).trim();
         const checkoutCustomerEmail = selectedCustomer?.email || customerEmail.trim();
 
         // Check for out of stock items with blocking enabled (using fresh productsData)
@@ -600,6 +606,21 @@ export default function POSPage() {
         // Validation for Crediário
         const hasCrediario = isMultiPayment ? payments.some(p => p.method === 'Crediário') : paymentMethod === 'Crediário';
         if (hasCrediario) {
+            if (customersError && customerSearch.trim() && !selectedCustomerId) {
+                toast({ variant: 'destructive', title: 'Não foi possível buscar clientes', description: 'Verifique a conexão ou as permissões de acesso aos clientes e tente novamente.' });
+                setIsSubmitting(false);
+                return;
+            }
+            if (customerSearch.trim() && !selectedCustomerId && filteredRegisteredCustomers.length === 0 && !isLoadingCustomers) {
+                toast({ variant: 'destructive', title: 'Cliente não encontrado', description: 'Não há cliente com esse nome ou telefone nos cadastros desta empresa. Confira a busca ou preencha os dados manualmente.' });
+                setIsSubmitting(false);
+                return;
+            }
+            if (customerSearch.trim() && !selectedCustomerId && filteredRegisteredCustomers.length > 0) {
+                toast({ variant: 'destructive', title: 'Selecione o cliente', description: 'Escolha o cliente na lista de resultados para preencher os dados do crediário.' });
+                setIsSubmitting(false);
+                return;
+            }
             const nameParts = checkoutCustomerName.split(/\s+/).filter(Boolean);
             if (nameParts.length < 2 || nameParts.some(part => part.length < 2) || checkoutCustomerName.toLowerCase() === 'consumidor') {
                 toast({ variant: 'destructive', title: 'Nome completo obrigatório', description: 'Informe o nome e o sobrenome do cliente para continuar no crediário.' });
@@ -612,7 +633,7 @@ export default function POSPage() {
                 setIsSubmitting(false);
                 return;
             }
-            if (checkoutCustomerAddress.length < 5) {
+            if (checkoutCustomerAddress.trim().length < 5) {
                 toast({ variant: 'destructive', title: 'Endereço obrigatório', description: 'Informe o endereço completo do cliente para continuar no crediário.' });
                 setIsSubmitting(false);
                 return;
@@ -680,21 +701,30 @@ export default function POSPage() {
                     : totalWithDiscount;
 
                 const receivablesRef = collection(firestore, 'companies', effectiveCompanyId as string, 'receivables');
-                await addDocument(receivablesRef, {
+                const installmentCount = Math.min(24, Math.max(1, crediarioInstallments));
+                const installmentAmount = Math.round((crediarioAmount / installmentCount) * 100) / 100;
+                for (let index = 0; index < installmentCount; index++) {
+                    const amount = index === installmentCount - 1 ? Math.round((crediarioAmount - installmentAmount * (installmentCount - 1)) * 100) / 100 : installmentAmount;
+                    const dueDate = new Date();
+                    dueDate.setMonth(dueDate.getMonth() + index + 1);
+                    await addDocument(receivablesRef, {
                     companyId: effectiveCompanyId,
                     customerName: checkoutCustomerName,
                     customerPhone: checkoutCustomerPhone,
                     customerAddress: checkoutCustomerAddress,
                     customerEmail: checkoutCustomerEmail,
                     ...(selectedCustomerId ? { customerId: selectedCustomerId } : {}),
-                    originalAmount: crediarioAmount,
-                    remainingAmount: crediarioAmount,
+                    originalAmount: amount,
+                    remainingAmount: amount,
                     status: 'pendente',
-                    dueDate: new Date(new Date().setMonth(new Date().getMonth() + 1)), // Vence em 1 mês por padrão
+                    dueDate,
                     createdAt: serverTimestamp(),
                     originOrderId: docRef.id,
-                    notes: 'Venda via PDV'
-                });
+                    installmentNumber: index + 1,
+                    installmentCount,
+                    notes: `Venda via PDV - Parcela ${index + 1}/${installmentCount}`
+                    });
+                }
             }
 
             try {
@@ -1240,6 +1270,9 @@ export default function POSPage() {
                                             <Input id="registered-customer-search" className="h-11 pl-9" value={customerSearch} onChange={event => { setCustomerSearch(event.target.value); setSelectedCustomerId(''); }} placeholder="Digite nome ou telefone do cliente" />
                                         </div>
                                         {!selectedCustomerId && customerSearch.trim() && filteredRegisteredCustomers.length > 0 && <div className="max-h-36 overflow-y-auto rounded-md border bg-background">{filteredRegisteredCustomers.map(customer => <button type="button" key={customer.id} onClick={() => selectRegisteredCustomer(customer)} className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-muted"><span className="font-medium">{customer.name}</span><span className="shrink-0 text-xs text-muted-foreground">{customer.phone}</span></button>)}</div>}
+                                        {isLoadingCustomers && customerSearch.trim() && <p className="text-xs text-muted-foreground">Carregando clientes...</p>}
+                                        {!isLoadingCustomers && !customersError && !selectedCustomerId && customerSearch.trim() && filteredRegisteredCustomers.length === 0 && <p className="text-xs text-muted-foreground">Nenhum cliente encontrado nesta empresa. Confira o nome ou telefone ou preencha os dados abaixo.</p>}
+                                        {customersError && <p className="text-xs text-destructive">Não foi possível carregar os clientes cadastrados. Verifique sua conexão e permissões.</p>}
                                         {selectedCustomerId && <p className="text-xs font-medium text-emerald-700">Cliente selecionado: {customerName}</p>}
                                         {!selectedCustomerId && customerSearch && filteredRegisteredCustomers.length === 0 && <p className="text-xs text-muted-foreground">Nenhum cliente encontrado. Preencha os dados abaixo e clique em “Cadastrar cliente”.</p>}
                                     </div>
@@ -1478,6 +1511,15 @@ export default function POSPage() {
                                                     : '✓ Valor Completo'}
                                         </span>
                                     </div>
+                                </div>
+                            )}
+                            {hasCrediarioSelected && (
+                                <div className="max-w-xs space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                                    <Label htmlFor="crediario-installments">Parcelas do crediário</Label>
+                                    <select id="crediario-installments" className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={crediarioInstallments} onChange={event => setCrediarioInstallments(Number(event.target.value))}>
+                                        {Array.from({ length: 24 }, (_, index) => index + 1).map(count => <option key={count} value={count}>{count}x</option>)}
+                                    </select>
+                                    <p className="text-xs text-muted-foreground">{crediarioInstallments} vencimento{crediarioInstallments > 1 ? 's' : ''} mensal{crediarioInstallments > 1 ? 'is' : ''}.</p>
                                 </div>
                             )}
                         </section>

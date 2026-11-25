@@ -393,6 +393,7 @@ export default function ComandasPage() {
     const [selectedItemsKeys, setSelectedItemsKeys] = useState<Set<string>>(new Set());
     const [payments, setPayments] = useState<{ method: string; amount: number }[]>([]);
     const [newPaymentMethod, setNewPaymentMethod] = useState('Dinheiro');
+    const [crediarioInstallments, setCrediarioInstallments] = useState(1);
     const [newPaymentAmount, setNewPaymentAmount] = useState('');
     // Abatimentos parciais por item: { [uniqueKey]: valorAbatido }
     const [itemDiscounts, setItemDiscounts] = useState<Record<string, number>>({});
@@ -409,6 +410,7 @@ export default function ComandasPage() {
     const [tokenCustomerAddress, setTokenCustomerAddress] = useState('');
     const [tokenQuantity, setTokenQuantity] = useState(1);
     const [tokenPaymentMethod, setTokenPaymentMethod] = useState('');
+    const [tokenCrediarioInstallments, setTokenCrediarioInstallments] = useState(1);
     const [isProcessingToken, setIsProcessingToken] = useState(false);
     const [isTokenSearchOpen, setIsTokenSearchOpen] = useState(false);
 
@@ -493,20 +495,29 @@ export default function ComandasPage() {
 
             if (tokenPaymentMethod === 'Crediário') {
                 const receivablesRef = collection(firestore, 'companies', effectiveCompanyId, 'receivables');
-                await addDocument(receivablesRef, {
+                const installmentCount = Math.min(24, Math.max(1, tokenCrediarioInstallments));
+                const installmentAmount = Math.round((orderTotal / installmentCount) * 100) / 100;
+                for (let index = 0; index < installmentCount; index++) {
+                    const amount = index === installmentCount - 1 ? Math.round((orderTotal - installmentAmount * (installmentCount - 1)) * 100) / 100 : installmentAmount;
+                    const dueDate = new Date();
+                    dueDate.setMonth(dueDate.getMonth() + index + 1);
+                    await addDocument(receivablesRef, {
                     companyId: effectiveCompanyId,
                     customerName: finalCustomerName,
                     customerPhone: tokenCustomerPhone.trim(),
                     customerAddress: tokenCustomerAddress.trim(),
                     customerEmail: '',
-                    originalAmount: orderTotal,
-                    remainingAmount: orderTotal,
+                    originalAmount: amount,
+                    remainingAmount: amount,
                     status: 'pendente',
-                    dueDate: new Date(new Date().setMonth(new Date().getMonth() + 1)), // 1 mês
+                    dueDate,
                     createdAt: serverTimestamp(),
                     originOrderId: docRef.id || '',
-                    notes: 'Ficha Rápida no Crediário'
-                });
+                    installmentNumber: index + 1,
+                    installmentCount,
+                    notes: `Ficha Rápida no Crediário - Parcela ${index + 1}/${installmentCount}`
+                    });
+                }
             }
 
             toast({ title: 'Fichas vendidas com sucesso!' });
@@ -857,21 +868,29 @@ export default function ComandasPage() {
             if (hasCrediario) {
                 const crediarioAmount = payments.filter(p => p.method === 'Crediário').reduce((acc, p) => acc + p.amount, 0);
                 const receivablesRef = collection(firestore, 'companies', effectiveCompanyId, 'receivables');
-                
-                await addDocument(receivablesRef, {
+                const installmentCount = Math.min(24, Math.max(1, crediarioInstallments));
+                const installmentAmount = Math.round((crediarioAmount / installmentCount) * 100) / 100;
+                for (let index = 0; index < installmentCount; index++) {
+                    const amount = index === installmentCount - 1 ? Math.round((crediarioAmount - installmentAmount * (installmentCount - 1)) * 100) / 100 : installmentAmount;
+                    const dueDate = new Date();
+                    dueDate.setMonth(dueDate.getMonth() + index + 1);
+                    await addDocument(receivablesRef, {
                     companyId: effectiveCompanyId,
                     customerName: tableCustomerName.trim(),
                     customerPhone: tableCustomerPhone.trim(),
                     customerAddress: tableCustomerAddress.trim(),
                     customerEmail: '',
-                    originalAmount: crediarioAmount,
-                    remainingAmount: crediarioAmount,
+                    originalAmount: amount,
+                    remainingAmount: amount,
                     status: 'pendente',
-                    dueDate: new Date(new Date().setMonth(new Date().getMonth() + 1)), // Vence em 1 mês por padrão
+                    dueDate,
                     createdAt: serverTimestamp(),
                     originOrderId: mainOrderId || '',
-                    notes: `Comanda no Crediário - Mesa ${selectedTable.tableNumber}`
-                });
+                    installmentNumber: index + 1,
+                    installmentCount,
+                    notes: `Comanda no Crediário - Mesa ${selectedTable.tableNumber} - Parcela ${index + 1}/${installmentCount}`
+                    });
+                }
             }
 
             // ── Registra venda no Caixa (se houver sessão aberta) ──
@@ -1458,6 +1477,17 @@ export default function ComandasPage() {
                                                     <Button className="h-10 px-3" onClick={addPayment}><Plus className="w-4 h-4" /></Button>
                                                 </div>
 
+                                                {hasCrediarioSelected && (
+                                                    <div className="max-w-xs space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                                                        <Label htmlFor="table-crediario-installments">Parcelas do crediário</Label>
+                                                        <Select value={String(crediarioInstallments)} onValueChange={value => setCrediarioInstallments(Number(value))}>
+                                                            <SelectTrigger id="table-crediario-installments" className="h-9 bg-white"><SelectValue /></SelectTrigger>
+                                                            <SelectContent>{Array.from({ length: 24 }, (_, index) => index + 1).map(count => <SelectItem key={count} value={String(count)}>{count}x</SelectItem>)}</SelectContent>
+                                                        </Select>
+                                                        <p className="text-xs text-muted-foreground">Vencimentos mensais.</p>
+                                                    </div>
+                                                )}
+
                                                 <div className="space-y-2">
                                                     {payments.map((p, idx) => (
                                                         <div key={idx} className="flex justify-between items-center text-sm bg-muted/50 p-2 rounded-lg border">
@@ -1796,6 +1826,13 @@ export default function ComandasPage() {
                                         onChange={(event) => setTokenCustomerAddress(event.target.value)}
                                         placeholder="Rua, número, bairro e cidade"
                                     />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="token-crediario-installments">Parcelas</Label>
+                                    <Select value={String(tokenCrediarioInstallments)} onValueChange={value => setTokenCrediarioInstallments(Number(value))}>
+                                        <SelectTrigger id="token-crediario-installments"><SelectValue /></SelectTrigger>
+                                        <SelectContent>{Array.from({ length: 24 }, (_, index) => index + 1).map(count => <SelectItem key={count} value={String(count)}>{count}x</SelectItem>)}</SelectContent>
+                                    </Select>
                                 </div>
                                 <p className="text-xs text-amber-800 sm:col-span-2">
                                     Estes dados são obrigatórios para registrar a ficha no crediário.
